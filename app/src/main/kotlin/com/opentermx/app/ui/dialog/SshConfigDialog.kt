@@ -1,7 +1,11 @@
 package com.opentermx.app.ui.dialog
 
+import com.opentermx.app.i18n.Strings
+import com.opentermx.common.connection.PortForward
 import com.opentermx.common.connection.SshAuth
 import com.opentermx.common.connection.SshConfig
+import javafx.beans.property.SimpleStringProperty
+import javafx.collections.FXCollections
 import javafx.geometry.Insets
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
@@ -12,11 +16,14 @@ import javafx.scene.control.PasswordField
 import javafx.scene.control.RadioButton
 import javafx.scene.control.Spinner
 import javafx.scene.control.SpinnerValueFactory
+import javafx.scene.control.TableColumn
+import javafx.scene.control.TableView
 import javafx.scene.control.TextField
 import javafx.scene.control.ToggleGroup
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
+import javafx.scene.layout.VBox
 import javafx.stage.FileChooser
 import java.io.File
 
@@ -45,11 +52,16 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
 
     private val agentForwardingCheck = CheckBox("Reenvío de agente SSH")
 
+    private var initialForwards: List<PortForward> = emptyList()
+    private val forwardsButton = Button()
+
     init {
         title = "Configuración SSH"
         headerText = "Configurar conexión SSH2"
 
         applyInitial(initial)
+        updateForwardsButtonLabel()
+        forwardsButton.setOnAction { editInitialForwards() }
 
         passwordRadio.selectedProperty().addListener { _, _, _ -> updateFieldStates() }
         pubkeyRadio.selectedProperty().addListener { _, _, _ -> updateFieldStates() }
@@ -85,6 +97,7 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
             add(Label("Passphrase:"), 0, 6); add(passphraseField, 1, 6)
             add(Label("Keep-alive (s):"), 0, 7); add(keepAliveSpinner, 1, 7)
             add(agentForwardingCheck, 1, 8)
+            add(forwardsButton, 1, 9)
         }
         dialogPane.content = grid
 
@@ -105,6 +118,7 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
         userField.text = seed.username
         keepAliveSpinner.valueFactory.value = seed.keepAliveSeconds
         agentForwardingCheck.isSelected = seed.agentForwarding
+        initialForwards = seed.portForwards.toList()
         when (val auth = seed.auth) {
             is SshAuth.Password -> {
                 passwordRadio.isSelected = true
@@ -116,6 +130,16 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
                 auth.passphrase?.let { passphraseField.text = String(it) }
             }
         }
+    }
+
+    private fun updateForwardsButtonLabel() {
+        forwardsButton.text = Strings.format("ssh.forwardsButton", initialForwards.size)
+    }
+
+    private fun editInitialForwards() {
+        val edited = InitialForwardsDialog(initialForwards).showAndWait().orElse(null) ?: return
+        initialForwards = edited
+        updateForwardsButtonLabel()
     }
 
     private fun updateFieldStates() {
@@ -147,6 +171,79 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
             port = portSpinner.value ?: 22,
             keepAliveSeconds = keepAliveSpinner.value ?: 60,
             agentForwarding = agentForwardingCheck.isSelected,
+            portForwards = initialForwards,
         )
+    }
+}
+
+private class InitialForwardsDialog(initial: List<PortForward>) : Dialog<List<PortForward>>() {
+
+    private val rules: MutableList<PortForward> = initial.toMutableList()
+    private val table = TableView<PortForward>()
+
+    init {
+        title = Strings["ssh.forwardsTitle"]
+        headerText = Strings["ssh.forwardsHeader"]
+
+        configureTable()
+        refresh()
+
+        val addBtn = Button(Strings["pf.add"]).apply { setOnAction { add() } }
+        val removeBtn = Button(Strings["pf.remove"]).apply {
+            disableProperty().bind(table.selectionModel.selectedItemProperty().isNull)
+            setOnAction { remove() }
+        }
+        val toolbar = HBox(8.0, addBtn, removeBtn)
+
+        val content = VBox(8.0, table, toolbar).apply {
+            padding = Insets(12.0)
+            VBox.setVgrow(table, Priority.ALWAYS)
+            prefWidth = 520.0
+            prefHeight = 280.0
+        }
+        dialogPane.content = content
+        dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
+        setResultConverter { btn -> if (btn == ButtonType.OK) rules.toList() else null }
+    }
+
+    private fun configureTable() {
+        val dirCol = TableColumn<PortForward, String>(Strings["pf.col.direction"]).apply {
+            setCellValueFactory { SimpleStringProperty(it.value.direction.name) }
+            prefWidth = 90.0
+        }
+        val bindCol = TableColumn<PortForward, String>(Strings["pf.col.bind"]).apply {
+            setCellValueFactory { SimpleStringProperty(it.value.bindAddress.ifBlank { "*" }) }
+            prefWidth = 100.0
+        }
+        val bindPortCol = TableColumn<PortForward, String>(Strings["pf.col.bindPort"]).apply {
+            setCellValueFactory { SimpleStringProperty(it.value.bindPort.toString()) }
+            prefWidth = 70.0
+        }
+        val targetCol = TableColumn<PortForward, String>(Strings["pf.col.target"]).apply {
+            setCellValueFactory { SimpleStringProperty(it.value.targetHost) }
+            prefWidth = 160.0
+        }
+        val targetPortCol = TableColumn<PortForward, String>(Strings["pf.col.targetPort"]).apply {
+            setCellValueFactory { SimpleStringProperty(it.value.targetPort.toString()) }
+            prefWidth = 70.0
+        }
+        table.columns.setAll(dirCol, bindCol, bindPortCol, targetCol, targetPortCol)
+        table.placeholder = Label(Strings["pf.empty"])
+    }
+
+    private fun refresh() {
+        table.items = FXCollections.observableArrayList(rules)
+    }
+
+    private fun add() {
+        val rule = AddForwardDialog().showAndWait().orElse(null) ?: return
+        rules += rule
+        refresh()
+    }
+
+    private fun remove() {
+        val sel = table.selectionModel.selectedItem ?: return
+        rules.remove(sel)
+        refresh()
     }
 }

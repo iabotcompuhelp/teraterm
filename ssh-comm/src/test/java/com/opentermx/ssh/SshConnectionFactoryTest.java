@@ -9,6 +9,8 @@ import com.opentermx.common.connection.SshAuth;
 import com.opentermx.common.connection.SshConfig;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,7 +37,8 @@ class SshConnectionFactoryTest {
                 new SshAuth.Password(new char[]{'p'}),
                 22,
                 60,
-                false
+                false,
+                Collections.emptyList()
         );
         Connection conn = factory.create(cfg);
         assertEquals(ConnectionType.SSH, conn.getConfig().getType());

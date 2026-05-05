@@ -28,6 +28,7 @@ data class SshConfig(
     val port: Int = 22,
     val keepAliveSeconds: Int = 60,
     val agentForwarding: Boolean = false,
+    val portForwards: List<PortForward> = emptyList(),
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.SSH
     override val displayName: String get() = "$username@$host:$port"

@@ -162,6 +162,8 @@ public final class SshConnection implements Connection {
             session.connect(CONNECT_TIMEOUT_MS);
             log.info("SSH session established: {}@{}:{}", config.getUsername(), config.getHost(), config.getPort());
 
+            applyInitialPortForwards();
+
             channel = (ChannelShell) session.openChannel("shell");
             channel.setPtyType(DEFAULT_TERM_TYPE);
             channel.setPtySize(ptyCols, ptyRows, ptyCols * 8, ptyRows * 16);
@@ -273,6 +275,18 @@ public final class SshConnection implements Connection {
      * to request dynamic allocation; only meaningful for LOCAL forwards).
      * Throws if the session is not connected.
      */
+    private void applyInitialPortForwards() {
+        for (PortForward rule : config.getPortForwards()) {
+            try {
+                addPortForward(rule);
+                log.info("Port forward inicial: {}", rule.describe());
+            } catch (JSchException e) {
+                // Don't abort the whole session over a single forward — just log.
+                log.warn("No se pudo registrar el port forward inicial {}: {}", rule.describe(), e.getMessage());
+            }
+        }
+    }
+
     public int addPortForward(PortForward rule) throws JSchException {
         Session s = requireConnectedSession();
         String bind = rule.getBindAddress();

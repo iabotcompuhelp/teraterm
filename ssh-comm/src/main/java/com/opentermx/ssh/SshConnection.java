@@ -14,6 +14,7 @@ import com.opentermx.common.connection.ConnectionConfig;
 import com.opentermx.common.connection.ConnectionState;
 import com.opentermx.common.connection.DataHandler;
 import com.opentermx.common.connection.HostKeyVerifier;
+import com.opentermx.common.connection.PortForward;
 import com.opentermx.common.connection.RejectAllHostKeyVerifier;
 import com.opentermx.common.connection.SshAuth;
 import com.opentermx.common.connection.SshConfig;
@@ -26,6 +27,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -265,15 +268,91 @@ public final class SshConnection implements Connection {
     }
 
     /**
+     * Registers a TCP port forward on the live session. Returns the actual
+     * bound port (may differ from {@code rule.bindPort} when the user passed 0
+     * to request dynamic allocation; only meaningful for LOCAL forwards).
+     * Throws if the session is not connected.
+     */
+    public int addPortForward(PortForward rule) throws JSchException {
+        Session s = requireConnectedSession();
+        String bind = rule.getBindAddress();
+        if (rule.getDirection() == PortForward.Direction.LOCAL) {
+            String addr = bind.isBlank() ? "127.0.0.1" : bind;
+            return s.setPortForwardingL(addr, rule.getBindPort(), rule.getTargetHost(), rule.getTargetPort());
+        } else {
+            String addr = bind.isBlank() ? null : bind;
+            s.setPortForwardingR(addr, rule.getBindPort(), rule.getTargetHost(), rule.getTargetPort());
+            return rule.getBindPort();
+        }
+    }
+
+    public void removePortForward(PortForward rule) throws JSchException {
+        Session s = requireConnectedSession();
+        String bind = rule.getBindAddress();
+        if (rule.getDirection() == PortForward.Direction.LOCAL) {
+            String addr = bind.isBlank() ? "127.0.0.1" : bind;
+            s.delPortForwardingL(addr, rule.getBindPort());
+        } else {
+            String addr = bind.isBlank() ? null : bind;
+            s.delPortForwardingR(addr, rule.getBindPort());
+        }
+    }
+
+    public List<PortForward> listPortForwards() throws JSchException {
+        Session s = requireConnectedSession();
+        List<PortForward> out = new ArrayList<>();
+        for (String spec : s.getPortForwardingL()) {
+            PortForward pf = parseLocalSpec(spec);
+            if (pf != null) out.add(pf);
+        }
+        for (String spec : s.getPortForwardingR()) {
+            PortForward pf = parseRemoteSpec(spec);
+            if (pf != null) out.add(pf);
+        }
+        return out;
+    }
+
+    private Session requireConnectedSession() throws JSchException {
+        Session s = session;
+        if (s == null || !s.isConnected()) {
+            throw new JSchException("SSH session no está conectada");
+        }
+        return s;
+    }
+
+    // jsch returns local forwards as either "lport:host:rport" or "bind:lport:host:rport".
+    // Remote forwards have the same shape via ChannelForwardedTCPIP.getPortForwarding.
+    private static PortForward parseLocalSpec(String spec) {
+        return parseSpec(spec, PortForward.Direction.LOCAL);
+    }
+
+    private static PortForward parseRemoteSpec(String spec) {
+        return parseSpec(spec, PortForward.Direction.REMOTE);
+    }
+
+    private static PortForward parseSpec(String spec, PortForward.Direction dir) {
+        if (spec == null || spec.isBlank()) return null;
+        String[] parts = spec.split(":");
+        try {
+            if (parts.length == 3) {
+                return new PortForward(dir, "", Integer.parseInt(parts[0]), parts[1], Integer.parseInt(parts[2]));
+            }
+            if (parts.length == 4) {
+                return new PortForward(dir, parts[0], Integer.parseInt(parts[1]), parts[2], Integer.parseInt(parts[3]));
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        log.warn("No pude parsear forward '{}'", spec);
+        return null;
+    }
+
+    /**
      * Opens an SFTP channel multiplexed over the existing SSH session. The
      * caller owns the returned client and must close it. Throws if the SSH
      * session is not currently connected.
      */
     public SftpClient openSftp() throws JSchException {
-        Session s = session;
-        if (s == null || !s.isConnected()) {
-            throw new JSchException("SSH session no está conectada");
-        }
+        Session s = requireConnectedSession();
         ChannelSftp sftp = (ChannelSftp) s.openChannel("sftp");
         sftp.connect(CHANNEL_TIMEOUT_MS);
         return new SftpClient(sftp);

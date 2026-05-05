@@ -6,6 +6,7 @@ import com.opentermx.app.settings.SettingsStore
 import com.opentermx.app.ui.dialog.FontConfigDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
 import com.opentermx.app.ui.dialog.LogConfigDialog
+import com.opentermx.app.ui.dialog.PortForwardDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.TcpRawConfigDialog
@@ -119,6 +120,9 @@ class MainWindow(
             }
             items += MenuItem(Strings["file.sftp"]).apply {
                 setOnAction { openSftpForCurrentSession() }
+            }
+            items += MenuItem(Strings["file.portForward"]).apply {
+                setOnAction { openPortForwardDialog() }
             }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["file.exit"]).apply {
@@ -277,6 +281,16 @@ class MainWindow(
         val c = theme.terminalColors
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
         return terminal
+    }
+
+    private fun openPortForwardDialog() {
+        val ctl = currentController()
+        val conn = ctl?.session?.connection
+        if (conn !is SshConnection || ctl.state.value != ConnectionState.CONNECTED) {
+            statusLabel.text = Strings["status.pfRequiresSsh"]
+            return
+        }
+        PortForwardDialog(conn).showAndWait()
     }
 
     private fun openSftpForCurrentSession() {

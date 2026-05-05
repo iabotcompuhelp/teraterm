@@ -11,6 +11,7 @@ import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.TcpRawConfigDialog
 import com.opentermx.app.ui.dialog.TelnetConfigDialog
 import com.opentermx.app.ui.macro.MacroWindow
+import com.opentermx.app.ui.sftp.SftpPanel
 import com.opentermx.app.ui.terminal.TerminalCapture
 import com.opentermx.app.ui.terminal.TerminalView
 import com.opentermx.app.ui.transfer.TransferProgressDialog
@@ -115,6 +116,9 @@ class MainWindow(
             items += MenuItem(Strings["file.ssh"]).apply {
                 accelerator = accelerator("file.ssh")
                 setOnAction { openSshSession() }
+            }
+            items += MenuItem(Strings["file.sftp"]).apply {
+                setOnAction { openSftpForCurrentSession() }
             }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["file.exit"]).apply {
@@ -273,6 +277,20 @@ class MainWindow(
         val c = theme.terminalColors
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
         return terminal
+    }
+
+    private fun openSftpForCurrentSession() {
+        val ctl = currentController()
+        val conn = ctl?.session?.connection
+        if (conn !is SshConnection || ctl.state.value != ConnectionState.CONNECTED) {
+            statusLabel.text = Strings["status.sftpRequiresSsh"]
+            return
+        }
+        val panel = SftpPanel(conn)
+        val tab = Tab("SFTP — ${ctl.session.name}", panel).apply { isClosable = true }
+        tab.setOnClosed { panel.shutdown() }
+        tabPane.tabs += tab
+        tabPane.selectionModel.select(tab)
     }
 
     private fun openSerialSession() {

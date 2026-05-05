@@ -2,6 +2,7 @@ package com.opentermx.ssh;
 
 import com.jcraft.jsch.AgentIdentityRepository;
 import com.jcraft.jsch.AgentProxyException;
+import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
@@ -261,6 +262,21 @@ public final class SshConnection implements Connection {
     @Override
     public StateHandler getStateHandler() {
         return stateHandler;
+    }
+
+    /**
+     * Opens an SFTP channel multiplexed over the existing SSH session. The
+     * caller owns the returned client and must close it. Throws if the SSH
+     * session is not currently connected.
+     */
+    public SftpClient openSftp() throws JSchException {
+        Session s = session;
+        if (s == null || !s.isConnected()) {
+            throw new JSchException("SSH session no está conectada");
+        }
+        ChannelSftp sftp = (ChannelSftp) s.openChannel("sftp");
+        sftp.connect(CHANNEL_TIMEOUT_MS);
+        return new SftpClient(sftp);
     }
 
     public void resizePty(int cols, int rows) {

@@ -10,6 +10,8 @@ data class AppSettings(
     val terminalFontSize: Double = 14.0,
     val terminalScrollbackLimit: Int = 10_000,
     val accelerators: Map<String, String> = DEFAULT_ACCELERATORS,
+    val recentHosts: List<String> = emptyList(),
+    val historyEnabled: Boolean = true,
 ) {
     companion object {
         val DEFAULT_ACCELERATORS: Map<String, String> = linkedMapOf(

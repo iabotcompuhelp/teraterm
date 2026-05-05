@@ -7,7 +7,10 @@ import com.opentermx.app.ui.dialog.FontConfigDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
 import com.opentermx.app.ui.dialog.KeybindingsDialog
 import com.opentermx.app.ui.dialog.LogConfigDialog
+import com.opentermx.app.ui.dialog.NewConnectionChoice
+import com.opentermx.app.ui.dialog.NewConnectionDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
+import com.opentermx.app.ui.dialog.SshVersion
 import com.opentermx.app.ui.dialog.ScrollbackDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
@@ -25,6 +28,11 @@ import com.opentermx.app.viewmodel.TransferProtocol
 import com.opentermx.common.connection.Connection
 import com.opentermx.common.connection.ConnectionConfig
 import com.opentermx.common.connection.ConnectionState
+import com.opentermx.common.connection.SerialConfig
+import com.opentermx.common.connection.SshAuth
+import com.opentermx.common.connection.SshConfig
+import com.opentermx.common.connection.TcpRawConfig
+import com.opentermx.common.connection.TelnetConfig
 import com.opentermx.common.session.Session
 import com.opentermx.common.session.SessionId
 import com.opentermx.logger.LogManager
@@ -108,18 +116,14 @@ class MainWindow(
 
     private fun buildMenuBar(): MenuBar {
         val file = Menu(Strings["menu.file"]).apply {
-            items += MenuItem(Strings["file.newSession"]).apply {
+            items += MenuItem(Strings["file.newConnection"]).apply {
                 accelerator = accelerator("file.newSession")
+                setOnAction { openNewConnectionDialog() }
+            }
+            items += MenuItem(Strings["file.newSession"]).apply {
                 setOnAction { openWelcomeTab() }
             }
-            items += MenuItem(Strings["file.serial"]).apply {
-                accelerator = accelerator("file.serial")
-                setOnAction { openSerialSession() }
-            }
-            items += MenuItem(Strings["file.ssh"]).apply {
-                accelerator = accelerator("file.ssh")
-                setOnAction { openSshSession() }
-            }
+            items += SeparatorMenuItem()
             items += MenuItem(Strings["file.sftp"]).apply {
                 setOnAction { openSftpForCurrentSession() }
             }
@@ -334,6 +338,64 @@ class MainWindow(
         tab.setOnClosed { panel.shutdown() }
         tabPane.tabs += tab
         tabPane.selectionModel.select(tab)
+    }
+
+    private fun openNewConnectionDialog() {
+        val dialog = NewConnectionDialog(
+            recentHosts = settings.recentHosts,
+            historyEnabled = settings.historyEnabled,
+        )
+        val choice = dialog.showAndWait().orElse(null)
+        // The "History" checkbox state is preserved even when the user cancels —
+        // it's a global preference, not part of this connection's data.
+        persist { it.copy(historyEnabled = dialog.isHistoryEnabled()) }
+        if (choice == null) return
+
+        when (choice) {
+            is NewConnectionChoice.Serial -> {
+                val seed = SerialConfig(portName = choice.port.systemPortName)
+                val cfg = SerialConfigDialog(seed).showAndWait().orElse(null) ?: return
+                openSession(cfg, cfg.portName, SerialConnection(cfg))
+            }
+            is NewConnectionChoice.Ssh -> {
+                if (choice.sshVersion == SshVersion.SSH1) {
+                    Alert(Alert.AlertType.WARNING).apply {
+                        title = Strings["nc.ssh1Title"]
+                        headerText = Strings["nc.ssh1Header"]
+                        contentText = Strings["nc.ssh1Body"]
+                    }.showAndWait()
+                    return
+                }
+                val seed = SshConfig(
+                    host = choice.host,
+                    username = "",
+                    auth = SshAuth.Password(CharArray(0)),
+                    port = choice.tcpPort,
+                )
+                val cfg = SshConfigDialog(seed).showAndWait().orElse(null) ?: return
+                openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
+                rememberHost(choice.host)
+            }
+            is NewConnectionChoice.Telnet -> {
+                val cfg = TelnetConfig(host = choice.host, port = choice.tcpPort)
+                val protocol = if (cfg.useTls) "telnets" else "telnet"
+                openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
+                rememberHost(choice.host)
+            }
+            is NewConnectionChoice.TcpRaw -> {
+                val cfg = TcpRawConfig(host = choice.host, port = choice.tcpPort)
+                openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
+                rememberHost(choice.host)
+            }
+        }
+    }
+
+    private fun rememberHost(host: String) {
+        if (!settings.historyEnabled || host.isBlank()) return
+        // Most-recent first, dedup case-insensitive, cap at 20.
+        val deduped = (listOf(host) + settings.recentHosts.filterNot { it.equals(host, ignoreCase = true) })
+            .take(20)
+        persist { it.copy(recentHosts = deduped) }
     }
 
     private fun openSerialSession() {

@@ -2,7 +2,10 @@ package com.opentermx.macro
 
 abstract class MacroBaseScript extends Script {
 
-    private MacroContext getCtx() {
+    // Must be at least package-private: Groovy 4 Indy resolves `ctx` as a property
+    // by looking up the getter, and a `private` getter is not visible to the
+    // dynamically generated Script subclass.
+    protected MacroContext getCtx() {
         def c = binding.getVariable("_ctx")
         if (c == null) throw new MacroException("MacroContext no inyectado en el binding")
         return c as MacroContext
@@ -24,7 +27,9 @@ abstract class MacroBaseScript extends Script {
         ctx.waitfor(pattern, timeoutSeconds * 1000L)
     }
 
-    boolean waitfor(String pattern, Map opts) {
+    // Groovy translates `waitfor("foo", timeout: 5)` into `waitfor([timeout:5], "foo")`
+    // — named arguments are collected into a Map that becomes the FIRST positional arg.
+    boolean waitfor(Map opts, String pattern) {
         long seconds = (opts.timeout != null ? ((Number) opts.timeout).longValue() : 30L)
         ctx.waitfor(pattern, seconds * 1000L)
     }

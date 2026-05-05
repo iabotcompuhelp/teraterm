@@ -34,8 +34,8 @@ class MacroEngineTest {
     void messageboxAndInputboxRoundtrip() {
         def captured = []
         def bridge = new MacroUiBridge() {
-            @Override void showMessage(String message) { captured << "msg:$message" }
-            @Override String prompt(String message, String defaultValue) { return "user-said-${defaultValue}" }
+            @Override void showMessage(String message) { captured << ("msg:" + message) }
+            @Override String prompt(String message, String defaultValue) { return "user-said-" + defaultValue }
             @Override String getClipboard() { return "" }
             @Override void setClipboard(String text) {}
         }

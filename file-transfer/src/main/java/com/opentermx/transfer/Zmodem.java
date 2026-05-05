@@ -156,7 +156,13 @@ public final class Zmodem {
         sendBin32Header(stream, Header.ctrl(ZFILE, ZCBIN, 0, 0, 0));
         sendDataSubpacket32(stream, metaBytes, 0, metaBytes.length, ZCRCW);
 
+        // The receiver may have emitted ZRINIT spontaneously *and* in response to our
+        // ZRQINIT, so a second ZRINIT can still be queued by the time we look for ZRPOS.
+        // Skip any leftover ZRINIT frames (lrzsz does the same).
         h = waitForHeader(stream, DEFAULT_TIMEOUT_MS, listener);
+        while (h.type == ZRINIT) {
+            h = waitForHeader(stream, DEFAULT_TIMEOUT_MS, listener);
+        }
         if (h.type == ZSKIP) {
             listener.onMessage("Receptor ignoró el archivo");
             return;
@@ -318,14 +324,15 @@ public final class Zmodem {
         out.write(ZDLE);
         out.write(ZHEX);
         int t = h.type & 0x7F;
+        // updcrc16 is left-shift, MSB-first: it already returns M(x) * x^16 mod p(x),
+        // i.e. the CRC value that the receiver will see cancel to zero when it feeds
+        // the message followed by these two CRC bytes. Do NOT add further "augmentation".
         int crc = 0;
         crc = updcrc16(t, crc);
         crc = updcrc16(h.p0 & 0xFF, crc);
         crc = updcrc16(h.p1 & 0xFF, crc);
         crc = updcrc16(h.p2 & 0xFF, crc);
         crc = updcrc16(h.p3 & 0xFF, crc);
-        crc = updcrc16(0, crc);
-        crc = updcrc16(0, crc);
         appendHex(out, t);
         appendHex(out, h.p0 & 0xFF);
         appendHex(out, h.p1 & 0xFF);

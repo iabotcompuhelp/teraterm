@@ -1,5 +1,6 @@
 package com.opentermx.ssh;
 
+import com.opentermx.common.connection.AutoAcceptHostKeyVerifier;
 import com.opentermx.common.connection.Connection;
 import com.opentermx.common.connection.ConnectionState;
 import com.opentermx.common.connection.ConnectionType;
@@ -15,7 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SshConnectionFactoryTest {
 
-    private final SshConnectionFactory factory = new SshConnectionFactory();
+    private final SshConnectionFactory factory =
+            new SshConnectionFactory(AutoAcceptHostKeyVerifier.INSTANCE);
 
     @Test
     void supportsSshTypeOnly() {

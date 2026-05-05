@@ -4,6 +4,7 @@ import com.opentermx.app.i18n.Strings
 import com.opentermx.app.settings.AppSettings
 import com.opentermx.app.settings.SettingsStore
 import com.opentermx.app.ui.dialog.FontConfigDialog
+import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
@@ -74,6 +75,7 @@ class MainWindow(
     private val controllers: MutableMap<Tab, TerminalSessionController> = mutableMapOf()
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val macroWindow by lazy { MacroWindow(stage) { controllers.values.toList() } }
+    private val hostKeyVerifier = JavaFxHostKeyVerifier(stage)
 
     private lateinit var rootPane: BorderPane
 
@@ -280,7 +282,7 @@ class MainWindow(
 
     private fun openSshSession() {
         val cfg = SshConfigDialog().showAndWait().orElse(null) ?: return
-        openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg))
+        openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
     }
 
     private fun openTelnetSession() {

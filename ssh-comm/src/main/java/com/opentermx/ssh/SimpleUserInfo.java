@@ -10,12 +10,10 @@ final class SimpleUserInfo implements UserInfo {
 
     private final String password;
     private final String passphrase;
-    private final boolean autoAcceptHostKey;
 
-    SimpleUserInfo(String password, char[] passphrase, boolean autoAcceptHostKey) {
+    SimpleUserInfo(String password, char[] passphrase) {
         this.password = password;
         this.passphrase = passphrase != null ? new String(passphrase) : null;
-        this.autoAcceptHostKey = autoAcceptHostKey;
     }
 
     @Override
@@ -40,8 +38,10 @@ final class SimpleUserInfo implements UserInfo {
 
     @Override
     public boolean promptYesNo(String message) {
-        log.warn("SSH host key prompt: {} (auto-accept={})", message, autoAcceptHostKey);
-        return autoAcceptHostKey;
+        // Host-key decisions are routed through TofuHostKeyRepository before this
+        // method is reached. Anything else (changed-config prompts, etc.) is rejected.
+        log.warn("SSH UserInfo.promptYesNo invoked unexpectedly: {}", message);
+        return false;
     }
 
     @Override

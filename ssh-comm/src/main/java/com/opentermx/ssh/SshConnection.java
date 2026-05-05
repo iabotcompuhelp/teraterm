@@ -1,13 +1,17 @@
 package com.opentermx.ssh;
 
 import com.jcraft.jsch.ChannelShell;
+import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.KnownHosts;
 import com.jcraft.jsch.Session;
 import com.opentermx.common.connection.Connection;
 import com.opentermx.common.connection.ConnectionConfig;
 import com.opentermx.common.connection.ConnectionState;
 import com.opentermx.common.connection.DataHandler;
+import com.opentermx.common.connection.HostKeyVerifier;
+import com.opentermx.common.connection.RejectAllHostKeyVerifier;
 import com.opentermx.common.connection.SshAuth;
 import com.opentermx.common.connection.SshConfig;
 import com.opentermx.common.connection.StateHandler;
@@ -32,6 +36,7 @@ public final class SshConnection implements Connection {
 
     private final String id;
     private final SshConfig config;
+    private final HostKeyVerifier hostKeyVerifier;
     private final AtomicReference<ConnectionState> state =
             new AtomicReference<>(ConnectionState.DISCONNECTED);
 
@@ -49,8 +54,13 @@ public final class SshConnection implements Connection {
     private volatile int ptyRows = 24;
 
     public SshConnection(SshConfig config) {
+        this(config, RejectAllHostKeyVerifier.INSTANCE);
+    }
+
+    public SshConnection(SshConfig config, HostKeyVerifier hostKeyVerifier) {
         this.id = UUID.randomUUID().toString();
         this.config = config;
+        this.hostKeyVerifier = hostKeyVerifier != null ? hostKeyVerifier : RejectAllHostKeyVerifier.INSTANCE;
     }
 
     @Override
@@ -74,9 +84,30 @@ public final class SshConnection implements Connection {
         try {
             jsch = new JSch();
 
-            File knownHosts = new File(System.getProperty("user.home"), ".ssh/known_hosts");
-            if (knownHosts.isFile()) {
-                jsch.setKnownHosts(knownHosts.getAbsolutePath());
+            File knownHostsFile = new File(System.getProperty("user.home"), ".ssh/known_hosts");
+            File parent = knownHostsFile.getParentFile();
+            if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                log.warn("No se pudo crear el directorio {}", parent);
+            }
+            if (!knownHostsFile.exists()) {
+                try {
+                    if (!knownHostsFile.createNewFile()) {
+                        log.warn("No se pudo crear {}", knownHostsFile);
+                    }
+                } catch (IOException e) {
+                    log.warn("No se pudo crear {}", knownHostsFile, e);
+                }
+            }
+            if (knownHostsFile.isFile()) {
+                jsch.setKnownHosts(knownHostsFile.getAbsolutePath());
+            }
+
+            HostKeyRepository defaultRepo = jsch.getHostKeyRepository();
+            if (defaultRepo instanceof KnownHosts knownHosts) {
+                jsch.setHostKeyRepository(new TofuHostKeyRepository(knownHosts, hostKeyVerifier));
+            } else {
+                log.warn("HostKeyRepository inesperado ({}); TOFU no se aplicará a esta sesión",
+                        defaultRepo.getClass().getName());
             }
 
             SshAuth auth = config.getAuth();
@@ -98,11 +129,12 @@ public final class SshConnection implements Connection {
             } else if (auth instanceof SshAuth.PublicKey k) {
                 passphraseChars = k.getPassphrase();
             }
-            session.setUserInfo(new SimpleUserInfo(passwordStr, passphraseChars, true));
+            session.setUserInfo(new SimpleUserInfo(passwordStr, passphraseChars));
 
-            // Auto-accept unknown host keys (logs fingerprint via UserInfo).
-            // TODO: surface a UI prompt with the fingerprint for proper TOFU.
-            session.setConfig("StrictHostKeyChecking", "no");
+            // TOFU: TofuHostKeyRepository.check() owns the accept/reject decision.
+            // StrictHostKeyChecking=yes makes JSch abort if check() returns anything but OK,
+            // without falling back to UserInfo.promptYesNo.
+            session.setConfig("StrictHostKeyChecking", "yes");
             session.setConfig("PreferredAuthentications", "publickey,password,keyboard-interactive");
 
             session.setServerAliveInterval(Math.max(0, config.getKeepAliveSeconds()) * 1000);

@@ -5,6 +5,7 @@ import com.opentermx.app.settings.AppSettings
 import com.opentermx.app.settings.SettingsStore
 import com.opentermx.app.ui.dialog.FontConfigDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
+import com.opentermx.app.ui.dialog.KeybindingsDialog
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
@@ -164,6 +165,9 @@ class MainWindow(
             items += MenuItem(Strings["setup.font"]).apply {
                 setOnAction { openFontDialog() }
             }
+            items += MenuItem(Strings["setup.keybindings"]).apply {
+                setOnAction { openKeybindingsDialog() }
+            }
             items += buildLanguageMenu()
             items += SeparatorMenuItem()
             items += MenuItem(Strings["setup.macros"]).apply {
@@ -239,6 +243,12 @@ class MainWindow(
         val choice = dialog.showAndWait().orElse(null) ?: return
         persist { it.copy(terminalFontFamily = choice.family, terminalFontSize = choice.size) }
         applyFontToTerminals()
+    }
+
+    private fun openKeybindingsDialog() {
+        val updated = KeybindingsDialog(settings.accelerators).showAndWait().orElse(null) ?: return
+        persist { it.copy(accelerators = updated) }
+        rebuildMenusAndLabels()
     }
 
     private fun applyThemeToTerminals() {

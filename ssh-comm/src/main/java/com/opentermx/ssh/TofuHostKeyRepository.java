@@ -3,7 +3,6 @@ package com.opentermx.ssh;
 import com.jcraft.jsch.HostKey;
 import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSchException;
-import com.jcraft.jsch.KnownHosts;
 import com.jcraft.jsch.UserInfo;
 import com.opentermx.common.connection.HostKeyDecision;
 import com.opentermx.common.connection.HostKeyPrompt;
@@ -21,20 +20,25 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * Wraps JSch's {@link KnownHosts} with a Trust-On-First-Use policy: when a host
- * is unknown or its key has changed, the wrapped {@link HostKeyVerifier} is asked
- * for a decision. With {@code StrictHostKeyChecking=yes} on the session, returning
- * anything but OK from {@link #check(String, byte[])} aborts the handshake, so this
- * class fully owns the host-key gate.
+ * Wraps JSch's known-hosts repository with a Trust-On-First-Use policy: when a
+ * host is unknown or its key has changed, the wrapped {@link HostKeyVerifier} is
+ * asked for a decision. With {@code StrictHostKeyChecking=yes} on the session,
+ * returning anything but OK from {@link #check(String, byte[])} aborts the
+ * handshake, so this class fully owns the host-key gate.
+ *
+ * <p>The delegate is typed as the public {@link HostKeyRepository} interface
+ * because JSch's concrete {@code KnownHosts} class is package-private. All file
+ * persistence is driven by the delegate's own behaviour (jsch syncs to the file
+ * passed via {@code JSch.setKnownHosts}).
  */
 public final class TofuHostKeyRepository implements HostKeyRepository {
 
     private static final Logger log = LoggerFactory.getLogger(TofuHostKeyRepository.class);
 
-    private final KnownHosts delegate;
+    private final HostKeyRepository delegate;
     private final HostKeyVerifier verifier;
 
-    public TofuHostKeyRepository(KnownHosts delegate, HostKeyVerifier verifier) {
+    public TofuHostKeyRepository(HostKeyRepository delegate, HostKeyVerifier verifier) {
         this.delegate = delegate;
         this.verifier = verifier;
     }

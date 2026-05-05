@@ -4,7 +4,6 @@ import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
-import com.jcraft.jsch.KnownHosts;
 import com.jcraft.jsch.Session;
 import com.opentermx.common.connection.Connection;
 import com.opentermx.common.connection.ConnectionConfig;
@@ -103,12 +102,7 @@ public final class SshConnection implements Connection {
             }
 
             HostKeyRepository defaultRepo = jsch.getHostKeyRepository();
-            if (defaultRepo instanceof KnownHosts knownHosts) {
-                jsch.setHostKeyRepository(new TofuHostKeyRepository(knownHosts, hostKeyVerifier));
-            } else {
-                log.warn("HostKeyRepository inesperado ({}); TOFU no se aplicará a esta sesión",
-                        defaultRepo.getClass().getName());
-            }
+            jsch.setHostKeyRepository(new TofuHostKeyRepository(defaultRepo, hostKeyVerifier));
 
             SshAuth auth = config.getAuth();
             if (auth instanceof SshAuth.PublicKey k) {

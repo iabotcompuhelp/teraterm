@@ -17,7 +17,7 @@ object LogManager {
         active.remove(sessionId)?.close()
     }
 
-    fun isActive(sessionId: String): Boolean = sessionId in active
+    fun isActive(sessionId: String): Boolean = active.containsKey(sessionId)
 
     fun activeFor(sessionId: String): SessionLogger? = active[sessionId]
 

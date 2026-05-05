@@ -21,4 +21,13 @@ subprojects {
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
     }
+
+    // Gradle 9 no longer provides the JUnit Platform launcher transitively;
+    // every Java/Kotlin module that runs JUnit 5 tests needs it on the test
+    // runtime classpath explicitly.
+    plugins.withId("java") {
+        dependencies {
+            "testRuntimeOnly"(rootProject.libs.junit.platform.launcher)
+        }
+    }
 }

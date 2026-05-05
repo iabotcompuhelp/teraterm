@@ -2,7 +2,6 @@ package com.opentermx.ssh;
 
 import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
-import com.jcraft.jsch.KnownHosts;
 import com.opentermx.common.connection.HostKeyDecision;
 import com.opentermx.common.connection.HostKeyPrompt;
 import com.opentermx.common.connection.HostKeyStatus;
@@ -70,7 +69,7 @@ class TofuHostKeyRepositoryTest {
     @Test
     void changedKeyRejectReturnsChanged() throws Exception {
         // First, register key1 via ACCEPT_AND_SAVE.
-        KnownHosts kh = freshKnownHosts();
+        HostKeyRepository kh = freshKnownHosts();
         TofuHostKeyRepository acceptRepo = wrap(kh, prompt -> HostKeyDecision.ACCEPT_AND_SAVE);
         byte[] key1 = sshKey("ssh-ed25519", filled(32, (byte) 0x44));
         assertEquals(HostKeyRepository.OK, acceptRepo.check("example.com", key1));
@@ -130,15 +129,15 @@ class TofuHostKeyRepositoryTest {
         return wrap(freshKnownHosts(), verifier);
     }
 
-    private TofuHostKeyRepository wrap(KnownHosts kh, HostKeyVerifier verifier) {
+    private TofuHostKeyRepository wrap(HostKeyRepository kh, HostKeyVerifier verifier) {
         return new TofuHostKeyRepository(kh, verifier);
     }
 
-    private KnownHosts freshKnownHosts() throws IOException, com.jcraft.jsch.JSchException {
+    private HostKeyRepository freshKnownHosts() throws IOException, com.jcraft.jsch.JSchException {
         Path file = Files.createTempFile(tempDir, "known_hosts", "");
         JSch jsch = new JSch();
         jsch.setKnownHosts(file.toAbsolutePath().toString());
-        return (KnownHosts) jsch.getHostKeyRepository();
+        return jsch.getHostKeyRepository();
     }
 
     private static byte[] sshKey(String type, byte[] pubKey) {

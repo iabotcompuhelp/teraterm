@@ -1,9 +1,12 @@
 package com.opentermx.ssh;
 
+import com.jcraft.jsch.AgentIdentityRepository;
+import com.jcraft.jsch.AgentProxyException;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.SSHAgentConnector;
 import com.jcraft.jsch.Session;
 import com.opentermx.common.connection.Connection;
 import com.opentermx.common.connection.ConnectionConfig;
@@ -104,6 +107,25 @@ public final class SshConnection implements Connection {
             HostKeyRepository defaultRepo = jsch.getHostKeyRepository();
             jsch.setHostKeyRepository(new TofuHostKeyRepository(defaultRepo, hostKeyVerifier));
 
+            // Wire the local SSH agent BEFORE adding any explicit identity, so the
+            // agent's keys are tried first when agent forwarding is enabled. Failures
+            // here are non-fatal: the user may simply not have an agent running.
+            boolean agentAvailable = false;
+            if (config.getAgentForwarding()) {
+                try {
+                    SSHAgentConnector connector = new SSHAgentConnector();
+                    if (connector.isAvailable()) {
+                        jsch.setIdentityRepository(new AgentIdentityRepository(connector));
+                        agentAvailable = true;
+                        log.info("SSH agent disponible — usando como IdentityRepository");
+                    } else {
+                        log.warn("SSH agent forwarding solicitado pero el agente no está disponible");
+                    }
+                } catch (AgentProxyException e) {
+                    log.warn("No se pudo conectar al SSH agent: {}", e.getMessage());
+                }
+            }
+
             SshAuth auth = config.getAuth();
             if (auth instanceof SshAuth.PublicKey k) {
                 char[] passphrase = k.getPassphrase();
@@ -139,6 +161,9 @@ public final class SshConnection implements Connection {
             channel = (ChannelShell) session.openChannel("shell");
             channel.setPtyType(DEFAULT_TERM_TYPE);
             channel.setPtySize(ptyCols, ptyRows, ptyCols * 8, ptyRows * 16);
+            if (config.getAgentForwarding() && agentAvailable) {
+                channel.setAgentForwarding(true);
+            }
             remoteIn = channel.getInputStream();
             remoteOut = channel.getOutputStream();
             channel.connect(CHANNEL_TIMEOUT_MS);

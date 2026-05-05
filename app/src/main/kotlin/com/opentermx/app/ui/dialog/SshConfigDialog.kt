@@ -5,6 +5,7 @@ import com.opentermx.common.connection.SshConfig
 import javafx.geometry.Insets
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
+import javafx.scene.control.CheckBox
 import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.PasswordField
@@ -41,6 +42,8 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
         valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(0, 3600, 60)
         isEditable = true
     }
+
+    private val agentForwardingCheck = CheckBox("Reenvío de agente SSH")
 
     init {
         title = "Configuración SSH"
@@ -81,6 +84,7 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
             add(Label("Clave privada:"), 0, 5); add(keyPathRow, 1, 5)
             add(Label("Passphrase:"), 0, 6); add(passphraseField, 1, 6)
             add(Label("Keep-alive (s):"), 0, 7); add(keepAliveSpinner, 1, 7)
+            add(agentForwardingCheck, 1, 8)
         }
         dialogPane.content = grid
 
@@ -100,6 +104,7 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
         portSpinner.valueFactory.value = seed.port
         userField.text = seed.username
         keepAliveSpinner.valueFactory.value = seed.keepAliveSeconds
+        agentForwardingCheck.isSelected = seed.agentForwarding
         when (val auth = seed.auth) {
             is SshAuth.Password -> {
                 passwordRadio.isSelected = true
@@ -141,6 +146,7 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
             auth = auth,
             port = portSpinner.value ?: 22,
             keepAliveSeconds = keepAliveSpinner.value ?: 60,
+            agentForwarding = agentForwardingCheck.isSelected,
         )
     }
 }

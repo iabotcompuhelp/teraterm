@@ -9,6 +9,9 @@ out/
 !**/src/test/**/out/
 .kotlin
 *.iml
+.idea/
+# La spec maestra vive en .idea/teraterm.md — preservarla.
+!.idea/teraterm.md
 
 ### Eclipse ###
 .apt_generated

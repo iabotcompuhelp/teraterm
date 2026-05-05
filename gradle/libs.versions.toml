@@ -1,0 +1,35 @@
+[versions]
+kotlin = "2.0.21"
+coroutines = "1.9.0"
+javafx = "21.0.5"
+javafxPlugin = "0.1.0"
+jserialcomm = "2.11.0"
+jsch = "0.2.21"
+commonsNet = "3.11.1"
+groovy = "4.0.24"
+jackson = "2.18.1"
+slf4j = "2.0.16"
+logback = "1.5.12"
+junit = "5.11.3"
+mockito = "5.14.2"
+richtextfx = "0.11.5"
+
+[libraries]
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-javafx = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-javafx", version.ref = "coroutines" }
+jserialcomm = { module = "com.fazecast:jSerialComm", version.ref = "jserialcomm" }
+jsch = { module = "com.github.mwiede:jsch", version.ref = "jsch" }
+commons-net = { module = "commons-net:commons-net", version.ref = "commonsNet" }
+groovy = { module = "org.apache.groovy:groovy", version.ref = "groovy" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin", version.ref = "jackson" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+richtextfx = { module = "org.fxmisc.richtext:richtextfx", version.ref = "richtextfx" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+javafx = { id = "org.openjfx.javafxplugin", version.ref = "javafxPlugin" }

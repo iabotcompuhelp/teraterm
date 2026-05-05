@@ -1,0 +1,55 @@
+.root {
+    -fx-base: #f4f4f4;
+    -fx-background: #ffffff;
+    -fx-text-fill: #1a1a1a;
+    -fx-font-family: "Segoe UI", "Liberation Sans", sans-serif;
+}
+
+.menu-bar {
+    -fx-background-color: #eaeaea;
+}
+.menu-bar .label {
+    -fx-text-fill: #1a1a1a;
+}
+
+.tab-pane .tab {
+    -fx-background-color: #e0e0e0;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: #ffffff;
+}
+
+.terminal-area {
+    -fx-control-inner-background: #fafafa;
+    -fx-text-fill: #1a1a1a;
+    -fx-highlight-fill: #b5d1ff;
+    -fx-background-color: #fafafa;
+}
+.terminal-area .content {
+    -fx-background-color: #fafafa;
+}
+
+.status-bar {
+    -fx-background-color: #eaeaea;
+    -fx-padding: 4 8 4 8;
+    -fx-border-color: #cfcfcf;
+    -fx-border-width: 1 0 0 0;
+}
+.status-bar .label {
+    -fx-text-fill: #333;
+}
+
+.session-list-pane {
+    -fx-background-color: #f0f0f0;
+    -fx-padding: 6;
+    -fx-border-color: #cfcfcf;
+    -fx-border-width: 0 1 0 0;
+}
+.session-list-pane .panel-header {
+    -fx-text-fill: #444;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 6 0;
+}
+.session-list {
+    -fx-background-color: transparent;
+}

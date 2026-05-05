@@ -1,0 +1,163 @@
+package com.opentermx.app.ui.terminal
+
+import javafx.scene.canvas.Canvas
+import javafx.scene.canvas.GraphicsContext
+import javafx.scene.paint.Color
+import javafx.scene.text.Font
+import javafx.scene.text.FontPosture
+import javafx.scene.text.FontWeight
+import javafx.scene.text.Text
+
+class TerminalRenderer(
+    var fontFamily: String = "Consolas",
+    var fontSize: Double = 14.0,
+    var defaultFg: Color = Color.web("#e6e6e6"),
+    var defaultBg: Color = Color.web("#0f0f10"),
+    var cursorColor: Color = Color.web("#e6e6e6"),
+    var selectionColor: Color = Color.web("#2a4a6b88"),
+) {
+    private var regularFont: Font = Font.font(fontFamily, FontWeight.NORMAL, FontPosture.REGULAR, fontSize)
+    private var boldFont: Font = Font.font(fontFamily, FontWeight.BOLD, FontPosture.REGULAR, fontSize)
+    private var italicFont: Font = Font.font(fontFamily, FontWeight.NORMAL, FontPosture.ITALIC, fontSize)
+    private var boldItalicFont: Font = Font.font(fontFamily, FontWeight.BOLD, FontPosture.ITALIC, fontSize)
+
+    var cellWidth: Double = 0.0
+        private set
+    var cellHeight: Double = 0.0
+        private set
+    private var ascent: Double = 0.0
+
+    init { recomputeMetrics() }
+
+    fun setFont(family: String, size: Double) {
+        fontFamily = family
+        fontSize = size
+        regularFont = Font.font(family, FontWeight.NORMAL, FontPosture.REGULAR, size)
+        boldFont = Font.font(family, FontWeight.BOLD, FontPosture.REGULAR, size)
+        italicFont = Font.font(family, FontWeight.NORMAL, FontPosture.ITALIC, size)
+        boldItalicFont = Font.font(family, FontWeight.BOLD, FontPosture.ITALIC, size)
+        recomputeMetrics()
+    }
+
+    private fun recomputeMetrics() {
+        val probe = Text("M").apply { font = regularFont }
+        val bounds = probe.layoutBounds
+        cellWidth = bounds.width
+        cellHeight = bounds.height
+        ascent = probe.baselineOffset
+    }
+
+    fun colsFor(width: Double): Int = (width / cellWidth).toInt().coerceAtLeast(1)
+    fun rowsFor(height: Double): Int = (height / cellHeight).toInt().coerceAtLeast(1)
+
+    fun paint(
+        canvas: Canvas,
+        buffer: TerminalBuffer,
+        viewportTop: Int,
+        selection: Selection,
+        focused: Boolean,
+    ) {
+        val gc = canvas.graphicsContext2D
+        val width = canvas.width
+        val height = canvas.height
+        gc.fill = defaultBg
+        gc.fillRect(0.0, 0.0, width, height)
+
+        val visibleRows = (height / cellHeight).toInt() + 1
+        val cols = (width / cellWidth).toInt() + 1
+
+        for (rowOffset in 0 until visibleRows) {
+            val absRow = viewportTop + rowOffset
+            val line = buffer.lineAt(absRow) ?: continue
+            paintRow(gc, line, absRow, rowOffset, cols, selection)
+        }
+
+        val cursorAbs = buffer.cursorRow
+        val cursorVisRow = cursorAbs - viewportTop
+        if (buffer.cursorVisible && cursorVisRow in 0 until visibleRows) {
+            paintCursor(gc, buffer, cursorVisRow, focused)
+        }
+    }
+
+    private fun paintRow(
+        gc: GraphicsContext,
+        line: List<TerminalCell>,
+        absRow: Int,
+        visRow: Int,
+        cols: Int,
+        selection: Selection,
+    ) {
+        val y = visRow * cellHeight
+        var col = 0
+        while (col < cols) {
+            val cell = line.getOrNull(col) ?: TerminalCell.EMPTY
+            val attrs = cell.attrs
+            val selected = selection.contains(absRow, col)
+            val (fg, bg) = effectiveColors(attrs)
+
+            gc.fill = bg
+            gc.fillRect(col * cellWidth, y, cellWidth, cellHeight)
+
+            if (selected) {
+                gc.fill = selectionColor
+                gc.fillRect(col * cellWidth, y, cellWidth, cellHeight)
+            }
+
+            if (!attrs.hidden && cell.char != ' ') {
+                gc.fill = fg
+                gc.font = pickFont(attrs)
+                gc.globalAlpha = if (attrs.dim) 0.7 else 1.0
+                gc.fillText(cell.char.toString(), col * cellWidth, y + ascent)
+                gc.globalAlpha = 1.0
+
+                if (attrs.underline) {
+                    gc.stroke = fg
+                    gc.lineWidth = 1.0
+                    val uy = y + cellHeight - 1.5
+                    gc.strokeLine(col * cellWidth, uy, (col + 1) * cellWidth, uy)
+                }
+                if (attrs.strikethrough) {
+                    gc.stroke = fg
+                    gc.lineWidth = 1.0
+                    val sy = y + cellHeight / 2.0
+                    gc.strokeLine(col * cellWidth, sy, (col + 1) * cellWidth, sy)
+                }
+            }
+            col++
+        }
+    }
+
+    private fun paintCursor(gc: GraphicsContext, buffer: TerminalBuffer, visRow: Int, focused: Boolean) {
+        val col = buffer.cursorCol
+        val x = col * cellWidth
+        val y = visRow * cellHeight
+        if (focused) {
+            val cell = buffer.cellAt(buffer.cursorRow, col)
+            val (fg, _) = effectiveColors(cell.attrs)
+            gc.fill = fg
+            gc.fillRect(x, y, cellWidth, cellHeight)
+            if (cell.char != ' ') {
+                gc.fill = defaultBg
+                gc.font = pickFont(cell.attrs)
+                gc.fillText(cell.char.toString(), x, y + ascent)
+            }
+        } else {
+            gc.stroke = cursorColor
+            gc.lineWidth = 1.0
+            gc.strokeRect(x + 0.5, y + 0.5, cellWidth - 1, cellHeight - 1)
+        }
+    }
+
+    private fun effectiveColors(attrs: CellAttributes): Pair<Color, Color> {
+        val fg = AnsiPalette.resolve(attrs.fg, defaultFg, defaultBg, isFg = true)
+        val bg = AnsiPalette.resolve(attrs.bg, defaultFg, defaultBg, isFg = false)
+        return if (attrs.inverse) bg to fg else fg to bg
+    }
+
+    private fun pickFont(attrs: CellAttributes): Font = when {
+        attrs.bold && attrs.italic -> boldItalicFont
+        attrs.bold -> boldFont
+        attrs.italic -> italicFont
+        else -> regularFont
+    }
+}

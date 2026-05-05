@@ -1,0 +1,32 @@
+.code-area {
+    -fx-background-color: #1e1e1e;
+    -fx-font-family: "Consolas", "Liberation Mono", monospace;
+    -fx-font-size: 13px;
+}
+
+.code-area .text {
+    -fx-fill: #d4d4d4;
+}
+
+.code-area .caret {
+    -fx-stroke: #d4d4d4;
+}
+
+.macro-keyword { -fx-fill: #c586c0; -fx-font-weight: bold; }
+.macro-func    { -fx-fill: #569cd6; -fx-font-weight: bold; }
+.macro-string  { -fx-fill: #ce9178; }
+.macro-number  { -fx-fill: #b5cea8; }
+.macro-comment { -fx-fill: #6a9955; -fx-font-style: italic; }
+
+.macro-toolbar {
+    -fx-background-color: #2d2d30;
+    -fx-padding: 6 8 6 8;
+    -fx-spacing: 8;
+}
+
+.macro-log {
+    -fx-control-inner-background: #1e1e1e;
+    -fx-text-fill: #cccccc;
+    -fx-font-family: "Consolas", "Liberation Mono", monospace;
+    -fx-font-size: 12px;
+}

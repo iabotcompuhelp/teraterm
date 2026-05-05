@@ -22,11 +22,12 @@ private val CSI = ESC + "["
 class TerminalView(
     fontFamily: String = "Consolas",
     fontSize: Double = 14.0,
+    scrollbackLimit: Int = 10_000,
 ) : BorderPane() {
 
     private val canvas = Canvas(800.0, 480.0)
     private val scrollBar = ScrollBar().apply { orientation = Orientation.VERTICAL }
-    private val buffer = TerminalBuffer(80, 24, scrollbackLimit = 10_000)
+    private val buffer = TerminalBuffer(80, 24, scrollbackLimit = scrollbackLimit)
     private val emulator = TerminalEmulator(buffer)
     private val renderer = TerminalRenderer(fontFamily, fontSize)
     private val selection = Selection()
@@ -95,6 +96,11 @@ class TerminalView(
     fun applyFont(family: String, size: Double) = runOnFx {
         renderer.setFont(family, size)
         updateCanvasSize()
+    }
+
+    fun applyScrollbackLimit(limit: Int) = runOnFx {
+        buffer.scrollbackLimit = limit
+        dirty = true
     }
 
     fun snapshotImage(): javafx.scene.image.Image = canvas.snapshot(null, null)

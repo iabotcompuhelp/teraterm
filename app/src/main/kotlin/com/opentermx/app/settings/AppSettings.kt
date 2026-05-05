@@ -8,6 +8,7 @@ data class AppSettings(
     val locale: String = "es",
     val terminalFontFamily: String = "Consolas",
     val terminalFontSize: Double = 14.0,
+    val terminalScrollbackLimit: Int = 10_000,
     val accelerators: Map<String, String> = DEFAULT_ACCELERATORS,
 ) {
     companion object {

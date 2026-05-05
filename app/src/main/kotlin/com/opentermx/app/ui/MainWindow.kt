@@ -8,6 +8,7 @@ import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
 import com.opentermx.app.ui.dialog.KeybindingsDialog
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
+import com.opentermx.app.ui.dialog.ScrollbackDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.TcpRawConfigDialog
@@ -165,6 +166,9 @@ class MainWindow(
             items += MenuItem(Strings["setup.font"]).apply {
                 setOnAction { openFontDialog() }
             }
+            items += MenuItem(Strings["setup.scrollback"]).apply {
+                setOnAction { openScrollbackDialog() }
+            }
             items += MenuItem(Strings["setup.keybindings"]).apply {
                 setOnAction { openKeybindingsDialog() }
             }
@@ -251,6 +255,17 @@ class MainWindow(
         rebuildMenusAndLabels()
     }
 
+    private fun openScrollbackDialog() {
+        val newLimit = ScrollbackDialog(settings.terminalScrollbackLimit).showAndWait().orElse(null) ?: return
+        persist { it.copy(terminalScrollbackLimit = newLimit) }
+        applyScrollbackToTerminals(newLimit)
+    }
+
+    private fun applyScrollbackToTerminals(limit: Int) {
+        controllers.values.forEach { it.terminal.applyScrollbackLimit(limit) }
+        forEachTerminal { it.applyScrollbackLimit(limit) }
+    }
+
     private fun applyThemeToTerminals() {
         val c = theme.terminalColors
         controllers.values.forEach { it.terminal.applyColors(c.foreground, c.background, c.cursor, c.selection) }
@@ -287,7 +302,11 @@ class MainWindow(
     }
 
     private fun newTerminal(): TerminalView {
-        val terminal = TerminalView(settings.terminalFontFamily, settings.terminalFontSize)
+        val terminal = TerminalView(
+            fontFamily = settings.terminalFontFamily,
+            fontSize = settings.terminalFontSize,
+            scrollbackLimit = settings.terminalScrollbackLimit,
+        )
         val c = theme.terminalColors
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
         return terminal

@@ -3,8 +3,19 @@ package com.opentermx.app.ui.terminal
 class TerminalBuffer(
     initialCols: Int = 80,
     initialRows: Int = 24,
-    val scrollbackLimit: Int = 10_000,
+    scrollbackLimit: Int = 10_000,
 ) {
+    var scrollbackLimit: Int = scrollbackLimit.coerceAtLeast(0)
+        set(value) {
+            field = value.coerceAtLeast(0)
+            // Apply the new ceiling right away so shrinking takes effect on already-stored
+            // history. The +rows accounts for the visible viewport always living in `lines`.
+            while (lines.size > field + rows) {
+                lines.removeFirst()
+                cursorRow = (cursorRow - 1).coerceAtLeast(0)
+            }
+            touch()
+        }
     var cols: Int = initialCols
         private set
     var rows: Int = initialRows

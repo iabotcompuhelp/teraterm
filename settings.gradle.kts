@@ -7,6 +7,7 @@ include(
     ":ssh-comm",
     ":telnet-comm",
     ":file-transfer",
+    ":tftp-service",
     ":macro-engine",
     ":logger",
 )

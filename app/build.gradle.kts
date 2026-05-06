@@ -23,6 +23,7 @@ dependencies {
     implementation(project(":ssh-comm"))
     implementation(project(":telnet-comm"))
     implementation(project(":file-transfer"))
+    implementation(project(":tftp-service"))
     implementation(project(":macro-engine"))
     implementation(project(":logger"))
 

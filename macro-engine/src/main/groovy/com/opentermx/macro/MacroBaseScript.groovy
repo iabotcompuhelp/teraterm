@@ -65,4 +65,32 @@ abstract class MacroBaseScript extends Script {
     void setClipboard(String text) {
         ctx.setClipboard(text)
     }
+
+    void tftp_put(String host, int port, String remoteFile, String localFile) {
+        ctx.tftpPut(host, port, remoteFile, localFile)
+    }
+
+    void tftp_put(String host, String remoteFile, String localFile) {
+        ctx.tftpPut(host, 69, remoteFile, localFile)
+    }
+
+    void tftp_get(String host, int port, String remoteFile, String localFile) {
+        ctx.tftpGet(host, port, remoteFile, localFile)
+    }
+
+    void tftp_get(String host, String remoteFile, String localFile) {
+        ctx.tftpGet(host, 69, remoteFile, localFile)
+    }
+
+    void tftp_server_start(int port, String rootDir) {
+        ctx.tftpServerStart(port, rootDir, true, true)
+    }
+
+    void tftp_server_start(int port, String rootDir, boolean allowGet, boolean allowPut) {
+        ctx.tftpServerStart(port, rootDir, allowGet, allowPut)
+    }
+
+    void tftp_server_stop() {
+        ctx.tftpServerStop()
+    }
 }

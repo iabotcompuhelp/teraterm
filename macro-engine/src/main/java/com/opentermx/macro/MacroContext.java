@@ -4,12 +4,20 @@ import com.opentermx.common.connection.Connection;
 import com.opentermx.common.event.ConnectionEvent;
 import com.opentermx.common.event.EventBus;
 import com.opentermx.common.event.Subscription;
+import com.opentermx.tftp.client.TftpClient;
+import com.opentermx.tftp.client.TftpClientOptions;
+import com.opentermx.tftp.server.TftpServer;
+import com.opentermx.tftp.server.TftpServerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +38,7 @@ public final class MacroContext {
     private Subscription subscription;
     private FileWriter fileLog;
     private volatile boolean cancelled = false;
+    private TftpServer tftpServer;
 
     public MacroContext(Connection connection, String sessionId, MacroUiBridge ui, Consumer<MacroLogEntry> onLog) {
         this.connection = connection;
@@ -66,6 +75,11 @@ public final class MacroContext {
         FileWriter fl = fileLog;
         if (fl != null) {
             try { fl.close(); } catch (IOException ignored) {}
+        }
+        TftpServer ts = tftpServer;
+        if (ts != null) {
+            try { ts.stop(); } catch (Exception ignored) {}
+            tftpServer = null;
         }
     }
 
@@ -136,6 +150,54 @@ public final class MacroContext {
         MacroLogEntry entry = new MacroLogEntry(System.currentTimeMillis() - startTime, message);
         entries.add(entry);
         try { onLog.accept(entry); } catch (Throwable t) { log.warn("log consumer threw", t); }
+    }
+
+    public void tftpPut(String host, int port, String remoteFile, String localFile) throws IOException {
+        Path local = Path.of(localFile);
+        long size = Files.size(local);
+        log("tftp_put " + localFile + " → " + host + ":" + port + "/" + remoteFile + " (" + size + " bytes)");
+        TftpClient client = new TftpClient();
+        try (BufferedInputStream in = new BufferedInputStream(Files.newInputStream(local))) {
+            client.put(host, port, remoteFile, in, size, TftpClientOptions.defaults(), null);
+        }
+        log("tftp_put completed");
+    }
+
+    public void tftpGet(String host, int port, String remoteFile, String localFile) throws IOException {
+        Path local = Path.of(localFile);
+        log("tftp_get " + host + ":" + port + "/" + remoteFile + " → " + localFile);
+        TftpClient client = new TftpClient();
+        try (BufferedOutputStream out = new BufferedOutputStream(Files.newOutputStream(local))) {
+            client.get(host, port, remoteFile, out, TftpClientOptions.defaults(), null);
+        }
+        log("tftp_get completed");
+    }
+
+    public synchronized void tftpServerStart(int port, String rootDir, boolean allowGet, boolean allowPut)
+            throws IOException {
+        if (tftpServer != null && tftpServer.isRunning()) {
+            throw new MacroException("TFTP server already running on port " + tftpServer.actualPort());
+        }
+        Path root = Path.of(rootDir);
+        if (!Files.isDirectory(root)) {
+            throw new MacroException("Root directory does not exist: " + rootDir);
+        }
+        TftpServer server = new TftpServer(new TftpServerConfig(port, root, allowGet, allowPut, 5, 5));
+        server.addListener(event -> log("tftp_server: " + event.kind() + " " + event.message()));
+        server.start();
+        tftpServer = server;
+        log("tftp_server_start port=" + server.actualPort() + " root=" + root);
+    }
+
+    public synchronized void tftpServerStop() {
+        TftpServer server = tftpServer;
+        if (server == null) {
+            log("tftp_server_stop: not running");
+            return;
+        }
+        server.stop();
+        tftpServer = null;
+        log("tftp_server_stop done");
     }
 
     public List<MacroLogEntry> getLogEntries() {

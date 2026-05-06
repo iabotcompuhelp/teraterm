@@ -16,6 +16,8 @@ import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.TcpRawConfigDialog
 import com.opentermx.app.ui.dialog.TelnetConfigDialog
+import com.opentermx.app.ui.dialog.TftpClientDialog
+import com.opentermx.app.ui.dialog.TftpServerDialog
 import com.opentermx.app.ui.macro.MacroWindow
 import com.opentermx.app.ui.sftp.SftpPanel
 import com.opentermx.app.ui.terminal.TerminalCapture
@@ -130,6 +132,7 @@ class MainWindow(
             items += MenuItem(Strings["file.portForward"]).apply {
                 setOnAction { openPortForwardDialog() }
             }
+            items += buildTransferMenu()
             items += SeparatorMenuItem()
             items += MenuItem(Strings["file.exit"]).apply {
                 accelerator = accelerator("file.exit")
@@ -219,6 +222,34 @@ class MainWindow(
             }
         }
         return MenuBar(file, edit, setup, control, windowMenu, help)
+    }
+
+    private fun buildTransferMenu(): Menu = Menu(Strings["file.transfer"]).apply {
+        items += MenuItem(Strings["file.transfer.tftpClient"]).apply {
+            setOnAction { openTftpClientDialog() }
+        }
+        items += MenuItem(Strings["file.transfer.tftpServer"]).apply {
+            setOnAction { openTftpServerDialog() }
+        }
+    }
+
+    private fun openTftpClientDialog() {
+        val initialHost = controllers.values
+            .firstOrNull { it.session.connection !is SerialConnection }
+            ?.session?.config?.let { cfg ->
+                when (cfg) {
+                    is TelnetConfig -> cfg.host
+                    is TcpRawConfig -> cfg.host
+                    is SshConfig -> cfg.host
+                    else -> ""
+                }
+            }
+            ?: settings.recentHosts.firstOrNull().orEmpty()
+        TftpClientDialog(stage, initialHost).show()
+    }
+
+    private fun openTftpServerDialog() {
+        TftpServerDialog(stage).show()
     }
 
     private fun buildLanguageMenu(): Menu = Menu(Strings["setup.language"]).apply {

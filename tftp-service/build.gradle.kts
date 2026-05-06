@@ -1,5 +1,4 @@
 plugins {
-    groovy
     `java-library`
 }
 
@@ -11,8 +10,6 @@ java {
 
 dependencies {
     api(project(":common"))
-    api(project(":tftp-service"))
-    implementation(libs.groovy)
     implementation(libs.slf4j.api)
 
     testImplementation(libs.junit.jupiter)

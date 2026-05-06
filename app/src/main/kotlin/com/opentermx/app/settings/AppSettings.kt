@@ -14,6 +14,7 @@ data class AppSettings(
     val historyEnabled: Boolean = true,
     val terminal: TerminalSettings = TerminalSettings(),
     val window: WindowSettings = WindowSettings(),
+    val keyboard: KeyboardSettings = KeyboardSettings(),
     val proxy: ProxySettings = ProxySettings(),
     val sshGeneral: SshGeneralSettings = SshGeneralSettings(),
     val sshAuth: SshAuthSettings = SshAuthSettings(),
@@ -51,6 +52,17 @@ data class WindowSettings(
     val transparency: Double = 1.0,      // 0.3..1.0
     val hideTitleBar: Boolean = false,
     val mouseCursorMode: String = "DEFAULT", // DEFAULT | TEXT | NONE
+)
+
+/**
+ * VT-style keyboard behaviour (Setup → Keyboard…). Independent from menu accelerators
+ * (which live in `accelerators` / `Setup → Shortcuts…`). Defaults match xterm conventions:
+ * Backspace transmits DEL (0x7F), Delete transmits ESC[3~, Alt prefixes ESC.
+ */
+data class KeyboardSettings(
+    val backspaceSendsDel: Boolean = true,   // true → 0x7F (xterm/Linux); false → 0x08 (BS, classic Windows)
+    val deleteSendsBs: Boolean = false,      // true → 0x08 (legacy); false → ESC[3~ (xterm)
+    val metaSendsEscape: Boolean = true,     // true → Alt+key emits ESC+key (xterm); false → ignored
 )
 
 data class ProxySettings(

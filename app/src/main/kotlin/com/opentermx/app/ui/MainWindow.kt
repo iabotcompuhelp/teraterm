@@ -7,6 +7,7 @@ import com.opentermx.app.ui.dialog.AdditionalSettingsDialog
 import com.opentermx.app.ui.dialog.FontConfigDialog
 import com.opentermx.app.ui.dialog.GeneralSettingsDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
+import com.opentermx.app.ui.dialog.KeyboardDialog
 import com.opentermx.app.ui.dialog.KeybindingsDialog
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.NewConnectionChoice
@@ -178,7 +179,8 @@ class MainWindow(
             items += MenuItem(Strings["setup.terminal"]).apply { setOnAction { openTerminalConfig() } }
             items += MenuItem(Strings["setup.window"]).apply { setOnAction { openWindowConfig() } }
             items += buildFontMenu()
-            items += MenuItem(Strings["setup.keyboard"]).apply { setOnAction { openKeybindingsDialog() } }
+            items += MenuItem(Strings["setup.keyboard"]).apply { setOnAction { openKeyboardConfig() } }
+            items += MenuItem(Strings["setup.shortcuts"]).apply { setOnAction { openKeybindingsDialog() } }
             items += SeparatorMenuItem()
             // Grupo 2: conexiones.
             items += MenuItem(Strings["setup.serialPort"]).apply { setOnAction { openSerialPortSetup() } }
@@ -338,6 +340,12 @@ class MainWindow(
         rebuildMenusAndLabels()
     }
 
+    private fun openKeyboardConfig() {
+        val updated = KeyboardDialog(settings.keyboard).showAndWait().orElse(null) ?: return
+        persist { it.copy(keyboard = updated) }
+        applyKeyboardSettingsToAll(updated)
+    }
+
     private fun openScrollbackDialog() {
         val newLimit = ScrollbackDialog(settings.terminalScrollbackLimit).showAndWait().orElse(null) ?: return
         persist { it.copy(terminalScrollbackLimit = newLimit) }
@@ -467,6 +475,7 @@ class MainWindow(
         applyScrollbackToTerminals(imported.terminalScrollbackLimit)
         applyThemeToTerminals()
         applyTerminalSettingsToAll(imported.terminal)
+        applyKeyboardSettingsToAll(imported.keyboard)
         applyAdditionalSettingsToAll(imported.additional)
         stage.opacity = imported.window.transparency
         rebuildMenusAndLabels()
@@ -597,6 +606,11 @@ class MainWindow(
             localEcho = settings.terminal.localEcho,
             scrollMode = settings.terminal.scrollMode,
         )
+        terminal.applyKeyboardSettings(
+            backspaceSendsDel = settings.keyboard.backspaceSendsDel,
+            deleteSendsBs = settings.keyboard.deleteSendsBs,
+            metaSendsEscape = settings.keyboard.metaSendsEscape,
+        )
         terminal.applyAdditionalSettings(
             copyOnSelect = settings.additional.copyOnSelect,
             visualCursorBlink = settings.additional.visualCursorBlink,
@@ -615,6 +629,18 @@ class MainWindow(
                 newlineMode = t.newlineMode,
                 localEcho = t.localEcho,
                 scrollMode = t.scrollMode,
+            )
+        }
+        controllers.values.forEach { apply(it.terminal) }
+        forEachTerminal(apply)
+    }
+
+    private fun applyKeyboardSettingsToAll(k: com.opentermx.app.settings.KeyboardSettings) {
+        val apply: (TerminalView) -> Unit = {
+            it.applyKeyboardSettings(
+                backspaceSendsDel = k.backspaceSendsDel,
+                deleteSendsBs = k.deleteSendsBs,
+                metaSendsEscape = k.metaSendsEscape,
             )
         }
         controllers.values.forEach { apply(it.terminal) }

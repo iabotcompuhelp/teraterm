@@ -20,6 +20,7 @@ import java.nio.charset.UnsupportedCharsetException
 
 private val ESC = Char(0x1B).toString()
 private val DEL = Char(0x7F).toString()
+private val BS = Char(0x08).toString()
 private val CSI = ESC + "["
 private const val CURSOR_BLINK_PERIOD_NS = 500_000_000L
 private const val TEXT_BLINK_PERIOD_NS = 800_000_000L
@@ -48,6 +49,9 @@ class TerminalView(
     private var cursorBlinkAllowed: Boolean = true
     private var smoothScroll: Boolean = false
     private var smoothTargetTop: Int = 0
+    private var backspaceSendsDel: Boolean = true
+    private var deleteSendsBs: Boolean = false
+    private var metaSendsEscape: Boolean = true
 
     private val titleWrapper = ReadOnlyStringWrapper("")
     val titleProperty: ReadOnlyStringProperty get() = titleWrapper.readOnlyProperty
@@ -145,6 +149,21 @@ class TerminalView(
             smoothTargetTop = viewportTop
         }
         dirty = true
+    }
+
+    /**
+     * VT-keyboard behaviour from Setup → Keyboard…. Backspace transmits BS or DEL; Delete
+     * transmits BS or ESC[3~; Alt-as-Meta either prefixes ESC to the keystroke (xterm) or is
+     * left to the KEY_TYPED handler so the OS can produce diacritics.
+     */
+    fun applyKeyboardSettings(
+        backspaceSendsDel: Boolean = true,
+        deleteSendsBs: Boolean = false,
+        metaSendsEscape: Boolean = true,
+    ) = runOnFx {
+        this.backspaceSendsDel = backspaceSendsDel
+        this.deleteSendsBs = deleteSendsBs
+        this.metaSendsEscape = metaSendsEscape
     }
 
     /**
@@ -254,6 +273,9 @@ class TerminalView(
     private fun setupKeyboard() {
         canvas.addEventFilter(KeyEvent.KEY_TYPED) { e ->
             if (e.isShortcutDown) return@addEventFilter
+            // When meta-as-escape is on, Alt+key is emitted as ESC+key from KEY_PRESSED, so
+            // suppress the KEY_TYPED for the same keystroke to avoid double emission.
+            if (metaSendsEscape && e.isAltDown) return@addEventFilter
             val ch = e.character
             if (ch.isNotEmpty() && ch[0].code >= 32 && ch[0].code != 127) {
                 emitInput(ch)
@@ -291,6 +313,16 @@ class TerminalView(
                     return@addEventFilter
                 }
             }
+            if (metaSendsEscape && e.isAltDown && !e.isShortcutDown && !e.isMetaDown
+                && (e.code.isLetterKey() || e.code.isDigitKey())) {
+                val name = e.code.getName().firstOrNull()
+                if (name != null) {
+                    val ch = if (e.code.isLetterKey() && !e.isShiftDown) name.lowercaseChar() else name
+                    emitInput(ESC + ch)
+                    e.consume()
+                    return@addEventFilter
+                }
+            }
             val mapped = mapSpecialKey(e.code)
             if (mapped != null) {
                 emitInput(mapped)
@@ -301,7 +333,7 @@ class TerminalView(
 
     private fun mapSpecialKey(code: KeyCode): String? = when (code) {
         KeyCode.ENTER -> newlineSequence
-        KeyCode.BACK_SPACE -> DEL
+        KeyCode.BACK_SPACE -> if (backspaceSendsDel) DEL else BS
         KeyCode.TAB -> "\t"
         KeyCode.ESCAPE -> ESC
         KeyCode.UP -> CSI + "A"
@@ -310,13 +342,21 @@ class TerminalView(
         KeyCode.LEFT -> CSI + "D"
         KeyCode.HOME -> CSI + "H"
         KeyCode.END -> CSI + "F"
-        KeyCode.DELETE -> CSI + "3~"
+        KeyCode.DELETE -> if (deleteSendsBs) BS else CSI + "3~"
         KeyCode.PAGE_UP -> CSI + "5~"
         KeyCode.PAGE_DOWN -> CSI + "6~"
         KeyCode.F1 -> ESC + "OP"
         KeyCode.F2 -> ESC + "OQ"
         KeyCode.F3 -> ESC + "OR"
         KeyCode.F4 -> ESC + "OS"
+        KeyCode.F5 -> CSI + "15~"
+        KeyCode.F6 -> CSI + "17~"
+        KeyCode.F7 -> CSI + "18~"
+        KeyCode.F8 -> CSI + "19~"
+        KeyCode.F9 -> CSI + "20~"
+        KeyCode.F10 -> CSI + "21~"
+        KeyCode.F11 -> CSI + "23~"
+        KeyCode.F12 -> CSI + "24~"
         else -> null
     }
 

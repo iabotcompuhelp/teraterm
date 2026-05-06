@@ -36,4 +36,12 @@ object SettingsStore {
             log.warn("No se pudo guardar {} ({})", settingsFile, e.message)
         }
     }
+
+    fun export(settings: AppSettings, target: java.io.File) {
+        mapper.writerWithDefaultPrettyPrinter().writeValue(target, settings)
+    }
+
+    fun import(source: java.io.File): AppSettings {
+        return mapper.readValue(source, AppSettings::class.java)
+    }
 }

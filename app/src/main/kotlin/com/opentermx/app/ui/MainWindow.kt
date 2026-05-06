@@ -3,21 +3,28 @@ package com.opentermx.app.ui
 import com.opentermx.app.i18n.Strings
 import com.opentermx.app.settings.AppSettings
 import com.opentermx.app.settings.SettingsStore
+import com.opentermx.app.ui.dialog.AdditionalSettingsDialog
 import com.opentermx.app.ui.dialog.FontConfigDialog
+import com.opentermx.app.ui.dialog.GeneralSettingsDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
 import com.opentermx.app.ui.dialog.KeybindingsDialog
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.NewConnectionChoice
 import com.opentermx.app.ui.dialog.NewConnectionDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
+import com.opentermx.app.ui.dialog.ProxyConfigDialog
+import com.opentermx.app.ui.dialog.SshAuthDialog
+import com.opentermx.app.ui.dialog.SshGeneralDialog
+import com.opentermx.app.ui.dialog.SshKeyGeneratorDialog
 import com.opentermx.app.ui.dialog.SshVersion
 import com.opentermx.app.ui.dialog.ScrollbackDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
-import com.opentermx.app.ui.dialog.TcpRawConfigDialog
-import com.opentermx.app.ui.dialog.TelnetConfigDialog
+import com.opentermx.app.ui.dialog.TcpIpConfigDialog
+import com.opentermx.app.ui.dialog.TerminalConfigDialog
 import com.opentermx.app.ui.dialog.TftpClientDialog
 import com.opentermx.app.ui.dialog.TftpServerDialog
+import com.opentermx.app.ui.dialog.WindowConfigDialog
 import com.opentermx.app.ui.macro.MacroWindow
 import com.opentermx.app.ui.sftp.SftpPanel
 import com.opentermx.app.ui.terminal.TerminalCapture
@@ -134,6 +141,9 @@ class MainWindow(
             }
             items += buildTransferMenu()
             items += SeparatorMenuItem()
+            items += MenuItem(Strings["setup.capturePng"]).apply { setOnAction { capturePng() } }
+            items += MenuItem(Strings["setup.exportBuffer"]).apply { setOnAction { exportBufferText() } }
+            items += SeparatorMenuItem()
             items += MenuItem(Strings["file.exit"]).apply {
                 accelerator = accelerator("file.exit")
                 setOnAction { stage.fireEvent(javafx.stage.WindowEvent(stage, javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST)) }
@@ -154,11 +164,55 @@ class MainWindow(
             }
         }
         val setup = Menu(Strings["menu.setup"]).apply {
-            items += MenuItem(Strings["setup.serial"]).apply { setOnAction { openSerialSession() } }
-            items += MenuItem(Strings["setup.ssh"]).apply { setOnAction { openSshSession() } }
-            items += MenuItem(Strings["setup.telnet"]).apply { setOnAction { openTelnetSession() } }
-            items += MenuItem(Strings["setup.tcpraw"]).apply { setOnAction { openTcpRawSession() } }
+            // Grupo 1: terminal y apariencia.
+            items += MenuItem(Strings["setup.terminal"]).apply { setOnAction { openTerminalConfig() } }
+            items += MenuItem(Strings["setup.window"]).apply { setOnAction { openWindowConfig() } }
+            items += buildFontMenu()
+            items += MenuItem(Strings["setup.keyboard"]).apply { setOnAction { openKeybindingsDialog() } }
             items += SeparatorMenuItem()
+            // Grupo 2: conexiones.
+            items += MenuItem(Strings["setup.serialPort"]).apply { setOnAction { openSerialPortSetup() } }
+            items += MenuItem(Strings["setup.proxy"]).apply { setOnAction { openProxyConfig() } }
+            items += MenuItem(Strings["setup.sshGen"]).apply { setOnAction { openSshGeneralConfig() } }
+            items += MenuItem(Strings["setup.sshAuth"]).apply { setOnAction { openSshAuthConfig() } }
+            items += MenuItem(Strings["setup.sshForwarding"]).apply { setOnAction { openPortForwardDialog() } }
+            items += MenuItem(Strings["setup.sshKeygen"]).apply { setOnAction { openSshKeyGenerator() } }
+            items += SeparatorMenuItem()
+            // Grupo 3: red.
+            items += MenuItem(Strings["setup.tcpip"]).apply { setOnAction { openTcpIpConfig() } }
+            items += SeparatorMenuItem()
+            // Grupo 4: general.
+            items += MenuItem(Strings["setup.general"]).apply { setOnAction { openGeneralSettings() } }
+            items += MenuItem(Strings["setup.additional"]).apply { setOnAction { openAdditionalSettings() } }
+            items += SeparatorMenuItem()
+            // Grupo 5: persistencia.
+            items += MenuItem(Strings["setup.saveSetup"]).apply { setOnAction { saveSetup() } }
+            items += MenuItem(Strings["setup.restoreSetup"]).apply { setOnAction { restoreSetup() } }
+            items += MenuItem(Strings["setup.setupDir"]).apply { setOnAction { showSetupDirectory() } }
+            items += SeparatorMenuItem()
+            items += MenuItem(Strings["setup.loadKeymap"]).apply { setOnAction { loadKeyMap() } }
+        }
+        val control = Menu(Strings["menu.control"]).apply {
+            items += MenuItem(Strings["control.connect"]).apply { setOnAction { currentController()?.connect() } }
+            items += MenuItem(Strings["control.disconnect"]).apply { setOnAction { currentController()?.disconnect() } }
+            items += MenuItem(Strings["control.break"]).apply { setOnAction { sendBreakOnCurrent() } }
+            items += SeparatorMenuItem()
+            items += MenuItem(Strings["setup.macros"]).apply {
+                accelerator = accelerator("setup.macros")
+                setOnAction { macroWindow.show() }
+            }
+            items += SeparatorMenuItem()
+            items += MenuItem(Strings["setup.startLog"]).apply { setOnAction { startSessionLog() } }
+            items += MenuItem(Strings["setup.stopLog"]).apply { setOnAction { stopSessionLog() } }
+            items += SeparatorMenuItem()
+            items += MenuItem(Strings["control.sendXmodem"]).apply { setOnAction { sendFileXmodem() } }
+            items += MenuItem(Strings["control.recvXmodem"]).apply { setOnAction { receiveFileXmodem() } }
+            items += MenuItem(Strings["control.sendZmodem"]).apply { setOnAction { sendFileZmodem() } }
+            items += MenuItem(Strings["control.recvZmodem"]).apply { setOnAction { receiveFileZmodem() } }
+            items += MenuItem(Strings["control.sendYmodem"]).apply { setOnAction { sendFilesYmodem() } }
+            items += MenuItem(Strings["control.recvYmodem"]).apply { setOnAction { receiveFilesYmodem() } }
+        }
+        val windowMenu = Menu(Strings["menu.window"]).apply {
             items += CheckMenuItem(Strings["setup.darkTheme"]).apply {
                 isSelected = theme.isDark
                 setOnAction {
@@ -170,41 +224,8 @@ class MainWindow(
                     refreshLabels()
                 }
             }
-            items += MenuItem(Strings["setup.font"]).apply {
-                setOnAction { openFontDialog() }
-            }
-            items += MenuItem(Strings["setup.scrollback"]).apply {
-                setOnAction { openScrollbackDialog() }
-            }
-            items += MenuItem(Strings["setup.keybindings"]).apply {
-                setOnAction { openKeybindingsDialog() }
-            }
             items += buildLanguageMenu()
             items += SeparatorMenuItem()
-            items += MenuItem(Strings["setup.macros"]).apply {
-                accelerator = accelerator("setup.macros")
-                setOnAction { macroWindow.show() }
-            }
-            items += SeparatorMenuItem()
-            items += MenuItem(Strings["setup.startLog"]).apply { setOnAction { startSessionLog() } }
-            items += MenuItem(Strings["setup.stopLog"]).apply { setOnAction { stopSessionLog() } }
-            items += SeparatorMenuItem()
-            items += MenuItem(Strings["setup.capturePng"]).apply { setOnAction { capturePng() } }
-            items += MenuItem(Strings["setup.exportBuffer"]).apply { setOnAction { exportBufferText() } }
-        }
-        val control = Menu(Strings["menu.control"]).apply {
-            items += MenuItem(Strings["control.connect"]).apply { setOnAction { currentController()?.connect() } }
-            items += MenuItem(Strings["control.disconnect"]).apply { setOnAction { currentController()?.disconnect() } }
-            items += MenuItem(Strings["control.break"]).apply { setOnAction { sendBreakOnCurrent() } }
-            items += SeparatorMenuItem()
-            items += MenuItem(Strings["control.sendXmodem"]).apply { setOnAction { sendFileXmodem() } }
-            items += MenuItem(Strings["control.recvXmodem"]).apply { setOnAction { receiveFileXmodem() } }
-            items += MenuItem(Strings["control.sendZmodem"]).apply { setOnAction { sendFileZmodem() } }
-            items += MenuItem(Strings["control.recvZmodem"]).apply { setOnAction { receiveFileZmodem() } }
-            items += MenuItem(Strings["control.sendYmodem"]).apply { setOnAction { sendFilesYmodem() } }
-            items += MenuItem(Strings["control.recvYmodem"]).apply { setOnAction { receiveFilesYmodem() } }
-        }
-        val windowMenu = Menu(Strings["menu.window"]).apply {
             items += MenuItem(Strings["window.closeTab"]).apply {
                 accelerator = accelerator("window.closeTab")
                 setOnAction { tabPane.selectionModel.selectedItem?.let { closeTab(it) } }
@@ -222,6 +243,11 @@ class MainWindow(
             }
         }
         return MenuBar(file, edit, setup, control, windowMenu, help)
+    }
+
+    private fun buildFontMenu(): Menu = Menu(Strings["setup.fontMenu"]).apply {
+        items += MenuItem(Strings["setup.font"]).apply { setOnAction { openFontDialog() } }
+        items += MenuItem(Strings["setup.scrollback"]).apply { setOnAction { openScrollbackDialog() } }
     }
 
     private fun buildTransferMenu(): Menu = Menu(Strings["file.transfer"]).apply {
@@ -294,6 +320,136 @@ class MainWindow(
         val newLimit = ScrollbackDialog(settings.terminalScrollbackLimit).showAndWait().orElse(null) ?: return
         persist { it.copy(terminalScrollbackLimit = newLimit) }
         applyScrollbackToTerminals(newLimit)
+    }
+
+    private fun openTerminalConfig() {
+        val updated = TerminalConfigDialog(settings.terminal).showAndWait().orElse(null) ?: return
+        persist { it.copy(terminal = updated) }
+    }
+
+    private fun openWindowConfig() {
+        val updated = WindowConfigDialog(settings.window).showAndWait().orElse(null) ?: return
+        persist { it.copy(window = updated) }
+        // Transparency is the only field that maps cleanly to live state right now.
+        stage.opacity = updated.transparency
+    }
+
+    private fun openProxyConfig() {
+        val updated = ProxyConfigDialog(settings.proxy).showAndWait().orElse(null) ?: return
+        persist { it.copy(proxy = updated) }
+    }
+
+    private fun openSshGeneralConfig() {
+        val updated = SshGeneralDialog(settings.sshGeneral).showAndWait().orElse(null) ?: return
+        persist { it.copy(sshGeneral = updated) }
+    }
+
+    private fun openSshAuthConfig() {
+        val updated = SshAuthDialog(settings.sshAuth).showAndWait().orElse(null) ?: return
+        persist { it.copy(sshAuth = updated) }
+    }
+
+    private fun openSshKeyGenerator() {
+        SshKeyGeneratorDialog(stage).show()
+    }
+
+    private fun openTcpIpConfig() {
+        val updated = TcpIpConfigDialog(settings.tcpIp).showAndWait().orElse(null) ?: return
+        persist { it.copy(tcpIp = updated) }
+    }
+
+    private fun openGeneralSettings() {
+        val result = GeneralSettingsDialog(settings.locale, settings.general).showAndWait().orElse(null) ?: return
+        val localeChanged = result.locale != settings.locale
+        persist { it.copy(locale = result.locale, general = result.general) }
+        if (localeChanged) {
+            Strings.setLocale(result.locale)
+            rebuildMenusAndLabels()
+        }
+    }
+
+    private fun openAdditionalSettings() {
+        val updated = AdditionalSettingsDialog(settings.additional).showAndWait().orElse(null) ?: return
+        persist { it.copy(additional = updated) }
+    }
+
+    private fun openSerialPortSetup() {
+        val cfg = SerialConfigDialog().showAndWait().orElse(null) ?: return
+        openSession(cfg, cfg.portName, SerialConnection(cfg))
+    }
+
+    private fun saveSetup() {
+        val file = FileChooser().apply {
+            title = Strings["setup.saveSetup"]
+            initialFileName = "opentermx-settings.json"
+            extensionFilters.add(FileChooser.ExtensionFilter("JSON", "*.json"))
+            initialDirectory = SettingsStore.configDir.toFile().takeIf { it.isDirectory }
+        }.showSaveDialog(stage) ?: return
+        runCatching { SettingsStore.export(settings, file) }
+            .onSuccess { statusLabel.text = Strings.format("status.setupSaved", file.absolutePath) }
+            .onFailure { statusLabel.text = Strings.format("status.setupError", it.message ?: "") }
+    }
+
+    private fun restoreSetup() {
+        val file = FileChooser().apply {
+            title = Strings["setup.restoreSetup"]
+            extensionFilters.add(FileChooser.ExtensionFilter("JSON", "*.json"))
+            initialDirectory = SettingsStore.configDir.toFile().takeIf { it.isDirectory }
+        }.showOpenDialog(stage) ?: return
+        runCatching {
+            val imported = SettingsStore.import(file)
+            settings = imported
+            SettingsStore.save(imported)
+            // Apply what we can immediately.
+            Strings.setLocale(imported.locale)
+            theme.applyTo(rootPane.scene!!)
+            applyFontToTerminals()
+            applyScrollbackToTerminals(imported.terminalScrollbackLimit)
+            applyThemeToTerminals()
+            stage.opacity = imported.window.transparency
+            rebuildMenusAndLabels()
+        }.onSuccess { statusLabel.text = Strings.format("status.setupRestored", file.absolutePath) }
+            .onFailure {
+                log.warn("Restore setup failed", it)
+                statusLabel.text = Strings.format("status.setupError", it.message ?: "")
+            }
+    }
+
+    private fun showSetupDirectory() {
+        val dir = SettingsStore.configDir.toFile()
+        if (!dir.isDirectory) dir.mkdirs()
+        runCatching { java.awt.Desktop.getDesktop().open(dir) }
+            .onFailure { log.info("Desktop.open not available; just reporting path", it) }
+        statusLabel.text = Strings.format("status.setupDirOpen", dir.absolutePath)
+    }
+
+    private fun loadKeyMap() {
+        val file = FileChooser().apply {
+            title = Strings["setup.loadKeymap"]
+            extensionFilters.addAll(
+                FileChooser.ExtensionFilter("Key map", "*.keymap", "*.properties"),
+                FileChooser.ExtensionFilter("All files", "*.*"),
+            )
+        }.showOpenDialog(stage) ?: return
+        runCatching {
+            val props = java.util.Properties()
+            file.bufferedReader(Charsets.UTF_8).use { props.load(it) }
+            val merged = settings.accelerators.toMutableMap()
+            var n = 0
+            for (key in props.stringPropertyNames()) {
+                val value = props.getProperty(key).trim()
+                if (value.isEmpty()) merged.remove(key) else merged[key] = value
+                n++
+            }
+            persist { it.copy(accelerators = merged) }
+            rebuildMenusAndLabels()
+            n
+        }.onSuccess { count ->
+            statusLabel.text = Strings.format("status.keymapLoaded", count)
+        }.onFailure {
+            log.warn("Load key map failed", it)
+            statusLabel.text = Strings.format("status.setupError", it.message ?: "")
+        }
     }
 
     private fun applyScrollbackToTerminals(limit: Int) {
@@ -427,27 +583,6 @@ class MainWindow(
         val deduped = (listOf(host) + settings.recentHosts.filterNot { it.equals(host, ignoreCase = true) })
             .take(20)
         persist { it.copy(recentHosts = deduped) }
-    }
-
-    private fun openSerialSession() {
-        val cfg = SerialConfigDialog().showAndWait().orElse(null) ?: return
-        openSession(cfg, cfg.portName, SerialConnection(cfg))
-    }
-
-    private fun openSshSession() {
-        val cfg = SshConfigDialog().showAndWait().orElse(null) ?: return
-        openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
-    }
-
-    private fun openTelnetSession() {
-        val cfg = TelnetConfigDialog().showAndWait().orElse(null) ?: return
-        val protocol = if (cfg.useTls) "telnets" else "telnet"
-        openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
-    }
-
-    private fun openTcpRawSession() {
-        val cfg = TcpRawConfigDialog().showAndWait().orElse(null) ?: return
-        openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
     }
 
     private fun openSession(config: ConnectionConfig, name: String, connection: Connection) {

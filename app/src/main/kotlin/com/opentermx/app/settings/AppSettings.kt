@@ -52,6 +52,13 @@ data class WindowSettings(
     val transparency: Double = 1.0,      // 0.3..1.0
     val hideTitleBar: Boolean = false,
     val mouseCursorMode: String = "DEFAULT", // DEFAULT | TEXT | NONE
+    /**
+     * Hex `#rrggbb` overrides for terminal text/background colours. Blank means "follow the
+     * current theme"; a non-blank value persists across theme switches so the user-picked
+     * colour wins until they explicitly clear the override.
+     */
+    val terminalForeground: String = "",
+    val terminalBackground: String = "",
 )
 
 /**

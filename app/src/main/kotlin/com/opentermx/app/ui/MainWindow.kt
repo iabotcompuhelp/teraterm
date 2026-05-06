@@ -360,11 +360,14 @@ class MainWindow(
 
     private fun openWindowConfig() {
         val previous = settings.window
-        val updated = WindowConfigDialog(settings.window).showAndWait().orElse(null) ?: return
+        val tc = theme.terminalColors
+        val updated = WindowConfigDialog(settings.window, tc.foreground, tc.background)
+            .showAndWait().orElse(null) ?: return
         persist { it.copy(window = updated) }
         stage.opacity = updated.transparency
         stage.title = updated.titlePrefix.ifBlank { "OpenTermX" }
         applyMouseCursorToAll(updated.mouseCursorMode)
+        applyThemeToTerminals()
         if (updated.hideTitleBar != previous.hideTitleBar) {
             statusLabel.text = Strings["status.windowDecorationRestart"]
         }
@@ -554,11 +557,27 @@ class MainWindow(
     }
 
     private fun applyThemeToTerminals() {
-        val c = theme.terminalColors
+        val c = effectiveTerminalColors()
         controllers.values.forEach { it.terminal.applyColors(c.foreground, c.background, c.cursor, c.selection) }
         // Welcome and any extra terminals not tracked in controllers
         forEachTerminal { it.applyColors(c.foreground, c.background, c.cursor, c.selection) }
     }
+
+    /**
+     * Resolves the effective terminal palette: theme provides cursor/selection (and the fg/bg
+     * defaults), while the user's `WindowSettings.terminalForeground`/`terminalBackground`
+     * overrides win for fg/bg when present. A blank override means "follow the theme".
+     */
+    private fun effectiveTerminalColors(): TerminalColors {
+        val themeColors = theme.terminalColors
+        val w = settings.window
+        val fg = parseHex(w.terminalForeground) ?: themeColors.foreground
+        val bg = parseHex(w.terminalBackground) ?: themeColors.background
+        return TerminalColors(fg, bg, themeColors.cursor, themeColors.selection)
+    }
+
+    private fun parseHex(hex: String): javafx.scene.paint.Color? =
+        if (hex.isBlank()) null else runCatching { javafx.scene.paint.Color.web(hex) }.getOrNull()
 
     private fun applyFontToTerminals() {
         controllers.values.forEach { it.terminal.applyFont(settings.terminalFontFamily, settings.terminalFontSize) }
@@ -596,7 +615,7 @@ class MainWindow(
             initialCols = settings.terminal.cols,
             initialRows = settings.terminal.rows,
         )
-        val c = theme.terminalColors
+        val c = effectiveTerminalColors()
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
         terminal.applyTerminalSettings(
             cursorStyle = settings.terminal.cursorStyle,

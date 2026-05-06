@@ -37,6 +37,7 @@ import com.opentermx.app.viewmodel.TransferProtocol
 import com.opentermx.common.connection.Connection
 import com.opentermx.common.connection.ConnectionConfig
 import com.opentermx.common.connection.ConnectionState
+import com.opentermx.common.connection.ProxyConfig
 import com.opentermx.common.connection.SerialConfig
 import com.opentermx.common.connection.SshAuth
 import com.opentermx.common.connection.SshConfig
@@ -559,13 +560,26 @@ class MainWindow(
                 rememberHost(choice.host)
             }
             is NewConnectionChoice.Telnet -> {
-                val cfg = TelnetConfig(host = choice.host, port = choice.tcpPort)
+                val cfg = TelnetConfig(
+                    host = choice.host,
+                    port = choice.tcpPort,
+                    terminalType = settings.tcpIp.terminalType,
+                    keepAlive = settings.tcpIp.keepAlive,
+                    recvBufferSize = settings.tcpIp.recvBufferSize,
+                    proxy = currentProxyConfig(),
+                )
                 val protocol = if (cfg.useTls) "telnets" else "telnet"
                 openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
                 rememberHost(choice.host)
             }
             is NewConnectionChoice.TcpRaw -> {
-                val cfg = TcpRawConfig(host = choice.host, port = choice.tcpPort)
+                val cfg = TcpRawConfig(
+                    host = choice.host,
+                    port = choice.tcpPort,
+                    keepAlive = settings.tcpIp.keepAlive,
+                    recvBufferSize = settings.tcpIp.recvBufferSize,
+                    proxy = currentProxyConfig(),
+                )
                 openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
                 rememberHost(choice.host)
             }
@@ -599,6 +613,19 @@ class MainWindow(
             kex = gen.kex,
             macs = gen.macs,
             terminalType = settings.tcpIp.terminalType,
+            proxy = currentProxyConfig(),
+        )
+    }
+
+    private fun currentProxyConfig(): ProxyConfig {
+        val p = settings.proxy
+        val type = runCatching { ProxyConfig.Type.valueOf(p.type) }.getOrDefault(ProxyConfig.Type.NONE)
+        return ProxyConfig(
+            type = type,
+            host = p.host,
+            port = p.port,
+            username = p.username,
+            password = p.password,
         )
     }
 

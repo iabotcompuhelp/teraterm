@@ -65,13 +65,19 @@ public final class RawTcpConnection implements Connection {
     public void connect() throws Exception {
         transition(ConnectionState.CONNECTING, null);
         try {
-            socket = new Socket();
+            java.net.Proxy proxy = JavaNetProxies.create(config.getProxy());
+            socket = (proxy != null) ? new Socket(proxy) : new Socket();
+            int recvBuf = config.getRecvBufferSize();
+            // setReceiveBufferSize must precede connect() to influence the TCP receive window.
+            if (recvBuf > 0) socket.setReceiveBufferSize(recvBuf);
             socket.connect(new InetSocketAddress(config.getHost(), config.getPort()), CONNECT_TIMEOUT_MS);
-            socket.setKeepAlive(true);
+            socket.setKeepAlive(config.getKeepAlive());
             socket.setTcpNoDelay(true);
             remoteIn = socket.getInputStream();
             remoteOut = socket.getOutputStream();
-            log.info("TCP raw conectado a {}:{}", config.getHost(), config.getPort());
+            log.info("TCP raw conectado a {}:{}{}",
+                    config.getHost(), config.getPort(),
+                    proxy != null ? " (vía proxy " + config.getProxy().getHost() + ")" : "");
             startReader();
             transition(ConnectionState.CONNECTED, null);
         } catch (Exception e) {

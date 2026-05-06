@@ -7,6 +7,10 @@ import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Proxy;
+import com.jcraft.jsch.ProxyHTTP;
+import com.jcraft.jsch.ProxySOCKS4;
+import com.jcraft.jsch.ProxySOCKS5;
 import com.jcraft.jsch.SSHAgentConnector;
 import com.jcraft.jsch.Session;
 import com.opentermx.common.connection.Connection;
@@ -15,6 +19,7 @@ import com.opentermx.common.connection.ConnectionState;
 import com.opentermx.common.connection.DataHandler;
 import com.opentermx.common.connection.HostKeyVerifier;
 import com.opentermx.common.connection.PortForward;
+import com.opentermx.common.connection.ProxyConfig;
 import com.opentermx.common.connection.RejectAllHostKeyVerifier;
 import com.opentermx.common.connection.SshAuth;
 import com.opentermx.common.connection.SshConfig;
@@ -143,6 +148,13 @@ public final class SshConnection implements Connection {
 
             session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
 
+            Proxy proxy = buildProxy(config.getProxy());
+            if (proxy != null) {
+                session.setProxy(proxy);
+                log.info("SSH conectando vía proxy {}:{}",
+                        config.getProxy().getHost(), config.getProxy().getPort());
+            }
+
             String passwordStr = null;
             char[] passphraseChars = null;
             if (auth instanceof SshAuth.Password p) {
@@ -186,6 +198,34 @@ public final class SshConnection implements Connection {
             transition(ConnectionState.ERROR, e);
             cleanup();
             throw e;
+        }
+    }
+
+    private static Proxy buildProxy(ProxyConfig pc) {
+        if (pc == null || !pc.isEnabled()) return null;
+        switch (pc.getType()) {
+            case HTTP -> {
+                ProxyHTTP p = new ProxyHTTP(pc.getHost(), pc.getPort());
+                if (!pc.getUsername().isEmpty()) {
+                    p.setUserPasswd(pc.getUsername(), pc.getPassword());
+                }
+                return p;
+            }
+            case SOCKS4 -> {
+                ProxySOCKS4 p = new ProxySOCKS4(pc.getHost(), pc.getPort());
+                if (!pc.getUsername().isEmpty()) {
+                    p.setUserPasswd(pc.getUsername(), pc.getPassword());
+                }
+                return p;
+            }
+            case SOCKS5 -> {
+                ProxySOCKS5 p = new ProxySOCKS5(pc.getHost(), pc.getPort());
+                if (!pc.getUsername().isEmpty()) {
+                    p.setUserPasswd(pc.getUsername(), pc.getPassword());
+                }
+                return p;
+            }
+            default -> { return null; }
         }
     }
 

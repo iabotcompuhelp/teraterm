@@ -30,6 +30,7 @@ public final class TelnetConnection implements Connection {
 
     private final String id;
     private final TelnetConfig config;
+    private final String terminalType;
     private final AtomicReference<ConnectionState> state =
             new AtomicReference<>(ConnectionState.DISCONNECTED);
 
@@ -46,6 +47,8 @@ public final class TelnetConnection implements Connection {
     public TelnetConnection(TelnetConfig config) {
         this.id = UUID.randomUUID().toString();
         this.config = config;
+        String t = config.getTerminalType();
+        this.terminalType = (t == null || t.isBlank()) ? DEFAULT_TERM_TYPE : t;
     }
 
     @Override
@@ -67,7 +70,7 @@ public final class TelnetConnection implements Connection {
     public void connect() throws Exception {
         transition(ConnectionState.CONNECTING, null);
         try {
-            client = new TelnetClient(DEFAULT_TERM_TYPE);
+            client = new TelnetClient(terminalType);
             client.setConnectTimeout(CONNECT_TIMEOUT_MS);
 
             if (config.getUseTls()) {
@@ -75,8 +78,19 @@ public final class TelnetConnection implements Connection {
                 client.setSocketFactory(ctx.getSocketFactory());
             }
 
+            // Settings/Setup → Proxy and Setup → TCP/IP feed these. setProxy must run
+            // before connect() so the underlying socket is created via the proxy.
+            java.net.Proxy proxy = JavaNetProxies.create(config.getProxy());
+            if (proxy != null) {
+                client.setProxy(proxy);
+                log.info("Telnet vía proxy {}:{}", config.getProxy().getHost(), config.getProxy().getPort());
+            }
+            int recvBuf = config.getRecvBufferSize();
+            if (recvBuf > 0) client.setReceiveBufferSize(recvBuf);
+            client.setKeepAlive(config.getKeepAlive());
+
             // Standard option handlers for an interactive shell-like session
-            client.addOptionHandler(new TerminalTypeOptionHandler(DEFAULT_TERM_TYPE, false, false, true, false));
+            client.addOptionHandler(new TerminalTypeOptionHandler(terminalType, false, false, true, false));
             client.addOptionHandler(new EchoOptionHandler(true, false, true, false));
             client.addOptionHandler(new SuppressGAOptionHandler(true, true, true, true));
             client.addOptionHandler(new WindowSizeOptionHandler(ptyCols, ptyRows, false, false, true, false));

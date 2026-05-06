@@ -5,6 +5,23 @@ sealed interface ConnectionConfig {
     val displayName: String
 }
 
+/**
+ * Outgoing-connection proxy configuration. NONE means "no proxy" — the connection layer treats
+ * `type == NONE` or a blank host as a no-op and connects directly. Username/password are only
+ * honoured by transports that support proxy auth (jsch ProxyHTTP/SOCKS, SOCKS via java.net.Authenticator).
+ */
+data class ProxyConfig(
+    val type: Type = Type.NONE,
+    val host: String = "",
+    val port: Int = 1080,
+    val username: String = "",
+    val password: String = "",
+) {
+    enum class Type { NONE, HTTP, SOCKS4, SOCKS5 }
+
+    val isEnabled: Boolean get() = type != Type.NONE && host.isNotBlank()
+}
+
 data class SerialConfig(
     val portName: String,
     val baudRate: Int = 9600,
@@ -21,7 +38,7 @@ data class SerialConfig(
     enum class FlowControl { NONE, RTS_CTS, XON_XOFF }
 }
 
-data class SshConfig(
+data class SshConfig @JvmOverloads constructor(
     val host: String,
     val username: String,
     val auth: SshAuth,
@@ -35,6 +52,7 @@ data class SshConfig(
     val kex: List<String> = emptyList(),
     val macs: List<String> = emptyList(),
     val terminalType: String = "xterm-256color",
+    val proxy: ProxyConfig = ProxyConfig(),
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.SSH
     override val displayName: String get() = "$username@$host:$port"
@@ -45,18 +63,25 @@ sealed interface SshAuth {
     data class PublicKey(val privateKeyPath: String, val passphrase: CharArray? = null) : SshAuth
 }
 
-data class TelnetConfig(
+data class TelnetConfig @JvmOverloads constructor(
     val host: String,
     val port: Int = 23,
     val useTls: Boolean = false,
+    val terminalType: String = "xterm-256color",
+    val keepAlive: Boolean = true,
+    val recvBufferSize: Int = 0,
+    val proxy: ProxyConfig = ProxyConfig(),
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.TELNET
     override val displayName: String get() = "telnet://$host:$port"
 }
 
-data class TcpRawConfig(
+data class TcpRawConfig @JvmOverloads constructor(
     val host: String,
     val port: Int,
+    val keepAlive: Boolean = true,
+    val recvBufferSize: Int = 0,
+    val proxy: ProxyConfig = ProxyConfig(),
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.TCP_RAW
     override val displayName: String get() = "$host:$port"

@@ -95,8 +95,10 @@ public final class TelnetConnection implements Connection {
             client.addOptionHandler(new SuppressGAOptionHandler(true, true, true, true));
             client.addOptionHandler(new WindowSizeOptionHandler(ptyCols, ptyRows, false, false, true, false));
 
-            client.connect(config.getHost(), config.getPort());
-            log.info("Telnet conectado a {}:{} (TLS={})", config.getHost(), config.getPort(), config.getUseTls());
+            java.net.InetAddress address = HostResolver.resolve(config.getHost(), config.getDnsMode());
+            client.connect(address, config.getPort());
+            log.info("Telnet conectado a {}:{} (host={}, TLS={})",
+                    address.getHostAddress(), config.getPort(), config.getHost(), config.getUseTls());
 
             remoteIn = client.getInputStream();
             remoteOut = client.getOutputStream();

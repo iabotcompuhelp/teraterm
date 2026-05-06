@@ -7,6 +7,8 @@ import com.opentermx.tftp.common.TftpException;
 import com.opentermx.tftp.common.TftpPacket;
 import com.opentermx.tftp.common.TransferMode;
 import com.opentermx.tftp.common.TransferProgress;
+import com.opentermx.tftp.server.TftpServerEvent;
+import com.opentermx.tftp.server.TftpServerListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,11 +18,13 @@ import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Synchronous TFTP client. Each call to {@link #put} or {@link #get} runs the full handshake on a
@@ -33,10 +37,27 @@ public final class TftpClient {
 
     private static final Logger log = LoggerFactory.getLogger(TftpClient.class);
 
+    private final CopyOnWriteArrayList<TftpServerListener> listeners = new CopyOnWriteArrayList<>();
     private volatile boolean cancelled;
 
     public void cancel() {
         cancelled = true;
+    }
+
+    public void addListener(TftpServerListener listener) {
+        listeners.addIfAbsent(listener);
+    }
+
+    public void removeListener(TftpServerListener listener) {
+        listeners.remove(listener);
+    }
+
+    private void emit(TftpServerEvent event) {
+        for (TftpServerListener l : listeners) {
+            try { l.onEvent(event); } catch (RuntimeException re) {
+                log.warn("Listener threw", re);
+            }
+        }
     }
 
     public void put(String host, int port, String remoteFile, InputStream source, long sourceSize,
@@ -46,6 +67,8 @@ public final class TftpClient {
         cancelled = false;
 
         InetAddress address = InetAddress.getByName(host);
+        InetSocketAddress targetPeer = new InetSocketAddress(address, port);
+        emit(TftpServerEvent.transferStarted(targetPeer, remoteFile, "PUT"));
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(opts.timeoutSeconds() * 1000);
 
@@ -76,6 +99,10 @@ public final class TftpClient {
                 block = (block + 1) & 0xffff;
             }
             log.info("PUT {} ({} bytes) completed in {} blocks", remoteFile, totalSent, block);
+            emit(TftpServerEvent.transferCompleted(targetPeer, remoteFile, totalSent));
+        } catch (RuntimeException | IOException ex) {
+            emit(TftpServerEvent.transferFailed(targetPeer, remoteFile, ex.getMessage()));
+            throw ex;
         }
     }
 
@@ -86,6 +113,8 @@ public final class TftpClient {
         cancelled = false;
 
         InetAddress address = InetAddress.getByName(host);
+        InetSocketAddress targetPeer = new InetSocketAddress(address, port);
+        emit(TftpServerEvent.transferStarted(targetPeer, remoteFile, "GET"));
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(opts.timeoutSeconds() * 1000);
 
@@ -159,10 +188,14 @@ public final class TftpClient {
                 progress.onProgress(total, announcedSize);
                 if (data.length() < negotiatedBlockSize) {
                     log.info("GET {} ({} bytes) completed", remoteFile, total);
+                    emit(TftpServerEvent.transferCompleted(targetPeer, remoteFile, total));
                     return;
                 }
                 expectedBlock = (expectedBlock + 1) & 0xffff;
             }
+        } catch (RuntimeException | IOException ex) {
+            emit(TftpServerEvent.transferFailed(targetPeer, remoteFile, ex.getMessage()));
+            throw ex;
         }
     }
 

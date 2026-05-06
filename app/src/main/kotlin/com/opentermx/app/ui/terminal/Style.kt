@@ -16,6 +16,7 @@ data class CellAttributes(
     val inverse: Boolean = false,
     val hidden: Boolean = false,
     val strikethrough: Boolean = false,
+    val blink: Boolean = false,
 ) {
     companion object {
         val DEFAULT = CellAttributes()

@@ -4,6 +4,7 @@ import com.opentermx.app.i18n.Strings
 import com.opentermx.tftp.client.TftpClient
 import com.opentermx.tftp.client.TftpClientOptions
 import com.opentermx.tftp.common.TransferMode
+import com.opentermx.tftp.server.TftpCsvLogger
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Scene
@@ -36,6 +37,7 @@ class TftpClientDialog(
     initialHost: String = "",
     defaultPort: Int = 69,
     defaultBlockSize: Int = 512,
+    private val csvLogPath: String = "",
 ) : Stage() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -164,6 +166,11 @@ class TftpClientDialog(
         progressBar.progress = ProgressBar.INDETERMINATE_PROGRESS
         statusLabel.text = Strings["tftp.connecting"]
 
+        val csv: TftpCsvLogger? = if (csvLogPath.isBlank()) null else runCatching {
+            TftpCsvLogger(java.nio.file.Paths.get(csvLogPath))
+        }.onFailure { log.warn("No se pudo abrir CSV {}", csvLogPath, it) }.getOrNull()
+        if (csv != null) client.addListener(csv)
+
         val thread = Thread({
             try {
                 if (isSend) {
@@ -190,6 +197,11 @@ class TftpClientDialog(
                     progressBar.progress = 0.0
                     statusLabel.text = Strings.format("tftp.failed", ex.message ?: ex.javaClass.simpleName)
                     setRunning(false)
+                }
+            } finally {
+                if (csv != null) {
+                    client.removeListener(csv)
+                    runCatching { csv.close() }
                 }
             }
         }, "tftp-client-ui")

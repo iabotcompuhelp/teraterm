@@ -19,6 +19,7 @@ import com.opentermx.app.ui.dialog.SshKeyGeneratorDialog
 import com.opentermx.app.ui.dialog.SshVersion
 import com.opentermx.app.ui.dialog.ScrollbackDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
+import com.opentermx.app.ui.dialog.SerialSignalsDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.TcpIpConfigDialog
 import com.opentermx.app.ui.dialog.TerminalConfigDialog
@@ -205,6 +206,7 @@ class MainWindow(
             items += MenuItem(Strings["control.connect"]).apply { setOnAction { currentController()?.connect() } }
             items += MenuItem(Strings["control.disconnect"]).apply { setOnAction { currentController()?.disconnect() } }
             items += MenuItem(Strings["control.break"]).apply { setOnAction { sendBreakOnCurrent() } }
+            items += MenuItem(Strings["control.serialSignals"]).apply { setOnAction { openSerialSignals() } }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["setup.macros"]).apply {
                 accelerator = accelerator("setup.macros")
@@ -285,6 +287,7 @@ class MainWindow(
             initialHost = initialHost,
             defaultPort = settings.additional.tftpDefaultPort,
             defaultBlockSize = settings.additional.tftpDefaultBlocksize,
+            csvLogPath = settings.additional.tftpCsvLogPath,
         ).show()
     }
 
@@ -369,6 +372,7 @@ class MainWindow(
             it.applyAdditionalSettings(
                 copyOnSelect = a.copyOnSelect,
                 visualCursorBlink = a.visualCursorBlink,
+                blinkText = a.blinkText,
             )
         }
         controllers.values.forEach { apply(it.terminal) }
@@ -556,6 +560,7 @@ class MainWindow(
         terminal.applyAdditionalSettings(
             copyOnSelect = settings.additional.copyOnSelect,
             visualCursorBlink = settings.additional.visualCursorBlink,
+            blinkText = settings.additional.blinkText,
         )
         terminal.applyMouseCursor(settings.window.mouseCursorMode)
         return terminal
@@ -639,6 +644,7 @@ class MainWindow(
                     keepAlive = settings.tcpIp.keepAlive,
                     recvBufferSize = settings.tcpIp.recvBufferSize,
                     proxy = currentProxyConfig(),
+                    dnsMode = settings.tcpIp.dnsMode,
                 )
                 val protocol = if (cfg.useTls) "telnets" else "telnet"
                 openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
@@ -651,6 +657,7 @@ class MainWindow(
                     keepAlive = settings.tcpIp.keepAlive,
                     recvBufferSize = settings.tcpIp.recvBufferSize,
                     proxy = currentProxyConfig(),
+                    dnsMode = settings.tcpIp.dnsMode,
                 )
                 openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
                 rememberHost(choice.host)
@@ -981,6 +988,16 @@ class MainWindow(
         val tc = TransferController(ctl.session.connection, TransferDirection.RECEIVE, dir, -1, TransferProtocol.YMODEM)
         TransferProgressDialog(stage, tc, "${Strings["control.recvYmodem"]} → ${dir.name}").show()
         tc.start()
+    }
+
+    private fun openSerialSignals() {
+        val ctl = currentController()
+        val conn = ctl?.session?.connection
+        if (conn !is SerialConnection || ctl.state.value != ConnectionState.CONNECTED) {
+            statusLabel.text = Strings["status.serialSignalsRequires"]
+            return
+        }
+        SerialSignalsDialog(stage, conn).show()
     }
 
     private fun sendBreakOnCurrent() {

@@ -19,6 +19,7 @@ class TerminalRenderer(
     var selectionColor: Color = Color.web("#2a4a6b88"),
     var cursorStyle: CursorStyle = CursorStyle.BLOCK,
     var cursorBlink: Boolean = true,
+    var blinkTextEnabled: Boolean = true,
 ) {
 
     /**
@@ -26,6 +27,9 @@ class TerminalRenderer(
      * false, paintCursor leaves the cell un-highlighted so the cursor appears to blink.
      */
     var cursorPhaseOn: Boolean = true
+
+    /** Mirrors `cursorPhaseOn` but with a longer cadence for ANSI blink-attributed text. */
+    var textBlinkPhaseOn: Boolean = true
 
     private var regularFont: Font = Font.font(fontFamily, FontWeight.NORMAL, FontPosture.REGULAR, fontSize)
     private var boldFont: Font = Font.font(fontFamily, FontWeight.BOLD, FontPosture.REGULAR, fontSize)
@@ -114,10 +118,18 @@ class TerminalRenderer(
                 gc.fillRect(col * cellWidth, y, cellWidth, cellHeight)
             }
 
+            // ANSI blink (SGR 5/6): when both the user pref (blinkTextEnabled) and the cell
+            // attribute say blink, the off phase paints the glyph with very low alpha so it
+            // appears to flash in/out without a layout shift.
+            val blinkOff = attrs.blink && blinkTextEnabled && !textBlinkPhaseOn
             if (!attrs.hidden && cell.char != ' ') {
                 gc.fill = fg
                 gc.font = pickFont(attrs)
-                gc.globalAlpha = if (attrs.dim) 0.7 else 1.0
+                gc.globalAlpha = when {
+                    blinkOff -> 0.2
+                    attrs.dim -> 0.7
+                    else -> 1.0
+                }
                 gc.fillText(cell.char.toString(), col * cellWidth, y + ascent)
                 gc.globalAlpha = 1.0
 

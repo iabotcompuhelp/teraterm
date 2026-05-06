@@ -70,7 +70,8 @@ public final class RawTcpConnection implements Connection {
             int recvBuf = config.getRecvBufferSize();
             // setReceiveBufferSize must precede connect() to influence the TCP receive window.
             if (recvBuf > 0) socket.setReceiveBufferSize(recvBuf);
-            socket.connect(new InetSocketAddress(config.getHost(), config.getPort()), CONNECT_TIMEOUT_MS);
+            java.net.InetAddress address = HostResolver.resolve(config.getHost(), config.getDnsMode());
+            socket.connect(new InetSocketAddress(address, config.getPort()), CONNECT_TIMEOUT_MS);
             socket.setKeepAlive(config.getKeepAlive());
             socket.setTcpNoDelay(true);
             remoteIn = socket.getInputStream();

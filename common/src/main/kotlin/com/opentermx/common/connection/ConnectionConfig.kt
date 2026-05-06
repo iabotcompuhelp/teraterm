@@ -71,6 +71,7 @@ data class TelnetConfig @JvmOverloads constructor(
     val keepAlive: Boolean = true,
     val recvBufferSize: Int = 0,
     val proxy: ProxyConfig = ProxyConfig(),
+    val dnsMode: String = "AUTO",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.TELNET
     override val displayName: String get() = "telnet://$host:$port"
@@ -82,6 +83,7 @@ data class TcpRawConfig @JvmOverloads constructor(
     val keepAlive: Boolean = true,
     val recvBufferSize: Int = 0,
     val proxy: ProxyConfig = ProxyConfig(),
+    val dnsMode: String = "AUTO",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.TCP_RAW
     override val displayName: String get() = "$host:$port"

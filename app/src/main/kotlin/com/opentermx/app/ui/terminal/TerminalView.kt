@@ -22,6 +22,8 @@ private val ESC = Char(0x1B).toString()
 private val DEL = Char(0x7F).toString()
 private val CSI = ESC + "["
 private const val CURSOR_BLINK_PERIOD_NS = 500_000_000L
+private const val TEXT_BLINK_PERIOD_NS = 800_000_000L
+private const val SMOOTH_SCROLL_STEP_NS = 16_000_000L
 
 class TerminalView(
     fontFamily: String = "Consolas",
@@ -44,6 +46,8 @@ class TerminalView(
     private var copyOnSelect: Boolean = false
     private var cursorBlinkRequested: Boolean = true
     private var cursorBlinkAllowed: Boolean = true
+    private var smoothScroll: Boolean = false
+    private var smoothTargetTop: Int = 0
 
     private val titleWrapper = ReadOnlyStringWrapper("")
     val titleProperty: ReadOnlyStringProperty get() = titleWrapper.readOnlyProperty
@@ -127,7 +131,7 @@ class TerminalView(
         encoding: String = "UTF-8",
         newlineMode: String = "CR",
         localEcho: Boolean = false,
-        @Suppress("UNUSED_PARAMETER") scrollMode: String = "JUMP",
+        scrollMode: String = "JUMP",
     ) = runOnFx {
         renderer.cursorStyle = parseCursorStyle(cursorStyle)
         cursorBlinkRequested = cursorBlink
@@ -135,8 +139,11 @@ class TerminalView(
         charset = resolveCharset(encoding)
         newlineSequence = parseNewline(newlineMode)
         this.localEcho = localEcho
-        // scrollMode SMOOTH not implemented yet — JUMP is the only behaviour; persist the
-        // setting and continue.
+        smoothScroll = scrollMode.equals("SMOOTH", ignoreCase = true)
+        if (!smoothScroll) {
+            // Drop any pending interpolation so the next paint matches the current top exactly.
+            smoothTargetTop = viewportTop
+        }
         dirty = true
     }
 
@@ -145,10 +152,14 @@ class TerminalView(
      * releases the mouse over a non-empty selection; visualCursorBlink is a global override that
      * suppresses the cursor blink even when the per-terminal setting requests it.
      */
-    fun applyAdditionalSettings(copyOnSelect: Boolean, visualCursorBlink: Boolean) = runOnFx {
+    fun applyAdditionalSettings(copyOnSelect: Boolean, visualCursorBlink: Boolean,
+                                 blinkText: Boolean = true) = runOnFx {
         this.copyOnSelect = copyOnSelect
         cursorBlinkAllowed = visualCursorBlink
         applyEffectiveCursorBlink()
+        renderer.blinkTextEnabled = blinkText
+        if (!blinkText) renderer.textBlinkPhaseOn = true
+        dirty = true
     }
 
     fun applyMouseCursor(mode: String) = runOnFx {
@@ -202,7 +213,13 @@ class TerminalView(
             titleWrapper.value = lastTitle
         }
         if (followBottom) {
-            viewportTop = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
+            val target = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
+            if (smoothScroll) {
+                smoothTargetTop = target
+            } else {
+                viewportTop = target
+                smoothTargetTop = target
+            }
         }
         updateScrollBar()
     }
@@ -378,11 +395,33 @@ class TerminalView(
 
     private fun startAnimator() {
         object : AnimationTimer() {
-            private var lastBlinkToggle: Long = 0L
+            private var lastCursorToggle: Long = 0L
+            private var lastTextToggle: Long = 0L
+            private var lastSmoothStep: Long = 0L
             override fun handle(now: Long) {
-                if (renderer.cursorBlink && now - lastBlinkToggle >= CURSOR_BLINK_PERIOD_NS) {
+                if (renderer.cursorBlink && now - lastCursorToggle >= CURSOR_BLINK_PERIOD_NS) {
                     renderer.cursorPhaseOn = !renderer.cursorPhaseOn
-                    lastBlinkToggle = now
+                    lastCursorToggle = now
+                    dirty = true
+                }
+                if (renderer.blinkTextEnabled && now - lastTextToggle >= TEXT_BLINK_PERIOD_NS) {
+                    renderer.textBlinkPhaseOn = !renderer.textBlinkPhaseOn
+                    lastTextToggle = now
+                    dirty = true
+                }
+                if (smoothScroll && smoothTargetTop != viewportTop
+                        && now - lastSmoothStep >= SMOOTH_SCROLL_STEP_NS) {
+                    val delta = smoothTargetTop - viewportTop
+                    // Move at most one row per frame for very small gaps; for larger jumps,
+                    // ramp roughly proportional to how far behind we are so we don't stall.
+                    val step = when {
+                        delta == 0 -> 0
+                        kotlin.math.abs(delta) <= 2 -> delta
+                        else -> delta / 4 + if (delta > 0) 1 else -1
+                    }
+                    viewportTop += step
+                    lastSmoothStep = now
+                    updateScrollBar()
                     dirty = true
                 }
                 if (dirty || buffer.version != lastPaintedVersion) {

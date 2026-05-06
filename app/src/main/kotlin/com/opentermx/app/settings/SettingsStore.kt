@@ -37,11 +37,22 @@ object SettingsStore {
         }
     }
 
-    fun export(settings: AppSettings, target: java.io.File) {
-        mapper.writerWithDefaultPrettyPrinter().writeValue(target, settings)
+    fun exportSnapshot(snapshot: SetupSnapshot, target: java.io.File) {
+        mapper.writerWithDefaultPrettyPrinter().writeValue(target, snapshot)
     }
 
-    fun import(source: java.io.File): AppSettings {
-        return mapper.readValue(source, AppSettings::class.java)
+    /**
+     * Reads a setup file. Tries the new {@link SetupSnapshot} format first; falls back to a
+     * raw {@link AppSettings} document so files written by the previous Save setup still load.
+     */
+    fun importSnapshot(source: java.io.File): SetupSnapshot {
+        val tree = mapper.readTree(source)
+        return if (tree != null && tree.has("settings")) {
+            mapper.treeToValue(tree, SetupSnapshot::class.java)
+        } else {
+            val legacy = mapper.treeToValue(tree, AppSettings::class.java)
+                ?: throw IllegalArgumentException("Empty or unreadable settings file: $source")
+            SetupSnapshot(settings = legacy, savedSession = null)
+        }
     }
 }

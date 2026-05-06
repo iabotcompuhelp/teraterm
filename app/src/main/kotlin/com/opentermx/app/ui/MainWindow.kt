@@ -427,12 +427,21 @@ class MainWindow(
     private fun saveSetup() {
         val file = FileChooser().apply {
             title = Strings["setup.saveSetup"]
-            initialFileName = "opentermx-settings.json"
+            initialFileName = "opentermx-setup.json"
             extensionFilters.add(FileChooser.ExtensionFilter("JSON", "*.json"))
             initialDirectory = SettingsStore.configDir.toFile().takeIf { it.isDirectory }
         }.showSaveDialog(stage) ?: return
-        runCatching { SettingsStore.export(settings, file) }
-            .onSuccess { statusLabel.text = Strings.format("status.setupSaved", file.absolutePath) }
+        val activeConfig = currentController()?.session?.config
+        val snapshot = com.opentermx.app.settings.SnapshotConverters.build(settings, activeConfig)
+        runCatching { SettingsStore.exportSnapshot(snapshot, file) }
+            .onSuccess {
+                val msg = if (snapshot.savedSession != null)
+                    Strings.format("status.setupSavedWithSession",
+                        file.absolutePath, snapshot.savedSession.displayName)
+                else
+                    Strings.format("status.setupSaved", file.absolutePath)
+                statusLabel.text = msg
+            }
             .onFailure { statusLabel.text = Strings.format("status.setupError", it.message ?: "") }
     }
 
@@ -442,24 +451,55 @@ class MainWindow(
             extensionFilters.add(FileChooser.ExtensionFilter("JSON", "*.json"))
             initialDirectory = SettingsStore.configDir.toFile().takeIf { it.isDirectory }
         }.showOpenDialog(stage) ?: return
-        runCatching {
-            val imported = SettingsStore.import(file)
-            settings = imported
-            SettingsStore.save(imported)
-            // Apply what we can immediately.
-            Strings.setLocale(imported.locale)
-            theme.applyTo(rootPane.scene!!)
-            applyFontToTerminals()
-            applyScrollbackToTerminals(imported.terminalScrollbackLimit)
-            applyThemeToTerminals()
-            applyTerminalSettingsToAll(imported.terminal)
-            stage.opacity = imported.window.transparency
-            rebuildMenusAndLabels()
-        }.onSuccess { statusLabel.text = Strings.format("status.setupRestored", file.absolutePath) }
+        val snapshot = runCatching { SettingsStore.importSnapshot(file) }
             .onFailure {
                 log.warn("Restore setup failed", it)
                 statusLabel.text = Strings.format("status.setupError", it.message ?: "")
             }
+            .getOrNull() ?: return
+
+        val imported = snapshot.settings
+        settings = imported
+        SettingsStore.save(imported)
+        Strings.setLocale(imported.locale)
+        theme.applyTo(rootPane.scene!!)
+        applyFontToTerminals()
+        applyScrollbackToTerminals(imported.terminalScrollbackLimit)
+        applyThemeToTerminals()
+        applyTerminalSettingsToAll(imported.terminal)
+        applyAdditionalSettingsToAll(imported.additional)
+        stage.opacity = imported.window.transparency
+        rebuildMenusAndLabels()
+        statusLabel.text = Strings.format("status.setupRestored", file.absolutePath)
+
+        snapshot.savedSession?.let { saved ->
+            val confirm = Alert(Alert.AlertType.CONFIRMATION).apply {
+                title = Strings["setup.restoreSession.title"]
+                headerText = Strings.format("setup.restoreSession.header", saved.displayName)
+                contentText = Strings["setup.restoreSession.body"]
+            }.showAndWait()
+            if (confirm.isPresent && confirm.get() == javafx.scene.control.ButtonType.OK) {
+                openSavedSession(saved)
+            }
+        }
+    }
+
+    private fun openSavedSession(saved: com.opentermx.app.settings.SavedSession) {
+        val cfg = com.opentermx.app.settings.SnapshotConverters.configFromSession(saved, settings)
+        if (cfg == null) {
+            statusLabel.text = Strings.format("status.setupError",
+                "Unsupported saved session type: ${saved.type}")
+            return
+        }
+        when (cfg) {
+            is SshConfig -> openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
+            is TelnetConfig -> {
+                val protocol = if (cfg.useTls) "telnets" else "telnet"
+                openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
+            }
+            is TcpRawConfig -> openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
+            is SerialConfig -> openSession(cfg, cfg.portName, SerialConnection(cfg))
+        }
     }
 
     private fun showSetupDirectory() {
@@ -751,7 +791,14 @@ class MainWindow(
      * file is reported in the status bar but doesn't break the session.
      */
     private fun maybeAutoLogin(ctl: TerminalSessionController) {
-        val path = settings.additional.autoLoginMacroPath
+        val perSession = when (val cfg = ctl.session.config) {
+            is SshConfig -> cfg.autoLoginMacroPath
+            is TelnetConfig -> cfg.autoLoginMacroPath
+            is TcpRawConfig -> cfg.autoLoginMacroPath
+            is SerialConfig -> cfg.autoLoginMacroPath
+            else -> ""
+        }
+        val path = perSession.ifBlank { settings.additional.autoLoginMacroPath }
         if (path.isBlank()) return
         val file = java.io.File(path)
         if (!file.isFile) {

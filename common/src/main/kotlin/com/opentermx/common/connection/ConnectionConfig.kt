@@ -22,13 +22,14 @@ data class ProxyConfig(
     val isEnabled: Boolean get() = type != Type.NONE && host.isNotBlank()
 }
 
-data class SerialConfig(
+data class SerialConfig @JvmOverloads constructor(
     val portName: String,
     val baudRate: Int = 9600,
     val dataBits: Int = 8,
     val stopBits: StopBits = StopBits.ONE,
     val parity: Parity = Parity.NONE,
     val flowControl: FlowControl = FlowControl.NONE,
+    val autoLoginMacroPath: String = "",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.SERIAL
     override val displayName: String get() = "$portName @ $baudRate"
@@ -53,6 +54,7 @@ data class SshConfig @JvmOverloads constructor(
     val macs: List<String> = emptyList(),
     val terminalType: String = "xterm-256color",
     val proxy: ProxyConfig = ProxyConfig(),
+    val autoLoginMacroPath: String = "",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.SSH
     override val displayName: String get() = "$username@$host:$port"
@@ -72,6 +74,7 @@ data class TelnetConfig @JvmOverloads constructor(
     val recvBufferSize: Int = 0,
     val proxy: ProxyConfig = ProxyConfig(),
     val dnsMode: String = "AUTO",
+    val autoLoginMacroPath: String = "",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.TELNET
     override val displayName: String get() = "telnet://$host:$port"
@@ -84,6 +87,7 @@ data class TcpRawConfig @JvmOverloads constructor(
     val recvBufferSize: Int = 0,
     val proxy: ProxyConfig = ProxyConfig(),
     val dnsMode: String = "AUTO",
+    val autoLoginMacroPath: String = "",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.TCP_RAW
     override val displayName: String get() = "$host:$port"

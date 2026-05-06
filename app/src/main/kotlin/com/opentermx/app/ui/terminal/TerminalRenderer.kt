@@ -8,6 +8,8 @@ import javafx.scene.text.FontPosture
 import javafx.scene.text.FontWeight
 import javafx.scene.text.Text
 
+enum class CursorStyle { BLOCK, BAR, UNDERLINE }
+
 class TerminalRenderer(
     var fontFamily: String = "Consolas",
     var fontSize: Double = 14.0,
@@ -15,7 +17,16 @@ class TerminalRenderer(
     var defaultBg: Color = Color.web("#0f0f10"),
     var cursorColor: Color = Color.web("#e6e6e6"),
     var selectionColor: Color = Color.web("#2a4a6b88"),
+    var cursorStyle: CursorStyle = CursorStyle.BLOCK,
+    var cursorBlink: Boolean = true,
 ) {
+
+    /**
+     * Toggled by the parent view's animation timer. When `cursorBlink` is true and this is
+     * false, paintCursor leaves the cell un-highlighted so the cursor appears to blink.
+     */
+    var cursorPhaseOn: Boolean = true
+
     private var regularFont: Font = Font.font(fontFamily, FontWeight.NORMAL, FontPosture.REGULAR, fontSize)
     private var boldFont: Font = Font.font(fontFamily, FontWeight.BOLD, FontPosture.REGULAR, fontSize)
     private var italicFont: Font = Font.font(fontFamily, FontWeight.NORMAL, FontPosture.ITALIC, fontSize)
@@ -131,20 +142,34 @@ class TerminalRenderer(
         val col = buffer.cursorCol
         val x = col * cellWidth
         val y = visRow * cellHeight
-        if (focused) {
-            val cell = buffer.cellAt(buffer.cursorRow, col)
-            val (fg, _) = effectiveColors(cell.attrs)
-            gc.fill = fg
-            gc.fillRect(x, y, cellWidth, cellHeight)
-            if (cell.char != ' ') {
-                gc.fill = defaultBg
-                gc.font = pickFont(cell.attrs)
-                gc.fillText(cell.char.toString(), x, y + ascent)
-            }
-        } else {
+        // Off phase of a blinking cursor: paint nothing, the cell content is already drawn.
+        if (cursorBlink && !cursorPhaseOn) return
+        val cell = buffer.cellAt(buffer.cursorRow, col)
+        val (fg, _) = effectiveColors(cell.attrs)
+        if (!focused) {
             gc.stroke = cursorColor
             gc.lineWidth = 1.0
             gc.strokeRect(x + 0.5, y + 0.5, cellWidth - 1, cellHeight - 1)
+            return
+        }
+        when (cursorStyle) {
+            CursorStyle.BLOCK -> {
+                gc.fill = fg
+                gc.fillRect(x, y, cellWidth, cellHeight)
+                if (cell.char != ' ') {
+                    gc.fill = defaultBg
+                    gc.font = pickFont(cell.attrs)
+                    gc.fillText(cell.char.toString(), x, y + ascent)
+                }
+            }
+            CursorStyle.BAR -> {
+                gc.fill = fg
+                gc.fillRect(x, y, 2.0, cellHeight)
+            }
+            CursorStyle.UNDERLINE -> {
+                gc.fill = fg
+                gc.fillRect(x, y + cellHeight - 2.0, cellWidth, 2.0)
+            }
         }
     }
 

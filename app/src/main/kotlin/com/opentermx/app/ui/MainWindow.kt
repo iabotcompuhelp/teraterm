@@ -326,6 +326,7 @@ class MainWindow(
     private fun openTerminalConfig() {
         val updated = TerminalConfigDialog(settings.terminal).showAndWait().orElse(null) ?: return
         persist { it.copy(terminal = updated) }
+        applyTerminalSettingsToAll(updated)
     }
 
     private fun openWindowConfig() {
@@ -407,6 +408,7 @@ class MainWindow(
             applyFontToTerminals()
             applyScrollbackToTerminals(imported.terminalScrollbackLimit)
             applyThemeToTerminals()
+            applyTerminalSettingsToAll(imported.terminal)
             stage.opacity = imported.window.transparency
             rebuildMenusAndLabels()
         }.onSuccess { statusLabel.text = Strings.format("status.setupRestored", file.absolutePath) }
@@ -498,10 +500,35 @@ class MainWindow(
             fontFamily = settings.terminalFontFamily,
             fontSize = settings.terminalFontSize,
             scrollbackLimit = settings.terminalScrollbackLimit,
+            initialCols = settings.terminal.cols,
+            initialRows = settings.terminal.rows,
         )
         val c = theme.terminalColors
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
+        terminal.applyTerminalSettings(
+            cursorStyle = settings.terminal.cursorStyle,
+            cursorBlink = settings.terminal.cursorBlink,
+            encoding = settings.terminal.encoding,
+            newlineMode = settings.terminal.newlineMode,
+            localEcho = settings.terminal.localEcho,
+            scrollMode = settings.terminal.scrollMode,
+        )
         return terminal
+    }
+
+    private fun applyTerminalSettingsToAll(t: com.opentermx.app.settings.TerminalSettings) {
+        val apply: (TerminalView) -> Unit = {
+            it.applyTerminalSettings(
+                cursorStyle = t.cursorStyle,
+                cursorBlink = t.cursorBlink,
+                encoding = t.encoding,
+                newlineMode = t.newlineMode,
+                localEcho = t.localEcho,
+                scrollMode = t.scrollMode,
+            )
+        }
+        controllers.values.forEach { apply(it.terminal) }
+        forEachTerminal(apply)
     }
 
     private fun openPortForwardDialog() {

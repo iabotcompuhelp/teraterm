@@ -14,23 +14,32 @@ import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.BorderPane
 import java.nio.charset.Charset
+import java.nio.charset.IllegalCharsetNameException
+import java.nio.charset.UnsupportedCharsetException
 
 private val ESC = Char(0x1B).toString()
 private val DEL = Char(0x7F).toString()
 private val CSI = ESC + "["
+private const val CURSOR_BLINK_PERIOD_NS = 500_000_000L
 
 class TerminalView(
     fontFamily: String = "Consolas",
     fontSize: Double = 14.0,
     scrollbackLimit: Int = 10_000,
+    initialCols: Int = 80,
+    initialRows: Int = 24,
 ) : BorderPane() {
 
     private val canvas = Canvas(800.0, 480.0)
     private val scrollBar = ScrollBar().apply { orientation = Orientation.VERTICAL }
-    private val buffer = TerminalBuffer(80, 24, scrollbackLimit = scrollbackLimit)
+    private val buffer = TerminalBuffer(initialCols, initialRows, scrollbackLimit = scrollbackLimit)
     private val emulator = TerminalEmulator(buffer)
     private val renderer = TerminalRenderer(fontFamily, fontSize)
     private val selection = Selection()
+
+    private var charset: Charset = Charsets.UTF_8
+    private var newlineSequence: String = "\r"
+    private var localEcho: Boolean = false
 
     private val titleWrapper = ReadOnlyStringWrapper("")
     val titleProperty: ReadOnlyStringProperty get() = titleWrapper.readOnlyProperty
@@ -67,8 +76,8 @@ class TerminalView(
         afterFeed()
     }
 
-    fun appendBytes(data: ByteArray, length: Int, charset: Charset = Charsets.UTF_8) {
-        val text = String(data, 0, length, charset)
+    fun appendBytes(data: ByteArray, length: Int, cs: Charset = charset) {
+        val text = String(data, 0, length, cs)
         runOnFx {
             emulator.feed(text)
             afterFeed()
@@ -101,6 +110,50 @@ class TerminalView(
     fun applyScrollbackLimit(limit: Int) = runOnFx {
         buffer.scrollbackLimit = limit
         dirty = true
+    }
+
+    /**
+     * Applies the per-terminal behavioural settings (cursor style/blink, encoding, newline
+     * mode, local echo). cols/rows are honoured only on construction — the running viewport
+     * follows the canvas size.
+     */
+    fun applyTerminalSettings(
+        cursorStyle: String = "BLOCK",
+        cursorBlink: Boolean = true,
+        encoding: String = "UTF-8",
+        newlineMode: String = "CR",
+        localEcho: Boolean = false,
+        @Suppress("UNUSED_PARAMETER") scrollMode: String = "JUMP",
+    ) = runOnFx {
+        renderer.cursorStyle = parseCursorStyle(cursorStyle)
+        renderer.cursorBlink = cursorBlink
+        if (!cursorBlink) renderer.cursorPhaseOn = true
+        charset = resolveCharset(encoding)
+        newlineSequence = parseNewline(newlineMode)
+        this.localEcho = localEcho
+        // scrollMode SMOOTH not implemented yet — JUMP is the only behaviour; persist the
+        // setting and continue.
+        dirty = true
+    }
+
+    private fun parseCursorStyle(value: String): CursorStyle = when (value.uppercase()) {
+        "BAR" -> CursorStyle.BAR
+        "UNDERLINE" -> CursorStyle.UNDERLINE
+        else -> CursorStyle.BLOCK
+    }
+
+    private fun parseNewline(value: String): String = when (value.uppercase()) {
+        "LF" -> "\n"
+        "CRLF" -> "\r\n"
+        else -> "\r"
+    }
+
+    private fun resolveCharset(name: String): Charset = try {
+        Charset.forName(name)
+    } catch (_: IllegalCharsetNameException) {
+        Charsets.UTF_8
+    } catch (_: UnsupportedCharsetException) {
+        Charsets.UTF_8
     }
 
     fun snapshotImage(): javafx.scene.image.Image = canvas.snapshot(null, null)
@@ -139,12 +192,24 @@ class TerminalView(
         dirty = true
     }
 
+    /**
+     * Routes a user-generated input. With local echo enabled the text is also fed into the
+     * emulator so the user sees what they typed even when the remote is silent.
+     */
+    private fun emitInput(text: String) {
+        if (localEcho) {
+            emulator.feed(text)
+            afterFeed()
+        }
+        onInput(text)
+    }
+
     private fun setupKeyboard() {
         canvas.addEventFilter(KeyEvent.KEY_TYPED) { e ->
             if (e.isShortcutDown) return@addEventFilter
             val ch = e.character
             if (ch.isNotEmpty() && ch[0].code >= 32 && ch[0].code != 127) {
-                onInput(ch)
+                emitInput(ch)
                 e.consume()
             }
         }
@@ -174,21 +239,21 @@ class TerminalView(
             if (e.isShortcutDown && !e.isAltDown && e.code.isLetterKey()) {
                 val letter = e.code.getName().firstOrNull()?.uppercaseChar()
                 if (letter != null && letter in 'A'..'Z') {
-                    onInput(Char(letter.code - 'A'.code + 1).toString())
+                    emitInput(Char(letter.code - 'A'.code + 1).toString())
                     e.consume()
                     return@addEventFilter
                 }
             }
             val mapped = mapSpecialKey(e.code)
             if (mapped != null) {
-                onInput(mapped)
+                emitInput(mapped)
                 e.consume()
             }
         }
     }
 
     private fun mapSpecialKey(code: KeyCode): String? = when (code) {
-        KeyCode.ENTER -> "\r"
+        KeyCode.ENTER -> newlineSequence
         KeyCode.BACK_SPACE -> DEL
         KeyCode.TAB -> "\t"
         KeyCode.ESCAPE -> ESC
@@ -279,7 +344,13 @@ class TerminalView(
 
     private fun startAnimator() {
         object : AnimationTimer() {
+            private var lastBlinkToggle: Long = 0L
             override fun handle(now: Long) {
+                if (renderer.cursorBlink && now - lastBlinkToggle >= CURSOR_BLINK_PERIOD_NS) {
+                    renderer.cursorPhaseOn = !renderer.cursorPhaseOn
+                    lastBlinkToggle = now
+                    dirty = true
+                }
                 if (dirty || buffer.version != lastPaintedVersion) {
                     renderer.paint(canvas, buffer, viewportTop, selection, canvas.isFocused)
                     lastPaintedVersion = buffer.version
@@ -299,7 +370,7 @@ class TerminalView(
     fun pasteFromClipboard() {
         val cb = Clipboard.getSystemClipboard()
         if (cb.hasString()) {
-            cb.string?.takeIf { it.isNotEmpty() }?.let { onInput(it) }
+            cb.string?.takeIf { it.isNotEmpty() }?.let { emitInput(it) }
         }
     }
 

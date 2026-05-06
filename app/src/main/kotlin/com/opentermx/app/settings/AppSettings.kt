@@ -112,7 +112,9 @@ data class AdditionalSettings(
     val defaultLogFormat: String = "TXT",  // TXT | HTML | RAW
     val defaultLogDir: String = System.getProperty("user.home"),
     val autoLogOnConnect: Boolean = false,
+    val autoLoginMacroPath: String = "",
     val tftpDefaultPort: Int = 69,
     val tftpDefaultRoot: String = System.getProperty("user.home"),
     val tftpDefaultBlocksize: Int = 512,
+    val tftpCsvLogPath: String = "",
 )

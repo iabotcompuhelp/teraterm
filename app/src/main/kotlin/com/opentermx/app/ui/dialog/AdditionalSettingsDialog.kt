@@ -17,6 +17,7 @@ import javafx.scene.control.TextField
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
 import javafx.stage.DirectoryChooser
+import javafx.stage.FileChooser
 import java.io.File
 
 class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalSettings>() {
@@ -64,6 +65,30 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
         valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(8, 65464, initial.tftpDefaultBlocksize, 64)
         isEditable = true
     }
+    private val tftpCsvField = TextField(initial.tftpCsvLogPath)
+    private val browseTftpCsv = Button(Strings["setup.additional.browseDir"]).apply {
+        setOnAction {
+            val file: File? = FileChooser().apply {
+                title = Strings["setup.additional.tftpCsv"]
+                initialFileName = "tftp.csv"
+                extensionFilters.add(FileChooser.ExtensionFilter("CSV", "*.csv"))
+            }.showSaveDialog(dialogPane.scene?.window)
+            if (file != null) tftpCsvField.text = file.absolutePath
+        }
+    }
+    private val autoLoginField = TextField(initial.autoLoginMacroPath)
+    private val browseAutoLogin = Button(Strings["setup.additional.browseDir"]).apply {
+        setOnAction {
+            val file: File? = FileChooser().apply {
+                title = Strings["setup.additional.autoLogin"]
+                extensionFilters.addAll(
+                    FileChooser.ExtensionFilter("Macro", "*.groovy", "*.ttl"),
+                    FileChooser.ExtensionFilter("All files", "*.*"),
+                )
+            }.showOpenDialog(dialogPane.scene?.window)
+            if (file != null) autoLoginField.text = file.absolutePath
+        }
+    }
 
     init {
         title = Strings["setup.additional.title"]
@@ -73,8 +98,10 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
             tabs += Tab(Strings["setup.additional.tabGeneral"], GridPane().apply {
                 hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
                 var r = 0
-                add(showNotifs, 0, r); r++
-                add(copyOnSelect, 0, r); r++
+                add(showNotifs, 0, r, 2, 1); r++
+                add(copyOnSelect, 0, r, 2, 1); r++
+                add(Label(Strings["setup.additional.autoLogin"]), 0, r)
+                add(HBox(6.0, autoLoginField, browseAutoLogin), 1, r); r++
             })
             tabs += Tab(Strings["setup.additional.tabVisual"], GridPane().apply {
                 hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
@@ -97,6 +124,8 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 add(Label(Strings["setup.additional.tftpRoot"]), 0, r)
                 add(HBox(6.0, tftpRootField, browseTftpRoot), 1, r); r++
                 add(Label(Strings["setup.additional.tftpBlocksize"]), 0, r); add(tftpBlockSpinner, 1, r); r++
+                add(Label(Strings["setup.additional.tftpCsv"]), 0, r)
+                add(HBox(6.0, tftpCsvField, browseTftpCsv), 1, r); r++
             })
         }
         dialogPane.content = tabs
@@ -113,6 +142,8 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 tftpDefaultPort = tftpPortSpinner.value,
                 tftpDefaultRoot = tftpRootField.text.ifBlank { System.getProperty("user.home") },
                 tftpDefaultBlocksize = tftpBlockSpinner.value,
+                tftpCsvLogPath = tftpCsvField.text.trim(),
+                autoLoginMacroPath = autoLoginField.text.trim(),
             )
         }
     }

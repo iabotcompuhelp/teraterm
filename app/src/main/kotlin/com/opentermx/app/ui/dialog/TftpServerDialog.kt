@@ -1,6 +1,7 @@
 package com.opentermx.app.ui.dialog
 
 import com.opentermx.app.i18n.Strings
+import com.opentermx.tftp.server.TftpCsvLogger
 import com.opentermx.tftp.server.TftpServer
 import com.opentermx.tftp.server.TftpServerConfig
 import com.opentermx.tftp.server.TftpServerEvent
@@ -32,6 +33,7 @@ class TftpServerDialog(
     owner: Window,
     defaultPort: Int = 69,
     defaultRoot: String = System.getProperty("user.home"),
+    private val csvLogPath: String = "",
 ) : Stage() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -56,6 +58,7 @@ class TftpServerDialog(
     }
 
     @Volatile private var server: TftpServer? = null
+    @Volatile private var csvLogger: TftpCsvLogger? = null
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
 
     init {
@@ -116,6 +119,17 @@ class TftpServerDialog(
         )
         val srv = TftpServer(config)
         srv.addListener { event -> Platform.runLater { onEvent(event) } }
+        if (csvLogPath.isNotBlank()) {
+            try {
+                val csv = TftpCsvLogger(Path.of(csvLogPath))
+                srv.addListener(csv)
+                csvLogger = csv
+                statusLabel.text = Strings.format("status.tftpCsvActive", csvLogPath)
+            } catch (ex: Exception) {
+                log.warn("No se pudo abrir CSV {}", csvLogPath, ex)
+                statusLabel.text = Strings.format("status.tftpCsvError", ex.message ?: "")
+            }
+        }
         try {
             srv.start()
             server = srv
@@ -136,6 +150,8 @@ class TftpServerDialog(
     private fun stopServer() {
         server?.stop()
         server = null
+        csvLogger?.let { runCatching { it.close() } }
+        csvLogger = null
         startButton.isDisable = false
         stopButton.isDisable = true
         portSpinner.isDisable = false

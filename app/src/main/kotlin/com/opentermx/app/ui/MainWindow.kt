@@ -25,6 +25,7 @@ import com.opentermx.app.ui.dialog.TerminalConfigDialog
 import com.opentermx.app.ui.dialog.TftpClientDialog
 import com.opentermx.app.ui.dialog.TftpServerDialog
 import com.opentermx.app.ui.dialog.WindowConfigDialog
+import com.opentermx.app.ui.macro.MacroUiBridgeImpl
 import com.opentermx.app.ui.macro.MacroWindow
 import com.opentermx.app.ui.sftp.SftpPanel
 import com.opentermx.app.ui.terminal.TerminalCapture
@@ -292,6 +293,7 @@ class MainWindow(
             owner = stage,
             defaultPort = settings.additional.tftpDefaultPort,
             defaultRoot = settings.additional.tftpDefaultRoot,
+            csvLogPath = settings.additional.tftpCsvLogPath,
         ).show()
     }
 
@@ -725,13 +727,43 @@ class MainWindow(
         tabPane.selectionModel.select(tab)
         viewModel.addSession(session)
 
-        // Auto-start a session log on the first CONNECTED transition if requested.
+        // Auto-start a session log on the first CONNECTED transition if requested,
+        // and run the auto-login macro if one is configured.
         controller.state.addListener { _, old, new ->
             if (new == ConnectionState.CONNECTED && old != ConnectionState.CONNECTED) {
                 maybeAutoLog(controller)
+                maybeAutoLogin(controller)
             }
         }
         controller.start()
+    }
+
+    /**
+     * Runs the configured auto-login macro against this session right after CONNECTED. The
+     * macro path comes from Setup → Additional… (autoLoginMacroPath); a missing or unreadable
+     * file is reported in the status bar but doesn't break the session.
+     */
+    private fun maybeAutoLogin(ctl: TerminalSessionController) {
+        val path = settings.additional.autoLoginMacroPath
+        if (path.isBlank()) return
+        val file = java.io.File(path)
+        if (!file.isFile) {
+            statusLabel.text = Strings.format("status.autoLoginMissing", path)
+            return
+        }
+        ioScope.launch {
+            try {
+                val script = file.readText(Charsets.UTF_8)
+                val engine = com.opentermx.macro.MacroEngine()
+                val bridge = MacroUiBridgeImpl()
+                engine.start(script, ctl.session.connection, ctl.session.id.value, bridge) { /* drop log entries */ }
+            } catch (e: Exception) {
+                log.warn("Auto-login macro fallido", e)
+                javafx.application.Platform.runLater {
+                    statusLabel.text = Strings.format("status.autoLoginError", e.message ?: e.javaClass.simpleName)
+                }
+            }
+        }
     }
 
     private fun bindTabTitle(tab: Tab, controller: TerminalSessionController) {

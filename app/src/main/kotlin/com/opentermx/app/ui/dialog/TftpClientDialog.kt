@@ -34,13 +34,15 @@ import java.nio.file.Files
 class TftpClientDialog(
     owner: Window,
     initialHost: String = "",
+    defaultPort: Int = 69,
+    defaultBlockSize: Int = 512,
 ) : Stage() {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val hostField = TextField(initialHost)
     private val portSpinner = Spinner<Int>().apply {
-        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 65535, 69, 1)
+        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 65535, defaultPort, 1)
         isEditable = true
     }
     private val directionGroup = ToggleGroup()
@@ -60,7 +62,7 @@ class TftpClientDialog(
         value = TransferMode.OCTET
     }
     private val blockSizeSpinner = Spinner<Int>().apply {
-        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(8, 65464, 512, 64)
+        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(8, 65464, defaultBlockSize, 64)
         isEditable = true
     }
     private val timeoutSpinner = Spinner<Int>().apply {

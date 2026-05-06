@@ -5,6 +5,7 @@ import javafx.application.Platform
 import javafx.beans.property.ReadOnlyStringProperty
 import javafx.beans.property.ReadOnlyStringWrapper
 import javafx.geometry.Orientation
+import javafx.scene.Cursor
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.ScrollBar
 import javafx.scene.input.Clipboard
@@ -40,6 +41,9 @@ class TerminalView(
     private var charset: Charset = Charsets.UTF_8
     private var newlineSequence: String = "\r"
     private var localEcho: Boolean = false
+    private var copyOnSelect: Boolean = false
+    private var cursorBlinkRequested: Boolean = true
+    private var cursorBlinkAllowed: Boolean = true
 
     private val titleWrapper = ReadOnlyStringWrapper("")
     val titleProperty: ReadOnlyStringProperty get() = titleWrapper.readOnlyProperty
@@ -126,13 +130,39 @@ class TerminalView(
         @Suppress("UNUSED_PARAMETER") scrollMode: String = "JUMP",
     ) = runOnFx {
         renderer.cursorStyle = parseCursorStyle(cursorStyle)
-        renderer.cursorBlink = cursorBlink
-        if (!cursorBlink) renderer.cursorPhaseOn = true
+        cursorBlinkRequested = cursorBlink
+        applyEffectiveCursorBlink()
         charset = resolveCharset(encoding)
         newlineSequence = parseNewline(newlineMode)
         this.localEcho = localEcho
         // scrollMode SMOOTH not implemented yet — JUMP is the only behaviour; persist the
         // setting and continue.
+        dirty = true
+    }
+
+    /**
+     * Hooks for AdditionalSettings (Setup → Additional…). copyOnSelect auto-copies when the user
+     * releases the mouse over a non-empty selection; visualCursorBlink is a global override that
+     * suppresses the cursor blink even when the per-terminal setting requests it.
+     */
+    fun applyAdditionalSettings(copyOnSelect: Boolean, visualCursorBlink: Boolean) = runOnFx {
+        this.copyOnSelect = copyOnSelect
+        cursorBlinkAllowed = visualCursorBlink
+        applyEffectiveCursorBlink()
+    }
+
+    fun applyMouseCursor(mode: String) = runOnFx {
+        canvas.cursor = when (mode.uppercase()) {
+            "TEXT" -> Cursor.TEXT
+            "NONE" -> Cursor.NONE
+            else -> Cursor.DEFAULT
+        }
+    }
+
+    private fun applyEffectiveCursorBlink() {
+        val effective = cursorBlinkRequested && cursorBlinkAllowed
+        renderer.cursorBlink = effective
+        if (!effective) renderer.cursorPhaseOn = true
         dirty = true
     }
 
@@ -292,9 +322,13 @@ class TerminalView(
             }
         }
         canvas.setOnMouseReleased { e ->
-            if (e.button == MouseButton.PRIMARY && !selection.isActive) {
-                selection.clear()
-                dirty = true
+            if (e.button == MouseButton.PRIMARY) {
+                if (selection.isActive && copyOnSelect) {
+                    copySelection()
+                } else if (!selection.isActive) {
+                    selection.clear()
+                    dirty = true
+                }
             }
         }
         canvas.setOnScroll { e ->

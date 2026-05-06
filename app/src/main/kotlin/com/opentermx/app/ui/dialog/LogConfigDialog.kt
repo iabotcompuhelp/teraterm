@@ -21,17 +21,30 @@ import javafx.stage.FileChooser
 import java.nio.file.Path
 import java.nio.file.Paths
 
-class LogConfigDialog(suggestedName: String = "session") : Dialog<LogConfig>() {
+class LogConfigDialog(
+    suggestedName: String = "session",
+    defaultDir: String = Paths.get(System.getProperty("user.home"), ".opentermx", "logs").toString(),
+    defaultFormat: String = "TXT",
+) : Dialog<LogConfig>() {
 
     private val pathField = TextField().apply {
-        text = Paths.get(System.getProperty("user.home"), ".opentermx", "logs", suggestedName).toString()
+        text = Paths.get(defaultDir, suggestedName).toString()
     }
     private val browseButton = Button("Buscar…")
 
     private val formatGroup = ToggleGroup()
-    private val plainRadio = RadioButton("Texto plano (.log)").apply { toggleGroup = formatGroup; isSelected = true }
+    private val plainRadio = RadioButton("Texto plano (.log)").apply { toggleGroup = formatGroup }
     private val htmlRadio = RadioButton("HTML con colores").apply { toggleGroup = formatGroup }
     private val rawRadio = RadioButton("Bytes crudos").apply { toggleGroup = formatGroup }
+
+    init {
+        // Honour the global default format from Setup → Additional… Log tab.
+        when (defaultFormat.uppercase()) {
+            "HTML" -> htmlRadio.isSelected = true
+            "RAW" -> rawRadio.isSelected = true
+            else -> plainRadio.isSelected = true
+        }
+    }
 
     private val timestampsCheck = CheckBox("Timestamp por línea").apply { isSelected = true }
     private val timestampPattern = TextField("yyyy-MM-dd HH:mm:ss.SSS")

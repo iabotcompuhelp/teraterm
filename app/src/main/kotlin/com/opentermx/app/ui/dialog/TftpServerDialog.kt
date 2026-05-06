@@ -28,15 +28,19 @@ import java.nio.file.Path
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 
-class TftpServerDialog(owner: Window) : Stage() {
+class TftpServerDialog(
+    owner: Window,
+    defaultPort: Int = 69,
+    defaultRoot: String = System.getProperty("user.home"),
+) : Stage() {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val portSpinner = Spinner<Int>().apply {
-        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 65535, 6969, 1)
+        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 65535, defaultPort, 1)
         isEditable = true
     }
-    private val rootField = TextField(System.getProperty("user.home"))
+    private val rootField = TextField(defaultRoot)
     private val browseButton = Button(Strings["tftp.browse"]).apply {
         setOnAction { browseRoot() }
     }

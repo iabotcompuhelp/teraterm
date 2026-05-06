@@ -116,7 +116,14 @@ class MainWindow(
             bindStatusToTab(newTab)
         }
 
-        stage.title = "OpenTermX"
+        // hideTitleBar can only be applied before stage.show(); once set, toggling at runtime
+        // requires re-creating the stage (we surface that as a status note in openWindowConfig).
+        if (settings.window.hideTitleBar) {
+            runCatching { stage.initStyle(javafx.stage.StageStyle.UNDECORATED) }
+                .onFailure { log.info("No se pudo aplicar hideTitleBar: {}", it.message) }
+        }
+        stage.title = settings.window.titlePrefix.ifBlank { "OpenTermX" }
+        stage.opacity = settings.window.transparency
         stage.scene = scene
         stage.setOnCloseRequest { stopAllControllers() }
         stage.show()
@@ -272,11 +279,20 @@ class MainWindow(
                 }
             }
             ?: settings.recentHosts.firstOrNull().orEmpty()
-        TftpClientDialog(stage, initialHost).show()
+        TftpClientDialog(
+            owner = stage,
+            initialHost = initialHost,
+            defaultPort = settings.additional.tftpDefaultPort,
+            defaultBlockSize = settings.additional.tftpDefaultBlocksize,
+        ).show()
     }
 
     private fun openTftpServerDialog() {
-        TftpServerDialog(stage).show()
+        TftpServerDialog(
+            owner = stage,
+            defaultPort = settings.additional.tftpDefaultPort,
+            defaultRoot = settings.additional.tftpDefaultRoot,
+        ).show()
     }
 
     private fun buildLanguageMenu(): Menu = Menu(Strings["setup.language"]).apply {
@@ -330,10 +346,31 @@ class MainWindow(
     }
 
     private fun openWindowConfig() {
+        val previous = settings.window
         val updated = WindowConfigDialog(settings.window).showAndWait().orElse(null) ?: return
         persist { it.copy(window = updated) }
-        // Transparency is the only field that maps cleanly to live state right now.
         stage.opacity = updated.transparency
+        stage.title = updated.titlePrefix.ifBlank { "OpenTermX" }
+        applyMouseCursorToAll(updated.mouseCursorMode)
+        if (updated.hideTitleBar != previous.hideTitleBar) {
+            statusLabel.text = Strings["status.windowDecorationRestart"]
+        }
+    }
+
+    private fun applyMouseCursorToAll(mode: String) {
+        controllers.values.forEach { it.terminal.applyMouseCursor(mode) }
+        forEachTerminal { it.applyMouseCursor(mode) }
+    }
+
+    private fun applyAdditionalSettingsToAll(a: com.opentermx.app.settings.AdditionalSettings) {
+        val apply: (TerminalView) -> Unit = {
+            it.applyAdditionalSettings(
+                copyOnSelect = a.copyOnSelect,
+                visualCursorBlink = a.visualCursorBlink,
+            )
+        }
+        controllers.values.forEach { apply(it.terminal) }
+        forEachTerminal(apply)
     }
 
     private fun openProxyConfig() {
@@ -373,6 +410,7 @@ class MainWindow(
     private fun openAdditionalSettings() {
         val updated = AdditionalSettingsDialog(settings.additional).showAndWait().orElse(null) ?: return
         persist { it.copy(additional = updated) }
+        applyAdditionalSettingsToAll(updated)
     }
 
     private fun openSerialPortSetup() {
@@ -513,6 +551,11 @@ class MainWindow(
             localEcho = settings.terminal.localEcho,
             scrollMode = settings.terminal.scrollMode,
         )
+        terminal.applyAdditionalSettings(
+            copyOnSelect = settings.additional.copyOnSelect,
+            visualCursorBlink = settings.additional.visualCursorBlink,
+        )
+        terminal.applyMouseCursor(settings.window.mouseCursorMode)
         return terminal
     }
 
@@ -681,6 +724,13 @@ class MainWindow(
         tabPane.tabs += tab
         tabPane.selectionModel.select(tab)
         viewModel.addSession(session)
+
+        // Auto-start a session log on the first CONNECTED transition if requested.
+        controller.state.addListener { _, old, new ->
+            if (new == ConnectionState.CONNECTED && old != ConnectionState.CONNECTED) {
+                maybeAutoLog(controller)
+            }
+        }
         controller.start()
     }
 
@@ -738,13 +788,52 @@ class MainWindow(
             statusLabel.text = Strings["status.noSession"]
             return
         }
-        val cfg = LogConfigDialog(ctl.session.name).showAndWait().orElse(null) ?: return
+        val cfg = LogConfigDialog(
+            suggestedName = ctl.session.name,
+            defaultDir = settings.additional.defaultLogDir,
+            defaultFormat = settings.additional.defaultLogFormat,
+        ).showAndWait().orElse(null) ?: return
         runCatching { LogManager.start(ctl.session.id.value, cfg) }
             .onSuccess { statusLabel.text = Strings.format("status.logActive", cfg.basePath) }
             .onFailure {
                 log.warn("No se pudo iniciar log", it)
                 statusLabel.text = Strings.format("status.captureError", it.message ?: "")
             }
+    }
+
+    /**
+     * If Setup → Additional → Log → "Iniciar log al conectar" is checked, opens a session log
+     * with the configured defaults (no dialog) the first time the connection reaches CONNECTED.
+     * The path is built from the session name to keep concurrent sessions separate.
+     */
+    private fun maybeAutoLog(ctl: TerminalSessionController) {
+        val a = settings.additional
+        if (!a.autoLogOnConnect) return
+        if (LogManager.isActive(ctl.session.id.value)) return
+        val safeName = ctl.session.name.replace(Regex("[^A-Za-z0-9_.@-]"), "_")
+        val ts = java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+        val format = runCatching {
+            com.opentermx.logger.LogFormat.valueOf(a.defaultLogFormat.uppercase())
+        }.getOrDefault(com.opentermx.logger.LogFormat.PLAIN)
+        val ext = when (format) {
+            com.opentermx.logger.LogFormat.HTML -> "html"
+            com.opentermx.logger.LogFormat.RAW -> "bin"
+            else -> "log"
+        }
+        val path = java.nio.file.Paths.get(a.defaultLogDir, "$safeName-$ts.$ext")
+        val cfg = com.opentermx.logger.LogConfig(
+            basePath = path,
+            format = format,
+            timestamps = true,
+            timestampPattern = "yyyy-MM-dd HH:mm:ss.SSS",
+            rotation = com.opentermx.logger.RotationPolicy.None,
+        )
+        runCatching {
+            java.nio.file.Files.createDirectories(path.parent ?: path)
+            LogManager.start(ctl.session.id.value, cfg)
+        }.onSuccess { statusLabel.text = Strings.format("status.logActive", cfg.basePath) }
+            .onFailure { log.warn("Auto-log fallido", it) }
     }
 
     private fun stopSessionLog() {

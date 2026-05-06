@@ -38,7 +38,13 @@ class SshConnectionFactoryTest {
                 22,
                 60,
                 false,
-                Collections.emptyList()
+                false,
+                Collections.emptyList(),
+                false,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                "xterm-256color"
         );
         Connection conn = factory.create(cfg);
         assertEquals(ConnectionType.SSH, conn.getConfig().getType());

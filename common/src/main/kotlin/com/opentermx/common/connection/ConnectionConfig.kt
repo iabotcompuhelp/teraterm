@@ -28,7 +28,13 @@ data class SshConfig(
     val port: Int = 22,
     val keepAliveSeconds: Int = 60,
     val agentForwarding: Boolean = false,
+    val tryAgentFirst: Boolean = false,
     val portForwards: List<PortForward> = emptyList(),
+    val compression: Boolean = false,
+    val ciphers: List<String> = emptyList(),
+    val kex: List<String> = emptyList(),
+    val macs: List<String> = emptyList(),
+    val terminalType: String = "xterm-256color",
 ) : ConnectionConfig {
     override val type: ConnectionType get() = ConnectionType.SSH
     override val displayName: String get() = "$username@$host:$port"

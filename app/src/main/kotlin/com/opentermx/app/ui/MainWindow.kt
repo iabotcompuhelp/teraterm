@@ -553,12 +553,7 @@ class MainWindow(
                     }.showAndWait()
                     return
                 }
-                val seed = SshConfig(
-                    host = choice.host,
-                    username = "",
-                    auth = SshAuth.Password(CharArray(0)),
-                    port = choice.tcpPort,
-                )
+                val seed = seedSshConfig(choice.host, choice.tcpPort)
                 val cfg = SshConfigDialog(seed).showAndWait().orElse(null) ?: return
                 openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
                 rememberHost(choice.host)
@@ -575,6 +570,36 @@ class MainWindow(
                 rememberHost(choice.host)
             }
         }
+    }
+
+    /**
+     * Builds an SshConfig prefilled from the global Setup → SSH / SSH Authentication / TCP-IP
+     * settings. The user can still override anything in the per-connection SshConfigDialog;
+     * fields the dialog does not render are passed through unchanged.
+     */
+    private fun seedSshConfig(host: String, port: Int): SshConfig {
+        val auth = settings.sshAuth
+        val gen = settings.sshGeneral
+        val authObj: SshAuth = if (auth.method == "PUBLIC_KEY" && auth.privateKeyPath.isNotBlank()) {
+            SshAuth.PublicKey(auth.privateKeyPath)
+        } else {
+            SshAuth.Password(CharArray(0))
+        }
+        return SshConfig(
+            host = host,
+            username = auth.defaultUsername,
+            auth = authObj,
+            port = port,
+            keepAliveSeconds = gen.heartbeatSeconds,
+            agentForwarding = false,
+            tryAgentFirst = auth.tryAgentFirst,
+            portForwards = emptyList(),
+            compression = gen.compression,
+            ciphers = gen.ciphers,
+            kex = gen.kex,
+            macs = gen.macs,
+            terminalType = settings.tcpIp.terminalType,
+        )
     }
 
     private fun rememberHost(host: String) {

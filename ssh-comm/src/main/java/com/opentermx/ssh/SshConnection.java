@@ -112,17 +112,19 @@ public final class SshConnection implements Connection {
             jsch.setHostKeyRepository(new TofuHostKeyRepository(defaultRepo, hostKeyVerifier));
 
             // Wire the local SSH agent BEFORE adding any explicit identity, so the
-            // agent's keys are tried first when agent forwarding is enabled. Failures
-            // here are non-fatal: the user may simply not have an agent running.
+            // agent's keys are tried first either when the user enabled agent forwarding
+            // (which forwards keys downstream) or when "try agent first" is on
+            // (auth-only). Failures are non-fatal: the agent may simply not be running.
+            boolean useAgentAuth = config.getTryAgentFirst() || config.getAgentForwarding();
             boolean agentAvailable = false;
-            if (config.getAgentForwarding()) {
+            if (useAgentAuth) {
                 try {
                     SSHAgentConnector connector = new SSHAgentConnector();
                     if (connector.isAvailable()) {
                         jsch.setIdentityRepository(new AgentIdentityRepository(connector));
                         agentAvailable = true;
                         log.info("SSH agent disponible — usando como IdentityRepository");
-                    } else {
+                    } else if (config.getAgentForwarding()) {
                         log.warn("SSH agent forwarding solicitado pero el agente no está disponible");
                     }
                 } catch (AgentProxyException e) {
@@ -157,6 +159,8 @@ public final class SshConnection implements Connection {
             session.setConfig("StrictHostKeyChecking", "yes");
             session.setConfig("PreferredAuthentications", "publickey,password,keyboard-interactive");
 
+            applyAlgorithmPreferences(session);
+
             session.setServerAliveInterval(Math.max(0, config.getKeepAliveSeconds()) * 1000);
 
             session.connect(CONNECT_TIMEOUT_MS);
@@ -165,7 +169,9 @@ public final class SshConnection implements Connection {
             applyInitialPortForwards();
 
             channel = (ChannelShell) session.openChannel("shell");
-            channel.setPtyType(DEFAULT_TERM_TYPE);
+            String termType = config.getTerminalType();
+            if (termType == null || termType.isBlank()) termType = DEFAULT_TERM_TYPE;
+            channel.setPtyType(termType);
             channel.setPtySize(ptyCols, ptyRows, ptyCols * 8, ptyRows * 16);
             if (config.getAgentForwarding() && agentAvailable) {
                 channel.setAgentForwarding(true);
@@ -180,6 +186,38 @@ public final class SshConnection implements Connection {
             transition(ConnectionState.ERROR, e);
             cleanup();
             throw e;
+        }
+    }
+
+    /**
+     * Applies user-configured cipher/kex/MAC preferences and compression to the JSch session
+     * before it negotiates. Empty lists mean "leave the default" so we don't accidentally
+     * shrink the algorithm set when the user hasn't customised anything.
+     */
+    private void applyAlgorithmPreferences(Session s) {
+        if (config.getCompression()) {
+            s.setConfig("compression.s2c", "zlib@openssh.com,zlib,none");
+            s.setConfig("compression.c2s", "zlib@openssh.com,zlib,none");
+            s.setConfig("compression_level", "6");
+        } else {
+            s.setConfig("compression.s2c", "none");
+            s.setConfig("compression.c2s", "none");
+        }
+        List<String> ciphers = config.getCiphers();
+        if (ciphers != null && !ciphers.isEmpty()) {
+            String list = String.join(",", ciphers);
+            s.setConfig("cipher.s2c", list);
+            s.setConfig("cipher.c2s", list);
+        }
+        List<String> kex = config.getKex();
+        if (kex != null && !kex.isEmpty()) {
+            s.setConfig("kex", String.join(",", kex));
+        }
+        List<String> macs = config.getMacs();
+        if (macs != null && !macs.isEmpty()) {
+            String list = String.join(",", macs);
+            s.setConfig("mac.s2c", list);
+            s.setConfig("mac.c2s", list);
         }
     }
 

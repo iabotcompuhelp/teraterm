@@ -55,6 +55,15 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
     private var initialForwards: List<PortForward> = emptyList()
     private val forwardsButton = Button()
 
+    // Fields the dialog does not render — captured from the seed and propagated
+    // unchanged so global Setup → SSH / SSH Authentication settings survive a roundtrip.
+    private var seedTryAgentFirst: Boolean = false
+    private var seedCompression: Boolean = false
+    private var seedCiphers: List<String> = emptyList()
+    private var seedKex: List<String> = emptyList()
+    private var seedMacs: List<String> = emptyList()
+    private var seedTerminalType: String = "xterm-256color"
+
     init {
         title = "Configuración SSH"
         headerText = "Configurar conexión SSH2"
@@ -119,6 +128,12 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
         keepAliveSpinner.valueFactory.value = seed.keepAliveSeconds
         agentForwardingCheck.isSelected = seed.agentForwarding
         initialForwards = seed.portForwards.toList()
+        seedTryAgentFirst = seed.tryAgentFirst
+        seedCompression = seed.compression
+        seedCiphers = seed.ciphers
+        seedKex = seed.kex
+        seedMacs = seed.macs
+        seedTerminalType = seed.terminalType
         when (val auth = seed.auth) {
             is SshAuth.Password -> {
                 passwordRadio.isSelected = true
@@ -171,7 +186,13 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
             port = portSpinner.value ?: 22,
             keepAliveSeconds = keepAliveSpinner.value ?: 60,
             agentForwarding = agentForwardingCheck.isSelected,
+            tryAgentFirst = seedTryAgentFirst,
             portForwards = initialForwards,
+            compression = seedCompression,
+            ciphers = seedCiphers,
+            kex = seedKex,
+            macs = seedMacs,
+            terminalType = seedTerminalType,
         )
     }
 }

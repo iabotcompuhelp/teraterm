@@ -1,10 +1,10 @@
 package com.opentermx.app.ui.dialog
 
 import com.opentermx.app.i18n.Strings
-import com.opentermx.tftp.server.TftpCsvLogger
-import com.opentermx.tftp.server.TftpServer
+import com.opentermx.app.ui.tftp.TftpServerManager
 import com.opentermx.tftp.server.TftpServerConfig
 import com.opentermx.tftp.server.TftpServerEvent
+import com.opentermx.tftp.server.TftpServerListener
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Scene
@@ -29,6 +29,11 @@ import java.nio.file.Path
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 
+/**
+ * View over {@link TftpServerManager}. The dialog does NOT own the server: closing the window
+ * leaves the server running. Re-opening replays the manager's event history into the log area
+ * and re-attaches as a listener.
+ */
 class TftpServerDialog(
     owner: Window,
     defaultPort: Int = 69,
@@ -51,15 +56,14 @@ class TftpServerDialog(
     private val statusLabel = Label(Strings["tftp.serverStopped"])
     private val startButton = Button(Strings["tftp.start"])
     private val stopButton = Button(Strings["tftp.stop"]).apply { isDisable = true }
-    private val closeButton = Button(Strings["tftp.close"]).apply { setOnAction { onClose() } }
+    private val closeButton = Button(Strings["tftp.close"]).apply { setOnAction { close() } }
     private val logArea = TextArea().apply {
         isEditable = false
         prefRowCount = 12
     }
 
-    @Volatile private var server: TftpServer? = null
-    @Volatile private var csvLogger: TftpCsvLogger? = null
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+    private val eventListener = TftpServerListener { event -> Platform.runLater { onEvent(event) } }
 
     init {
         title = Strings["tftp.serverTitle"]
@@ -89,9 +93,17 @@ class TftpServerDialog(
             minHeight = 420.0
         }
         scene = Scene(layout)
-        setOnCloseRequest { e ->
-            if (server?.isRunning == true) { onClose(); e.consume() }
+
+        // Close just hides the window — the manager keeps the server running.
+        setOnShown {
+            syncFromManager()
+            TftpServerManager.addEventListener(eventListener)
         }
+        setOnHidden {
+            TftpServerManager.removeEventListener(eventListener)
+        }
+        // Initial sync so a freshly built dialog already shows the right state before show().
+        syncFromManager()
     }
 
     private fun browseRoot() {
@@ -103,7 +115,7 @@ class TftpServerDialog(
     }
 
     private fun startServer() {
-        if (server?.isRunning == true) return
+        if (TftpServerManager.isRunning) return
         val rootPath = Path.of(rootField.text.ifBlank { "." })
         if (!java.nio.file.Files.isDirectory(rootPath)) {
             statusLabel.text = Strings.format("tftp.errRoot", rootPath)
@@ -117,55 +129,46 @@ class TftpServerDialog(
             5,
             5,
         )
-        val srv = TftpServer(config)
-        srv.addListener { event -> Platform.runLater { onEvent(event) } }
-        if (csvLogPath.isNotBlank()) {
-            try {
-                val csv = TftpCsvLogger(Path.of(csvLogPath))
-                srv.addListener(csv)
-                csvLogger = csv
-                statusLabel.text = Strings.format("status.tftpCsvActive", csvLogPath)
-            } catch (ex: Exception) {
-                log.warn("No se pudo abrir CSV {}", csvLogPath, ex)
-                statusLabel.text = Strings.format("status.tftpCsvError", ex.message ?: "")
+        TftpServerManager.start(config, csvLogPath)
+            .onSuccess {
+                syncFromManager()
+                if (csvLogPath.isNotBlank()) {
+                    statusLabel.text = Strings.format("status.tftpCsvActive", csvLogPath)
+                }
             }
-        }
-        try {
-            srv.start()
-            server = srv
-            startButton.isDisable = true
-            stopButton.isDisable = false
-            portSpinner.isDisable = true
-            rootField.isDisable = true
-            browseButton.isDisable = true
-            allowGetCheck.isDisable = true
-            allowPutCheck.isDisable = true
-            statusLabel.text = Strings.format("tftp.serverRunning", srv.actualPort())
-        } catch (ex: Exception) {
-            log.warn("TFTP server start failed", ex)
-            statusLabel.text = Strings.format("tftp.errStart", ex.message ?: ex.javaClass.simpleName)
-        }
+            .onFailure { ex ->
+                log.warn("TFTP server start failed", ex)
+                statusLabel.text = Strings.format("tftp.errStart", ex.message ?: ex.javaClass.simpleName)
+            }
     }
 
     private fun stopServer() {
-        server?.stop()
-        server = null
-        csvLogger?.let { runCatching { it.close() } }
-        csvLogger = null
-        startButton.isDisable = false
-        stopButton.isDisable = true
-        portSpinner.isDisable = false
-        rootField.isDisable = false
-        browseButton.isDisable = false
-        allowGetCheck.isDisable = false
-        allowPutCheck.isDisable = false
-        statusLabel.text = Strings["tftp.serverStopped"]
+        TftpServerManager.stop()
+        syncFromManager()
     }
 
-    private fun onClose() {
-        server?.stop()
-        server = null
-        close()
+    private fun syncFromManager() {
+        val running = TftpServerManager.isRunning
+        if (running) {
+            TftpServerManager.config?.let { cfg ->
+                portSpinner.valueFactory.value = cfg.port()
+                rootField.text = cfg.rootDirectory().toString()
+                allowGetCheck.isSelected = cfg.allowGet()
+                allowPutCheck.isSelected = cfg.allowPut()
+            }
+            statusLabel.text = Strings.format("tftp.serverRunning", TftpServerManager.actualPort)
+            logArea.clear()
+            TftpServerManager.history().forEach { onEvent(it) }
+        } else {
+            statusLabel.text = Strings["tftp.serverStopped"]
+        }
+        startButton.isDisable = running
+        stopButton.isDisable = !running
+        portSpinner.isDisable = running
+        rootField.isDisable = running
+        browseButton.isDisable = running
+        allowGetCheck.isDisable = running
+        allowPutCheck.isDisable = running
     }
 
     private fun onEvent(event: TftpServerEvent) {

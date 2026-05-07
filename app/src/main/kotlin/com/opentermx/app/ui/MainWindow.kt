@@ -32,6 +32,7 @@ import com.opentermx.app.ui.macro.MacroWindow
 import com.opentermx.app.ui.sftp.SftpPanel
 import com.opentermx.app.ui.terminal.TerminalCapture
 import com.opentermx.app.ui.terminal.TerminalView
+import com.opentermx.app.ui.tftp.TftpServerManager
 import com.opentermx.app.ui.transfer.TransferProgressDialog
 import com.opentermx.app.viewmodel.AppViewModel
 import com.opentermx.app.viewmodel.TerminalSessionController
@@ -96,6 +97,14 @@ class MainWindow(
     private val statusLabel = Label()
     private val protocolLabel = Label()
     private val themeLabel = Label()
+    private val tftpServerLabel = Label().apply {
+        cursor = javafx.scene.Cursor.HAND
+        styleClass += "status-tftp"
+        setOnMouseClicked { openTftpServerDialog() }
+        isVisible = false
+        isManaged = false
+    }
+    private var tftpServerDialogRef: TftpServerDialog? = null
 
     private val controllers: MutableMap<Tab, TerminalSessionController> = mutableMapOf()
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -128,7 +137,13 @@ class MainWindow(
         stage.title = settings.window.titlePrefix.ifBlank { "OpenTermX" }
         stage.opacity = settings.window.transparency
         stage.scene = scene
-        stage.setOnCloseRequest { stopAllControllers() }
+        stage.setOnCloseRequest {
+            stopAllControllers()
+            TftpServerManager.stop()
+        }
+        TftpServerManager.runningProperty.addListener { _, _, _ -> updateTftpServerLabel() }
+        TftpServerManager.portProperty.addListener { _, _, _ -> updateTftpServerLabel() }
+        updateTftpServerLabel()
         stage.show()
 
         openWelcomeTab()
@@ -290,12 +305,31 @@ class MainWindow(
     }
 
     private fun openTftpServerDialog() {
-        TftpServerDialog(
+        // Reuse a single dialog instance — focus it instead of stacking new windows.
+        val existing = tftpServerDialogRef
+        if (existing != null && existing.isShowing) {
+            existing.toFront()
+            existing.requestFocus()
+            return
+        }
+        val dialog = TftpServerDialog(
             owner = stage,
             defaultPort = settings.additional.tftpDefaultPort,
             defaultRoot = settings.additional.tftpDefaultRoot,
             csvLogPath = settings.additional.tftpCsvLogPath,
-        ).show()
+        )
+        tftpServerDialogRef = dialog
+        dialog.show()
+    }
+
+    private fun updateTftpServerLabel() {
+        val running = TftpServerManager.isRunning
+        tftpServerLabel.isVisible = running
+        tftpServerLabel.isManaged = running
+        if (running) {
+            tftpServerLabel.text = Strings.format("status.tftpServerBadge", TftpServerManager.actualPort)
+            tftpServerLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.tftpServerBadgeTooltip"])
+        }
     }
 
     private fun buildLanguageMenu(): Menu = Menu(Strings["setup.language"]).apply {
@@ -588,7 +622,7 @@ class MainWindow(
 
     private fun buildStatusBar(): Region {
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
-        return HBox(12.0, statusLabel, spacer, protocolLabel, Separator(), themeLabel).apply {
+        return HBox(12.0, statusLabel, spacer, tftpServerLabel, protocolLabel, Separator(), themeLabel).apply {
             styleClass += "status-bar"
         }
     }
@@ -1057,6 +1091,7 @@ class MainWindow(
         statusLabel.text = Strings["status.ready"]
         bindStatusToTab(tabPane.selectionModel.selectedItem)
         themeLabel.text = if (theme.isDark) Strings["status.themeDark"] else Strings["status.themeLight"]
+        updateTftpServerLabel()
     }
 
     private fun accelerator(key: String): KeyCombination? = settings.accelerators[key]?.let {

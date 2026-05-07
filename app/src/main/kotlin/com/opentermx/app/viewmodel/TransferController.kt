@@ -5,8 +5,6 @@ import com.opentermx.transfer.TransferDirection
 import com.opentermx.transfer.TransferListener
 import com.opentermx.transfer.TransferStream
 import com.opentermx.transfer.Xmodem
-import com.opentermx.transfer.Ymodem
-import com.opentermx.transfer.Zmodem
 import javafx.application.Platform
 import javafx.beans.property.ReadOnlyDoubleProperty
 import javafx.beans.property.ReadOnlyDoubleWrapper
@@ -22,7 +20,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
-enum class TransferProtocol { XMODEM, YMODEM, ZMODEM }
+enum class TransferProtocol { XMODEM }
 
 data class TransferResult(val success: Boolean, val error: Throwable?)
 
@@ -98,18 +96,6 @@ class TransferController(
                 TransferDirection.RECEIVE -> FileOutputStream(target).use {
                     Xmodem.receive(stream, it, listener)
                 }
-            }
-            TransferProtocol.ZMODEM -> when (direction) {
-                TransferDirection.SEND -> FileInputStream(target).use {
-                    Zmodem.send(stream, it, fileSize, target.name, listener)
-                }
-                TransferDirection.RECEIVE -> {
-                    Zmodem.receive(stream, target.toPath(), listener)
-                }
-            }
-            TransferProtocol.YMODEM -> when (direction) {
-                TransferDirection.SEND -> Ymodem.send(stream, batchFiles, listener)
-                TransferDirection.RECEIVE -> { Ymodem.receive(stream, target.toPath(), listener) }
             }
         }
     }

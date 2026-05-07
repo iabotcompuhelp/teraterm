@@ -220,10 +220,6 @@ class MainWindow(
             items += SeparatorMenuItem()
             items += MenuItem(Strings["control.sendXmodem"]).apply { setOnAction { sendFileXmodem() } }
             items += MenuItem(Strings["control.recvXmodem"]).apply { setOnAction { receiveFileXmodem() } }
-            items += MenuItem(Strings["control.sendZmodem"]).apply { setOnAction { sendFileZmodem() } }
-            items += MenuItem(Strings["control.recvZmodem"]).apply { setOnAction { receiveFileZmodem() } }
-            items += MenuItem(Strings["control.sendYmodem"]).apply { setOnAction { sendFilesYmodem() } }
-            items += MenuItem(Strings["control.recvYmodem"]).apply { setOnAction { receiveFilesYmodem() } }
         }
         val windowMenu = Menu(Strings["menu.window"]).apply {
             items += CheckMenuItem(Strings["setup.darkTheme"]).apply {
@@ -1030,66 +1026,6 @@ class MainWindow(
         }.showSaveDialog(stage) ?: return
         val tc = TransferController(ctl.session.connection, TransferDirection.RECEIVE, file, -1, TransferProtocol.XMODEM)
         TransferProgressDialog(stage, tc, "${Strings["control.recvXmodem"]} ${file.name}").show()
-        tc.start()
-    }
-
-    private fun sendFileZmodem() {
-        val ctl = currentController() ?: run {
-            statusLabel.text = Strings["status.noSession"]
-            return
-        }
-        val file = FileChooser().apply { title = Strings["control.sendZmodem"] }.showOpenDialog(stage) ?: return
-        val tc = TransferController(ctl.session.connection, TransferDirection.SEND, file, file.length(), TransferProtocol.ZMODEM)
-        TransferProgressDialog(stage, tc, "${Strings["control.sendZmodem"]} ${file.name}").show()
-        tc.start()
-    }
-
-    private fun receiveFileZmodem() {
-        val ctl = currentController() ?: run {
-            statusLabel.text = Strings["status.noSession"]
-            return
-        }
-        val dir = DirectoryChooser().apply {
-            title = Strings["control.recvZmodem"]
-            initialDirectory = java.io.File(System.getProperty("user.home"))
-        }.showDialog(stage) ?: return
-        val tc = TransferController(ctl.session.connection, TransferDirection.RECEIVE, dir, -1, TransferProtocol.ZMODEM)
-        TransferProgressDialog(stage, tc, "${Strings["control.recvZmodem"]} → ${dir.name}").show()
-        tc.start()
-    }
-
-    private fun sendFilesYmodem() {
-        val ctl = currentController() ?: run {
-            statusLabel.text = Strings["status.noSession"]
-            return
-        }
-        val files = FileChooser().apply { title = Strings["control.sendYmodem"] }
-            .showOpenMultipleDialog(stage) ?: return
-        if (files.isEmpty()) return
-        val totalSize = files.sumOf { it.length() }
-        val tc = TransferController(
-            connection = ctl.session.connection,
-            direction = TransferDirection.SEND,
-            target = files.first(),
-            fileSize = totalSize,
-            protocol = TransferProtocol.YMODEM,
-            batchFiles = files,
-        )
-        TransferProgressDialog(stage, tc, "${Strings["control.sendYmodem"]} (${files.size})").show()
-        tc.start()
-    }
-
-    private fun receiveFilesYmodem() {
-        val ctl = currentController() ?: run {
-            statusLabel.text = Strings["status.noSession"]
-            return
-        }
-        val dir = DirectoryChooser().apply {
-            title = Strings["control.recvYmodem"]
-            initialDirectory = java.io.File(System.getProperty("user.home"))
-        }.showDialog(stage) ?: return
-        val tc = TransferController(ctl.session.connection, TransferDirection.RECEIVE, dir, -1, TransferProtocol.YMODEM)
-        TransferProgressDialog(stage, tc, "${Strings["control.recvYmodem"]} → ${dir.name}").show()
         tc.start()
     }
 

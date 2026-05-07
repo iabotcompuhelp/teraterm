@@ -48,7 +48,7 @@ data class TerminalSettings(
 )
 
 data class WindowSettings(
-    val titlePrefix: String = "OpenTermX",
+    val titlePrefix: String = "COMPUHELP",
     val transparency: Double = 1.0,      // 0.3..1.0
     val hideTitleBar: Boolean = false,
     val mouseCursorMode: String = "DEFAULT", // DEFAULT | TEXT | NONE

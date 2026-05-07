@@ -58,6 +58,8 @@ import com.opentermx.ssh.SshConnection
 import com.opentermx.telnet.TelnetConnection
 import com.opentermx.transfer.TransferDirection
 import javafx.beans.binding.Bindings
+import javafx.geometry.Insets
+import javafx.geometry.Pos
 import javafx.scene.Scene
 import javafx.scene.control.Alert
 import javafx.scene.control.CheckMenuItem
@@ -70,6 +72,9 @@ import javafx.scene.control.Separator
 import javafx.scene.control.SeparatorMenuItem
 import javafx.scene.control.Tab
 import javafx.scene.control.TabPane
+import javafx.scene.image.Image
+import javafx.scene.image.ImageView
+import javafx.scene.layout.StackPane
 import javafx.scene.control.ToggleGroup
 import javafx.scene.input.KeyCombination
 import javafx.scene.layout.BorderPane
@@ -125,8 +130,8 @@ class MainWindow(
 
     fun show() {
         rootPane = BorderPane().apply {
-            top = buildMenuBar()
-            center = tabPane
+            top = buildTopBar()
+            center = buildCenterWithWatermark()
             bottom = buildStatusBar()
             left = SessionListView(viewModel).also { it.prefWidth = 220.0 }
         }
@@ -144,7 +149,7 @@ class MainWindow(
             runCatching { stage.initStyle(javafx.stage.StageStyle.UNDECORATED) }
                 .onFailure { log.info("No se pudo aplicar hideTitleBar: {}", it.message) }
         }
-        stage.title = settings.window.titlePrefix.ifBlank { "OpenTermX" }
+        stage.title = settings.window.titlePrefix.ifBlank { "COMPUHELP" }
         stage.opacity = settings.window.transparency
         stage.scene = scene
         stage.setOnCloseRequest {
@@ -390,7 +395,7 @@ class MainWindow(
     }
 
     private fun rebuildMenusAndLabels() {
-        rootPane.top = buildMenuBar()
+        rootPane.top = buildTopBar()
         refreshLabels()
     }
 
@@ -432,7 +437,7 @@ class MainWindow(
             .showAndWait().orElse(null) ?: return
         persist { it.copy(window = updated) }
         stage.opacity = updated.transparency
-        stage.title = updated.titlePrefix.ifBlank { "OpenTermX" }
+        stage.title = updated.titlePrefix.ifBlank { "COMPUHELP" }
         applyMouseCursorToAll(updated.mouseCursorMode)
         applyThemeToTerminals()
         if (updated.hideTitleBar != previous.hideTitleBar) {
@@ -654,6 +659,48 @@ class MainWindow(
     private fun forEachTerminal(action: (TerminalView) -> Unit) {
         for (tab in tabPane.tabs) {
             (tab.content as? TerminalView)?.let(action)
+        }
+    }
+
+    /**
+     * Wraps the tabPane in a StackPane that hosts a mouse-transparent watermark on top.
+     * Sitting at the MainWindow level (not inside any TerminalView), the watermark is
+     * positioned by JavaFX layout independently of any per-terminal canvas, scroll, or
+     * repaint — so it stays anchored to the window centre regardless of terminal activity.
+     */
+    private fun buildCenterWithWatermark(): Region {
+        val image = runCatching {
+            javaClass.getResourceAsStream("/images/Compuhelp.png")?.use { Image(it) }
+        }.getOrNull() ?: return tabPane
+        val watermark = ImageView(image).apply {
+            opacity = 0.25
+            isMouseTransparent = true
+            isPreserveRatio = true
+        }
+        return StackPane(tabPane, watermark).apply {
+            StackPane.setAlignment(tabPane, javafx.geometry.Pos.CENTER)
+            StackPane.setAlignment(watermark, javafx.geometry.Pos.CENTER)
+            watermark.fitWidthProperty().bind(widthProperty().multiply(0.5))
+            watermark.fitHeightProperty().bind(heightProperty().multiply(0.5))
+        }
+    }
+
+    /**
+     * Top bar = brand label "COMPUHELP" + the standard MenuBar. The brand sits in the
+     * upper-left of the application window so it's visible regardless of the OS title bar
+     * (which is also driven by `WindowSettings.titlePrefix`).
+     */
+    private fun buildTopBar(): Region {
+        val brand = Label("COMPUHELP").apply {
+            styleClass += "brand-label"
+            padding = Insets(4.0, 14.0, 4.0, 14.0)
+            style = "-fx-font-weight: bold; -fx-font-size: 14px;"
+        }
+        val menuBar = buildMenuBar()
+        HBox.setHgrow(menuBar, Priority.ALWAYS)
+        return HBox(brand, menuBar).apply {
+            alignment = Pos.CENTER_LEFT
+            styleClass += "top-bar"
         }
     }
 

@@ -61,7 +61,7 @@ class WindowConfigDialog(
         dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
         setResultConverter { btn ->
             if (btn != ButtonType.OK) null else WindowSettings(
-                titlePrefix = titleField.text.ifBlank { "OpenTermX" },
+                titlePrefix = titleField.text.ifBlank { "COMPUHELP" },
                 transparency = transparencySlider.value,
                 hideTitleBar = hideTitleBarCheck.isSelected,
                 mouseCursorMode = mouseCursorCombo.value,

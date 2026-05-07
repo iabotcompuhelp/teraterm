@@ -1,11 +1,14 @@
 package com.opentermx.app.ui.dialog
 
 import com.opentermx.app.i18n.Strings
-import com.opentermx.tftp.client.TftpClient
+import com.opentermx.app.ui.tftp.TftpDirection
+import com.opentermx.app.ui.tftp.TftpTransferHandle
+import com.opentermx.app.ui.tftp.TftpTransferManager
+import com.opentermx.app.ui.tftp.TftpTransferSpec
+import com.opentermx.app.ui.tftp.TftpTransferState
 import com.opentermx.tftp.client.TftpClientOptions
 import com.opentermx.tftp.common.TransferMode
-import com.opentermx.tftp.server.TftpCsvLogger
-import javafx.application.Platform
+import javafx.beans.binding.Bindings
 import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.control.Button
@@ -26,12 +29,14 @@ import javafx.stage.FileChooser
 import javafx.stage.Modality
 import javafx.stage.Stage
 import javafx.stage.Window
-import org.slf4j.LoggerFactory
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
 import java.io.File
-import java.nio.file.Files
 
+/**
+ * "Submit form" for TFTP transfers. The dialog no longer owns the worker thread — pressing
+ * Transfer hands the spec to {@link TftpTransferManager} and binds the visible progress bar to
+ * the returned handle. Closing the dialog leaves the transfer running; users watch progress
+ * from the status-bar badge / {@code TftpTransfersPanel}.
+ */
 class TftpClientDialog(
     owner: Window,
     initialHost: String = "",
@@ -39,8 +44,6 @@ class TftpClientDialog(
     defaultBlockSize: Int = 512,
     private val csvLogPath: String = "",
 ) : Stage() {
-
-    private val log = LoggerFactory.getLogger(javaClass)
 
     private val hostField = TextField(initialHost)
     private val portSpinner = Spinner<Int>().apply {
@@ -77,8 +80,7 @@ class TftpClientDialog(
     private val cancelButton = Button(Strings["tftp.cancel"])
     private val closeButton = Button(Strings["tftp.close"]).apply { setOnAction { close() } }
 
-    private val client = TftpClient()
-    @Volatile private var workerThread: Thread? = null
+    private var currentHandle: TftpTransferHandle? = null
 
     init {
         title = Strings["tftp.clientTitle"]
@@ -112,7 +114,7 @@ class TftpClientDialog(
         GridPane.setHgrow(localFileField, Priority.ALWAYS)
 
         transferButton.setOnAction { startTransfer() }
-        cancelButton.setOnAction { cancelTransfer() }
+        cancelButton.setOnAction { currentHandle?.cancel() }
         cancelButton.isDisable = true
 
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
@@ -122,12 +124,7 @@ class TftpClientDialog(
             minWidth = 480.0
         }
         scene = Scene(layout)
-        setOnCloseRequest { e ->
-            if (workerThread?.isAlive == true) {
-                cancelTransfer()
-                e.consume()
-            }
-        }
+        // Close just hides the window — the transfer keeps running in TftpTransferManager.
     }
 
     private fun browseLocal() {
@@ -162,73 +159,49 @@ class TftpClientDialog(
             return
         }
 
+        val spec = TftpTransferSpec(
+            direction = if (isSend) TftpDirection.PUT else TftpDirection.GET,
+            host = host,
+            port = port,
+            remoteFile = remote,
+            localFile = localFile,
+            options = opts,
+            csvLogPath = csvLogPath,
+        )
+        val handle = TftpTransferManager.submit(spec)
+        bindToHandle(handle)
+    }
+
+    private fun bindToHandle(handle: TftpTransferHandle) {
+        currentHandle = handle
+        progressBar.progressProperty().unbind()
+        progressBar.progressProperty().bind(handle.progressProperty)
+        statusLabel.textProperty().unbind()
+        statusLabel.textProperty().bind(Bindings.createStringBinding(
+            {
+                when (handle.state) {
+                    TftpTransferState.RUNNING -> {
+                        val total = handle.totalProperty.value
+                        val sent = handle.transferredProperty.value
+                        if (total > 0) Strings.format("tftp.progress", sent, total)
+                        else Strings.format("tftp.progressUnknown", sent)
+                    }
+                    TftpTransferState.COMPLETED -> Strings["tftp.completed"]
+                    TftpTransferState.CANCELLED -> Strings["tftp.cancelled"]
+                    TftpTransferState.FAILED -> Strings.format("tftp.failed", handle.errorProperty.value)
+                }
+            },
+            handle.stateProperty, handle.transferredProperty, handle.totalProperty, handle.errorProperty,
+        ))
         setRunning(true)
-        progressBar.progress = ProgressBar.INDETERMINATE_PROGRESS
-        statusLabel.text = Strings["tftp.connecting"]
-
-        val csv: TftpCsvLogger? = if (csvLogPath.isBlank()) null else runCatching {
-            TftpCsvLogger(java.nio.file.Paths.get(csvLogPath))
-        }.onFailure { log.warn("No se pudo abrir CSV {}", csvLogPath, it) }.getOrNull()
-        if (csv != null) client.addListener(csv)
-
-        val thread = Thread({
-            try {
-                if (isSend) {
-                    BufferedInputStream(Files.newInputStream(localFile.toPath())).use { input ->
-                        client.put(host, port, remote, input, localFile.length(), opts) { sent, total ->
-                            updateProgress(sent, if (total > 0) total else localFile.length())
-                        }
-                    }
-                } else {
-                    BufferedOutputStream(Files.newOutputStream(localFile.toPath())).use { output ->
-                        client.get(host, port, remote, output, opts) { sent, total ->
-                            updateProgress(sent, total)
-                        }
-                    }
-                }
-                Platform.runLater {
-                    progressBar.progress = 1.0
-                    statusLabel.text = Strings["tftp.completed"]
-                    setRunning(false)
-                }
-            } catch (ex: Exception) {
-                log.warn("TFTP transfer failed", ex)
-                Platform.runLater {
-                    progressBar.progress = 0.0
-                    statusLabel.text = Strings.format("tftp.failed", ex.message ?: ex.javaClass.simpleName)
-                    setRunning(false)
-                }
-            } finally {
-                if (csv != null) {
-                    client.removeListener(csv)
-                    runCatching { csv.close() }
-                }
-            }
-        }, "tftp-client-ui")
-        thread.isDaemon = true
-        workerThread = thread
-        thread.start()
-    }
-
-    private fun updateProgress(transferred: Long, total: Long) {
-        Platform.runLater {
-            progressBar.progress = if (total > 0) transferred.toDouble() / total else ProgressBar.INDETERMINATE_PROGRESS
-            statusLabel.text = if (total > 0)
-                Strings.format("tftp.progress", transferred, total)
-            else
-                Strings.format("tftp.progressUnknown", transferred)
+        handle.stateProperty.addListener { _, _, newState ->
+            if (newState != TftpTransferState.RUNNING) setRunning(false)
         }
-    }
-
-    private fun cancelTransfer() {
-        client.cancel()
-        statusLabel.text = Strings["tftp.cancelling"]
     }
 
     private fun setRunning(running: Boolean) {
         transferButton.isDisable = running
         cancelButton.isDisable = !running
-        closeButton.isDisable = running
         listOf(hostField, portSpinner, sendRadio, receiveRadio,
                 remoteFileField, localFileField, browseButton,
                 modeCombo, blockSizeSpinner, timeoutSpinner)

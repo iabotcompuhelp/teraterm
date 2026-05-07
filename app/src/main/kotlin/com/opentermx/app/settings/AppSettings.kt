@@ -131,6 +131,11 @@ data class AdditionalSettings(
     val defaultLogFormat: String = "TXT",  // TXT | HTML | RAW
     val defaultLogDir: String = System.getProperty("user.home"),
     val autoLogOnConnect: Boolean = false,
+    val defaultLogTimestamps: Boolean = true,
+    val defaultLogTimestampPattern: String = "yyyy-MM-dd HH:mm:ss.SSS",
+    val defaultLogRotation: String = "NONE",      // NONE | BY_SIZE | BY_TIME
+    val defaultLogRotationSizeMb: Int = 10,
+    val defaultLogRotationMinutes: Int = 60,
     val autoLoginMacroPath: String = "",
     val tftpDefaultPort: Int = 69,
     val tftpDefaultRoot: String = System.getProperty("user.home"),

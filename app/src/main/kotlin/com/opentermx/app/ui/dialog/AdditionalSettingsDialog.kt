@@ -46,6 +46,21 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
     }
     private val autoLogCheck = CheckBox(Strings["setup.additional.autoLog"])
         .apply { isSelected = initial.autoLogOnConnect }
+    private val logTimestampsCheck = CheckBox(Strings["setup.additional.logTimestamps"])
+        .apply { isSelected = initial.defaultLogTimestamps }
+    private val logTimestampPattern = TextField(initial.defaultLogTimestampPattern)
+    private val logRotationCombo = ComboBox<String>().apply {
+        items.addAll("NONE", "BY_SIZE", "BY_TIME")
+        value = initial.defaultLogRotation
+    }
+    private val logSizeMbSpinner = Spinner<Int>().apply {
+        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 4096, initial.defaultLogRotationSizeMb, 1)
+        isEditable = true
+    }
+    private val logIntervalSpinner = Spinner<Int>().apply {
+        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 1440, initial.defaultLogRotationMinutes, 1)
+        isEditable = true
+    }
     private val tftpPortSpinner = Spinner<Int>().apply {
         valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1, 65535, initial.tftpDefaultPort, 1)
         isEditable = true
@@ -116,6 +131,11 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 add(Label(Strings["setup.additional.logDir"]), 0, r)
                 add(HBox(6.0, logDirField, browseLogDir), 1, r); r++
                 add(autoLogCheck, 1, r); r++
+                add(logTimestampsCheck, 1, r); r++
+                add(Label(Strings["setup.additional.logTimestampPattern"]), 0, r); add(logTimestampPattern, 1, r); r++
+                add(Label(Strings["setup.additional.logRotation"]), 0, r); add(logRotationCombo, 1, r); r++
+                add(Label(Strings["setup.additional.logMaxSize"]), 0, r); add(logSizeMbSpinner, 1, r); r++
+                add(Label(Strings["setup.additional.logInterval"]), 0, r); add(logIntervalSpinner, 1, r); r++
             })
             tabs += Tab(Strings["setup.additional.tabTftp"], GridPane().apply {
                 hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
@@ -139,6 +159,11 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 defaultLogFormat = logFormatCombo.value,
                 defaultLogDir = logDirField.text.ifBlank { System.getProperty("user.home") },
                 autoLogOnConnect = autoLogCheck.isSelected,
+                defaultLogTimestamps = logTimestampsCheck.isSelected,
+                defaultLogTimestampPattern = logTimestampPattern.text.ifBlank { "yyyy-MM-dd HH:mm:ss.SSS" },
+                defaultLogRotation = logRotationCombo.value ?: "NONE",
+                defaultLogRotationSizeMb = logSizeMbSpinner.value,
+                defaultLogRotationMinutes = logIntervalSpinner.value,
                 tftpDefaultPort = tftpPortSpinner.value,
                 tftpDefaultRoot = tftpRootField.text.ifBlank { System.getProperty("user.home") },
                 tftpDefaultBlocksize = tftpBlockSpinner.value,

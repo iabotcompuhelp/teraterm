@@ -919,10 +919,16 @@ class MainWindow(
             statusLabel.text = Strings["status.noSession"]
             return
         }
+        val a = settings.additional
         val cfg = LogConfigDialog(
             suggestedName = ctl.session.name,
-            defaultDir = settings.additional.defaultLogDir,
-            defaultFormat = settings.additional.defaultLogFormat,
+            defaultDir = a.defaultLogDir,
+            defaultFormat = a.defaultLogFormat,
+            defaultTimestamps = a.defaultLogTimestamps,
+            defaultTimestampPattern = a.defaultLogTimestampPattern,
+            defaultRotation = a.defaultLogRotation,
+            defaultRotationSizeMb = a.defaultLogRotationSizeMb,
+            defaultRotationMinutes = a.defaultLogRotationMinutes,
         ).showAndWait().orElse(null) ?: return
         runCatching { LogManager.start(ctl.session.id.value, cfg) }
             .onSuccess { statusLabel.text = Strings.format("status.logActive", cfg.basePath) }
@@ -953,12 +959,17 @@ class MainWindow(
             else -> "log"
         }
         val path = java.nio.file.Paths.get(a.defaultLogDir, "$safeName-$ts.$ext")
+        val rotation: com.opentermx.logger.RotationPolicy = when (a.defaultLogRotation.uppercase()) {
+            "BY_SIZE" -> com.opentermx.logger.RotationPolicy.BySize(a.defaultLogRotationSizeMb.toLong() * 1024 * 1024)
+            "BY_TIME" -> com.opentermx.logger.RotationPolicy.ByTime(a.defaultLogRotationMinutes.toLong() * 60_000L)
+            else -> com.opentermx.logger.RotationPolicy.None
+        }
         val cfg = com.opentermx.logger.LogConfig(
             basePath = path,
             format = format,
-            timestamps = true,
-            timestampPattern = "yyyy-MM-dd HH:mm:ss.SSS",
-            rotation = com.opentermx.logger.RotationPolicy.None,
+            timestamps = a.defaultLogTimestamps,
+            timestampPattern = a.defaultLogTimestampPattern.ifBlank { "yyyy-MM-dd HH:mm:ss.SSS" },
+            rotation = rotation,
         )
         runCatching {
             java.nio.file.Files.createDirectories(path.parent ?: path)

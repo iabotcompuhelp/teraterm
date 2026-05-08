@@ -4,6 +4,7 @@ import com.opentermx.app.i18n.Strings
 import com.opentermx.app.settings.AppSettings
 import com.opentermx.app.settings.SettingsStore
 import com.opentermx.app.ui.dialog.AdditionalSettingsDialog
+import com.opentermx.app.ui.dialog.ErrorDialog
 import com.opentermx.app.ui.dialog.FontConfigDialog
 import com.opentermx.app.ui.dialog.GeneralSettingsDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
@@ -14,6 +15,8 @@ import com.opentermx.app.ui.dialog.NewConnectionChoice
 import com.opentermx.app.ui.dialog.NewConnectionDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
 import com.opentermx.app.ui.dialog.ProxyConfigDialog
+import com.opentermx.app.ui.dialog.QuickGuideDialog
+import com.opentermx.app.ui.dialog.ShortcutsViewerDialog
 import com.opentermx.app.ui.dialog.SshAuthDialog
 import com.opentermx.app.ui.dialog.SshGeneralDialog
 import com.opentermx.app.ui.dialog.SshKeyGeneratorDialog
@@ -22,6 +25,7 @@ import com.opentermx.app.ui.dialog.ScrollbackDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SerialSignalsDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
+import com.opentermx.app.ui.dialog.SystemInfoDialog
 import com.opentermx.app.ui.dialog.TcpIpConfigDialog
 import com.opentermx.app.ui.dialog.TerminalConfigDialog
 import com.opentermx.app.ui.dialog.TftpClientDialog
@@ -163,6 +167,7 @@ class MainWindow(
         TftpTransferManager.transfers.addListener(javafx.beans.InvalidationListener { updateTftpClientLabel() })
         updateTftpServerLabel()
         updateTftpClientLabel()
+        subscribeConnectionErrorPopups()
         stage.show()
 
         openWelcomeTab()
@@ -274,18 +279,119 @@ class MainWindow(
                 setOnAction { tabPane.selectionModel.selectedItem?.let { closeTab(it) } }
             }
         }
-        val help = Menu(Strings["menu.help"]).apply {
-            items += MenuItem(Strings["help.about"]).apply {
-                setOnAction {
-                    Alert(Alert.AlertType.INFORMATION).apply {
-                        title = Strings["about.title"]
-                        headerText = Strings["about.header"]
-                        contentText = Strings["about.body"]
-                    }.showAndWait()
-                }
+        val help = buildHelpMenu()
+        return MenuBar(file, edit, setup, control, windowMenu, help)
+    }
+
+    private fun buildHelpMenu(): Menu = Menu(Strings["menu.help"]).apply {
+        items += MenuItem(Strings["help.quickGuide"]).apply {
+            setOnAction { QuickGuideDialog().also { it.initOwner(stage) }.showAndWait() }
+        }
+        items += MenuItem(Strings["help.shortcuts"]).apply {
+            setOnAction {
+                ShortcutsViewerDialog(settings.accelerators)
+                    .also { it.initOwner(stage) }
+                    .showAndWait()
             }
         }
-        return MenuBar(file, edit, setup, control, windowMenu, help)
+        items += MenuItem(Strings["help.systemInfo"]).apply {
+            setOnAction { SystemInfoDialog().also { it.initOwner(stage) }.showAndWait() }
+        }
+        items += MenuItem(Strings["help.openLogsDir"]).apply {
+            setOnAction { openLogsDirectory() }
+        }
+        items += SeparatorMenuItem()
+        items += MenuItem(Strings["help.openSpec"]).apply {
+            setOnAction { openSpecDocumentation() }
+        }
+        items += MenuItem(Strings["help.reportIssue"]).apply {
+            setOnAction { reportIssueViaErrorDialog() }
+        }
+        items += SeparatorMenuItem()
+        items += MenuItem(Strings["help.about"]).apply {
+            setOnAction { showAboutDialog() }
+        }
+    }
+
+    private fun showAboutDialog() {
+        ErrorDialog.info(
+            owner = stage,
+            title = Strings["about.title"],
+            header = Strings["about.header"],
+            message = Strings["about.body"],
+            details = Strings["about.details"],
+        )
+    }
+
+    private fun openLogsDirectory() {
+        val dir = SettingsStore.configDir.toFile()
+        if (!dir.isDirectory) dir.mkdirs()
+        runCatching { java.awt.Desktop.getDesktop().open(dir) }
+            .onFailure {
+                log.info("Desktop.open no disponible", it)
+                ErrorDialog.warning(
+                    owner = stage,
+                    title = Strings["help.openLogsDir"],
+                    header = Strings["error.openLogsDir.header"],
+                    message = Strings.format("error.openLogsDir.body", dir.absolutePath),
+                    cause = it,
+                )
+            }
+        statusLabel.text = Strings.format("status.setupDirOpen", dir.absolutePath)
+    }
+
+    private fun openSpecDocumentation() {
+        // The master spec ships next to the IDE project (.idea/Teraterm v3.md). If it isn't there
+        // we tell the user explicitly with the same dialog used elsewhere — no silent failure.
+        val candidates = listOf(
+            java.io.File(System.getProperty("user.dir"), ".idea/Teraterm v3.md"),
+            java.io.File(System.getProperty("user.dir"), ".idea/teraterm.md"),
+        )
+        val file = candidates.firstOrNull { it.isFile }
+        if (file == null) {
+            ErrorDialog.info(
+                owner = stage,
+                title = Strings["help.openSpec"],
+                header = Strings["help.openSpec.missing.header"],
+                message = Strings.format("help.openSpec.missing.body", candidates.joinToString("\n") { it.absolutePath }),
+            )
+            return
+        }
+        runCatching { java.awt.Desktop.getDesktop().open(file) }
+            .onFailure {
+                ErrorDialog.warning(
+                    owner = stage,
+                    title = Strings["help.openSpec"],
+                    header = Strings["error.openSpec.header"],
+                    message = Strings.format("error.openSpec.body", file.absolutePath),
+                    cause = it,
+                )
+            }
+    }
+
+    private fun reportIssueViaErrorDialog() {
+        // "Report issue" doesn't require the user to actually have an error in front of them —
+        // we show the same expandable diagnostic block so they can copy it into a ticket.
+        ErrorDialog.info(
+            owner = stage,
+            title = Strings["help.reportIssue"],
+            header = Strings["help.reportIssue.header"],
+            message = Strings["help.reportIssue.body"],
+            details = buildEnvironmentSnapshot(),
+        )
+    }
+
+    private fun buildEnvironmentSnapshot(): String {
+        val p = System.getProperties()
+        return buildString {
+            appendLine("OS    : ${p.getProperty("os.name")} ${p.getProperty("os.version")} (${p.getProperty("os.arch")})")
+            appendLine("Java  : ${p.getProperty("java.version")}")
+            appendLine("Locale: ${java.util.Locale.getDefault()}")
+            appendLine("Theme : ${settings.theme}")
+            appendLine("Lang  : ${settings.locale}")
+            appendLine("Tabs  : ${tabPane.tabs.size}")
+            appendLine("Active sessions: ${controllers.size}")
+        }
     }
 
     private fun buildFontMenu(): Menu = Menu(Strings["setup.fontMenu"]).apply {
@@ -359,6 +465,34 @@ class MainWindow(
         if (visible) {
             tftpClientLabel.text = Strings.format("status.tftpClientBadge", running)
             tftpClientLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.tftpClientBadgeTooltip"])
+        }
+    }
+
+    /**
+     * Subscribe to connection-state events and show an [ErrorDialog] for failed connection attempts.
+     * Mid-session errors (CONNECTED → ERROR) and disconnects keep flowing to the terminal as
+     * "[error] …" lines so the user isn't carpet-bombed with dialogs while a server is misbehaving.
+     */
+    private fun subscribeConnectionErrorPopups() {
+        com.opentermx.common.event.EventBus.subscribe { event ->
+            if (event !is com.opentermx.common.event.ConnectionEvent.StateChanged) return@subscribe
+            val cur = event.current
+            val prev = event.previous
+            val err = event.error ?: return@subscribe
+            // Only popup when a connect attempt failed.
+            val isConnectFailure = cur == ConnectionState.ERROR && prev == ConnectionState.CONNECTING
+            if (!isConnectFailure) return@subscribe
+            val sessionName = controllers.values.firstOrNull { it.session.id.value == event.sessionId }
+                ?.session?.name ?: event.sessionId
+            javafx.application.Platform.runLater {
+                ErrorDialog.error(
+                    owner = stage,
+                    title = Strings["error.connection.title"],
+                    header = Strings.format("error.connection.header", sessionName),
+                    message = err.message ?: err.javaClass.simpleName,
+                    cause = err,
+                )
+            }
         }
     }
 
@@ -823,11 +957,12 @@ class MainWindow(
             }
             is NewConnectionChoice.Ssh -> {
                 if (choice.sshVersion == SshVersion.SSH1) {
-                    Alert(Alert.AlertType.WARNING).apply {
-                        title = Strings["nc.ssh1Title"]
-                        headerText = Strings["nc.ssh1Header"]
-                        contentText = Strings["nc.ssh1Body"]
-                    }.showAndWait()
+                    ErrorDialog.warning(
+                        owner = stage,
+                        title = Strings["nc.ssh1Title"],
+                        header = Strings["nc.ssh1Header"],
+                        message = Strings["nc.ssh1Body"],
+                    )
                     return
                 }
                 val seed = seedSshConfig(choice.host, choice.tcpPort)

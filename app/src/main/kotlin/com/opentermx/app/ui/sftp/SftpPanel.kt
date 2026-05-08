@@ -506,7 +506,12 @@ class SftpPanel(
     }
 
     private fun showError(message: String) {
-        Alert(Alert.AlertType.ERROR, message, ButtonType.OK).showAndWait()
+        com.opentermx.app.ui.dialog.ErrorDialog.error(
+            owner = scene?.window,
+            title = Strings["file.sftp"],
+            header = Strings["sftp.error.header"],
+            message = message,
+        )
     }
 
     private data class LocalEntry(

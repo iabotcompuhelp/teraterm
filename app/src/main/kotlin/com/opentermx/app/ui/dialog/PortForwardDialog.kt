@@ -78,7 +78,13 @@ class PortForwardDialog(private val connection: SshConnection) : Dialog<Void?>()
             table.items = FXCollections.observableArrayList(connection.listPortForwards())
         } catch (e: Exception) {
             log.warn("listPortForwards falló", e)
-            showError(Strings.format("pf.listError", e.message ?: ""))
+            ErrorDialog.error(
+                owner = dialogPane.scene?.window,
+                title = Strings["pf.title"],
+                header = Strings["pf.listError.header"],
+                message = e.message,
+                cause = e,
+            )
         }
     }
 
@@ -90,7 +96,13 @@ class PortForwardDialog(private val connection: SshConnection) : Dialog<Void?>()
             refresh()
         } catch (e: Exception) {
             log.warn("removePortForward falló", e)
-            showError(Strings.format("pf.removeError", e.message ?: ""))
+            ErrorDialog.error(
+                owner = dialogPane.scene?.window,
+                title = Strings["pf.title"],
+                header = Strings["pf.removeError.header"],
+                message = e.message,
+                cause = e,
+            )
         }
     }
 
@@ -99,25 +111,28 @@ class PortForwardDialog(private val connection: SshConnection) : Dialog<Void?>()
         try {
             val allocated = connection.addPortForward(rule)
             if (rule.direction == PortForward.Direction.LOCAL && rule.bindPort == 0 && allocated != 0) {
-                showInfo(Strings.format("pf.addedDynamic", allocated))
+                ErrorDialog.info(
+                    owner = dialogPane.scene?.window,
+                    title = Strings["pf.title"],
+                    header = Strings["pf.addedDynamic.header"],
+                    message = Strings.format("pf.addedDynamic", allocated),
+                )
             }
             refresh()
         } catch (e: Exception) {
             log.warn("addPortForward falló", e)
-            showError(Strings.format("pf.addError", e.message ?: ""))
+            ErrorDialog.error(
+                owner = dialogPane.scene?.window,
+                title = Strings["pf.title"],
+                header = Strings["pf.addError.header"],
+                message = e.message,
+                cause = e,
+            )
         }
     }
 
     private fun confirm(message: String): Boolean {
         val alert = Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL)
         return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK
-    }
-
-    private fun showError(message: String) {
-        Alert(Alert.AlertType.ERROR, message, ButtonType.OK).showAndWait()
-    }
-
-    private fun showInfo(message: String) {
-        Alert(Alert.AlertType.INFORMATION, message, ButtonType.OK).showAndWait()
     }
 }

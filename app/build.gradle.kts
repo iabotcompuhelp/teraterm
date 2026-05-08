@@ -12,6 +12,10 @@ application {
     mainClass.set("com.opentermx.app.MainKt")
 }
 
+tasks.named<JavaExec>("run") {
+    jvmArgs("-Dprism.order=sw")
+}
+
 javafx {
     version = "21.0.5"
     modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.swing")

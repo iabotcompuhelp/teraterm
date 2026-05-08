@@ -9,13 +9,13 @@ object Strings {
 
     private const val BASE = "i18n.messages"
 
-    private var bundle: ResourceBundle = ResourceBundle.getBundle(BASE, Locale("es"))
+    private var bundle: ResourceBundle = ResourceBundle.getBundle(BASE, Locale.of("es"))
 
-    var locale: Locale = Locale("es")
+    var locale: Locale = Locale.of("es")
         private set
 
     fun setLocale(localeCode: String) {
-        locale = Locale(localeCode)
+        locale = Locale.of(localeCode)
         bundle = ResourceBundle.getBundle(BASE, locale)
     }
 

@@ -16,6 +16,55 @@ tasks.named<JavaExec>("run") {
     jvmArgs("-Dprism.order=sw")
 }
 
+// Empaqueta un MSI con jpackage (requiere WiX 3.14 instalado en C:\Program Files (x86)\WiX Toolset v3.14).
+// jpackage rechaza versiones con sufijo `-SNAPSHOT`; stripeamos al primer `-`.
+val packageMsi by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "Genera instalador .msi (jpackage + WiX 3.14)"
+    dependsOn(tasks.named("installDist"))
+
+    val installDir = layout.buildDirectory.dir("install/app")
+    val outDir = layout.buildDirectory.dir("jpackage")
+    val mainJarName = tasks.named<Jar>("jar").flatMap { it.archiveFileName }
+    val rawVersion = project.version.toString()
+    val appVersion = rawVersion.substringBefore('-')
+        .takeIf { it.matches(Regex("\\d+(\\.\\d+){0,2}")) }
+        ?: "0.0.0"
+    val wixBin = "C:\\Program Files (x86)\\WiX Toolset v3.14\\bin"
+    val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
+    val jpackageExe = "$javaHome\\bin\\jpackage.exe"
+
+    inputs.dir(installDir)
+    outputs.dir(outDir)
+
+    doFirst {
+        outDir.get().asFile.deleteRecursively()
+        outDir.get().asFile.mkdirs()
+    }
+
+    environment("PATH", "$wixBin;${System.getenv("PATH") ?: ""}")
+    executable = jpackageExe
+    argumentProviders.add {
+        listOf(
+            "--type", "msi",
+            "--name", "OpenTermX",
+            "--app-version", appVersion,
+            "--vendor", "COMPUHELP",
+            "--description", "OpenTermX — emulador de terminal multi-protocolo",
+            "--input", installDir.get().dir("lib").asFile.absolutePath,
+            "--main-jar", mainJarName.get(),
+            "--main-class", "com.opentermx.app.MainKt",
+            "--dest", outDir.get().asFile.absolutePath,
+            "--win-shortcut",
+            "--win-menu",
+            "--win-menu-group", "OpenTermX",
+            "--win-dir-chooser",
+            "--win-per-user-install",
+            "--java-options", "-Dprism.order=sw",
+        )
+    }
+}
+
 javafx {
     version = "21.0.5"
     modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.swing")

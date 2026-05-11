@@ -21,6 +21,8 @@ data class AppSettings(
     val tcpIp: TcpIpSettings = TcpIpSettings(),
     val general: GeneralSettings = GeneralSettings(),
     val additional: AdditionalSettings = AdditionalSettings(),
+    val aiAssistant: AiAssistantSettings = AiAssistantSettings(),
+    val restApi: RestApiPersistedSettings = RestApiPersistedSettings(),
 ) {
     companion object {
         val DEFAULT_ACCELERATORS: Map<String, String> = linkedMapOf(
@@ -30,6 +32,9 @@ data class AppSettings(
             "edit.copy" to "Ctrl+Shift+C",
             "edit.paste" to "Ctrl+Shift+V",
             "setup.macros" to "Ctrl+M",
+            "setup.aiAssistant" to "Ctrl+Alt+A",
+            "setup.restApi" to "Ctrl+Alt+R",
+            "window.toggleAiChat" to "Ctrl+I",
             "window.closeTab" to "Ctrl+W",
             "file.exit" to "Ctrl+Q",
         )

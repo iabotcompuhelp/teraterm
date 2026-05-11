@@ -10,4 +10,6 @@ include(
     ":tftp-service",
     ":macro-engine",
     ":logger",
+    ":ai-assistant",
+    ":rest-api",
 )

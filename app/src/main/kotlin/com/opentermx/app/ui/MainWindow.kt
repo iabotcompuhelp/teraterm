@@ -1268,7 +1268,6 @@ class MainWindow(
             is TelnetConfig -> cfg.autoLoginMacroPath
             is TcpRawConfig -> cfg.autoLoginMacroPath
             is SerialConfig -> cfg.autoLoginMacroPath
-            else -> ""
         }
         val path = perSession.ifBlank { settings.additional.autoLoginMacroPath }
         if (path.isBlank()) return

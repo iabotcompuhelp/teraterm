@@ -107,7 +107,6 @@ class TerminalSessionController(
         is TelnetConfig -> SessionMetadata(session.name, "Telnet", config.host, config.port, null)
         is TcpRawConfig -> SessionMetadata(session.name, "TCP/Raw", config.host, config.port, null)
         is SerialConfig -> SessionMetadata(session.name, "Serial", config.portName, null, null)
-        else -> SessionMetadata(session.name, config.javaClass.simpleName, null, null, null)
     }
 
     fun connect() {

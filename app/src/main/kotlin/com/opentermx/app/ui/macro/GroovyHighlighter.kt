@@ -11,7 +11,9 @@ object GroovyHighlighter {
         "static|public|private|protected|final"
 
     private const val FUNCTIONS = "sendln|send|waitfor|pause|messagebox|inputbox|filelog|log|" +
-        "getClipboard|setClipboard|connect|disconnect"
+        "getClipboard|setClipboard|connect|disconnect|" +
+        "tftp_put|tftp_get|tftp_server_start|tftp_server_stop|" +
+        "ai_ask|ai_execute"
 
     private val pattern: Pattern = Pattern.compile(
         "(?<COMMENT>//[^\\n]*)" +

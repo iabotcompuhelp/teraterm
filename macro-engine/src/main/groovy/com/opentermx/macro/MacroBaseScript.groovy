@@ -93,4 +93,17 @@ abstract class MacroBaseScript extends Script {
     void tftp_server_stop() {
         ctx.tftpServerStop()
     }
+
+    // ---------- IA (spec v4 § Comandos IA para macros, línea 185) ----------
+    // ai_ask: envía un prompt al LLM configurado y devuelve la respuesta como String.
+    // ai_execute: pide a la IA comandos CLI, los muestra al operador para revisión, y al
+    // aprobar los inyecta por la conexión activa. Devuelve un AiExecuteResult.
+
+    String ai_ask(String prompt) {
+        ctx.aiAsk(prompt)
+    }
+
+    AiExecuteResult ai_execute(String prompt) {
+        ctx.aiExecute(prompt)
+    }
 }

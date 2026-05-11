@@ -79,6 +79,8 @@ dependencies {
     implementation(project(":tftp-service"))
     implementation(project(":macro-engine"))
     implementation(project(":logger"))
+    implementation(project(":ai-assistant"))
+    implementation(project(":rest-api"))
 
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.core)

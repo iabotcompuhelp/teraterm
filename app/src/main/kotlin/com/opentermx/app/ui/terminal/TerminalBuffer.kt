@@ -55,6 +55,26 @@ class TerminalBuffer(
     fun lineAt(absoluteRow: Int): List<TerminalCell>? =
         if (absoluteRow in 0 until lines.size) lines[absoluteRow] else null
 
+    /**
+     * Devuelve las últimas [count] líneas del scrollback + viewport como `String` plano
+     * (sin atributos, sin trailing whitespace). Útil para alimentar al AI Assistant
+     * (contexto del terminal) y al endpoint REST `GET /api/terminal/buffer`.
+     */
+    fun snapshotLastLines(count: Int): List<String> {
+        if (count <= 0 || lines.isEmpty()) return emptyList()
+        val from = (lines.size - count).coerceAtLeast(0)
+        val out = ArrayList<String>(lines.size - from)
+        for (i in from until lines.size) {
+            val sb = StringBuilder(cols)
+            for (cell in lines[i]) sb.append(cell.char)
+            // recorta espacios al final
+            var end = sb.length
+            while (end > 0 && sb[end - 1] == ' ') end--
+            out.add(sb.substring(0, end))
+        }
+        return out
+    }
+
     fun cellAt(absoluteRow: Int, col: Int): TerminalCell {
         val line = lines.getOrNull(absoluteRow) ?: return TerminalCell.EMPTY
         return line.getOrNull(col) ?: TerminalCell.EMPTY

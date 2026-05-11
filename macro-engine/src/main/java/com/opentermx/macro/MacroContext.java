@@ -30,6 +30,7 @@ public final class MacroContext {
     private final Connection connection;
     private final String sessionId;
     private final MacroUiBridge ui;
+    private final MacroAiBridge ai;
     private final Consumer<MacroLogEntry> onLog;
     private final MacroBuffer buffer = new MacroBuffer();
     private final List<MacroLogEntry> entries = Collections.synchronizedList(new ArrayList<>());
@@ -41,9 +42,14 @@ public final class MacroContext {
     private TftpServer tftpServer;
 
     public MacroContext(Connection connection, String sessionId, MacroUiBridge ui, Consumer<MacroLogEntry> onLog) {
+        this(connection, sessionId, ui, null, onLog);
+    }
+
+    public MacroContext(Connection connection, String sessionId, MacroUiBridge ui, MacroAiBridge ai, Consumer<MacroLogEntry> onLog) {
         this.connection = connection;
         this.sessionId = sessionId;
         this.ui = (ui != null) ? ui : new MacroUiBridge.NoOp();
+        this.ai = (ai != null) ? ai : new MacroAiBridge.NoOp();
         this.onLog = (onLog != null) ? onLog : entry -> {};
     }
 
@@ -187,6 +193,37 @@ public final class MacroContext {
         server.start();
         tftpServer = server;
         log("tftp_server_start port=" + server.actualPort() + " root=" + root);
+    }
+
+    /**
+     * Pregunta a la IA configurada y devuelve la respuesta en texto plano. Pensado para
+     * que un macro pueda condicionar su flujo según la respuesta (e.g. parseando el texto).
+     * Bloquea hasta recibir respuesta.
+     */
+    public String aiAsk(String prompt) throws Exception {
+        log("ai_ask: " + truncate(prompt, 200));
+        String response = ai.ask(prompt, sessionId);
+        log("ai_ask response (" + response.length() + " chars)");
+        return response;
+    }
+
+    /**
+     * Genera comandos con IA y los ejecuta tras aprobación del operador. En entornos
+     * sin operador (REST) lanza {@link UnsupportedOperationException}. Devuelve un
+     * {@link AiExecuteResult} con contadores y outcome para que el macro decida cómo
+     * seguir según el resultado.
+     */
+    public AiExecuteResult aiExecute(String prompt) throws Exception {
+        log("ai_execute: " + truncate(prompt, 200));
+        AiExecuteResult result = ai.execute(prompt, sessionId);
+        log("ai_execute outcome=" + result.outcome()
+                + " executed=" + result.executedCount() + " failed=" + result.failedCount());
+        return result;
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max) + "…";
     }
 
     public synchronized void tftpServerStop() {

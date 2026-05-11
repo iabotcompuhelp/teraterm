@@ -21,7 +21,18 @@ public final class MacroEngine {
             MacroUiBridge ui,
             Consumer<MacroLogEntry> onLog
     ) {
-        MacroContext ctx = new MacroContext(connection, sessionId, ui, onLog);
+        return start(script, connection, sessionId, ui, null, onLog);
+    }
+
+    public MacroExecution start(
+            String script,
+            Connection connection,
+            String sessionId,
+            MacroUiBridge ui,
+            MacroAiBridge ai,
+            Consumer<MacroLogEntry> onLog
+    ) {
+        MacroContext ctx = new MacroContext(connection, sessionId, ui, ai, onLog);
         ctx.start();
 
         Thread[] threadHolder = new Thread[1];
@@ -56,6 +67,15 @@ public final class MacroEngine {
 
     public MacroResult runBlocking(String script, Connection connection, String sessionId, MacroUiBridge ui) throws InterruptedException {
         MacroExecution exec = start(script, connection, sessionId, ui, e -> {});
+        exec.await();
+        return exec.getResult();
+    }
+
+    public MacroResult runBlocking(
+            String script, Connection connection, String sessionId,
+            MacroUiBridge ui, MacroAiBridge ai, Consumer<MacroLogEntry> onLog
+    ) throws InterruptedException {
+        MacroExecution exec = start(script, connection, sessionId, ui, ai, onLog);
         exec.await();
         return exec.getResult();
     }

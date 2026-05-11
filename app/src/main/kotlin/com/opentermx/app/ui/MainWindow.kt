@@ -3,7 +3,12 @@ package com.opentermx.app.ui
 import com.opentermx.app.i18n.Strings
 import com.opentermx.app.settings.AppSettings
 import com.opentermx.app.settings.SettingsStore
+import com.opentermx.app.rest.RestApiHooksImpl
+import com.opentermx.app.rest.RestApiManager
+import com.opentermx.app.ui.ai.AiChatPanel
 import com.opentermx.app.ui.dialog.AdditionalSettingsDialog
+import com.opentermx.app.ui.dialog.AiAssistantDialog
+import com.opentermx.app.ui.dialog.RestApiDialog
 import com.opentermx.app.ui.dialog.ErrorDialog
 import com.opentermx.app.ui.dialog.FontConfigDialog
 import com.opentermx.app.ui.dialog.GeneralSettingsDialog
@@ -122,12 +127,31 @@ class MainWindow(
         isVisible = false
         isManaged = false
     }
+    private val aiStatusLabel = Label().apply {
+        cursor = javafx.scene.Cursor.HAND
+        styleClass += "status-ai"
+        setOnMouseClicked { openAiAssistantConfig() }
+    }
+    private val restApiLabel = Label().apply {
+        cursor = javafx.scene.Cursor.HAND
+        styleClass += "status-rest"
+        setOnMouseClicked { openRestApiConfig() }
+        isVisible = false; isManaged = false
+    }
     private var tftpServerDialogRef: TftpServerDialog? = null
     private var tftpTransfersPanelRef: TftpTransfersPanel? = null
 
     private val controllers: MutableMap<Tab, TerminalSessionController> = mutableMapOf()
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val macroWindow by lazy { MacroWindow(stage) { controllers.values.toList() } }
+    private val macroAiBridge: com.opentermx.macro.MacroAiBridge by lazy {
+        com.opentermx.app.ui.ai.JavaFxMacroAiBridge(
+            owner = { stage },
+            settingsProvider = { settings.aiAssistant },
+        )
+    }
+    private val macroWindow by lazy {
+        MacroWindow(stage, { controllers.values.toList() }, { macroAiBridge })
+    }
     private val hostKeyVerifier = JavaFxHostKeyVerifier(stage)
 
     private lateinit var rootPane: BorderPane
@@ -160,6 +184,8 @@ class MainWindow(
             stopAllControllers()
             TftpServerManager.stop()
             TftpTransferManager.cancelAll()
+            RestApiManager.stop()
+            com.opentermx.app.ui.ai.KnowledgeBaseHolder.shutdown()
         }
         TftpServerManager.runningProperty.addListener { _, _, _ -> updateTftpServerLabel() }
         TftpServerManager.portProperty.addListener { _, _, _ -> updateTftpServerLabel() }
@@ -167,6 +193,8 @@ class MainWindow(
         TftpTransferManager.transfers.addListener(javafx.beans.InvalidationListener { updateTftpClientLabel() })
         updateTftpServerLabel()
         updateTftpClientLabel()
+        updateAiStatusLabel()
+        bootRestApiIfEnabled()
         subscribeConnectionErrorPopups()
         stage.show()
 
@@ -236,7 +264,17 @@ class MainWindow(
             items += MenuItem(Strings["setup.general"]).apply { setOnAction { openGeneralSettings() } }
             items += MenuItem(Strings["setup.additional"]).apply { setOnAction { openAdditionalSettings() } }
             items += SeparatorMenuItem()
-            // Grupo 5: persistencia.
+            // Grupo 5: IA + privacidad.
+            items += MenuItem(Strings["setup.aiAssistant"]).apply {
+                accelerator = accelerator("setup.aiAssistant")
+                setOnAction { openAiAssistantConfig() }
+            }
+            items += MenuItem(Strings["setup.restApi"]).apply {
+                accelerator = accelerator("setup.restApi")
+                setOnAction { openRestApiConfig() }
+            }
+            items += SeparatorMenuItem()
+            // Grupo 6: persistencia.
             items += MenuItem(Strings["setup.saveSetup"]).apply { setOnAction { saveSetup() } }
             items += MenuItem(Strings["setup.restoreSetup"]).apply { setOnAction { restoreSetup() } }
             items += MenuItem(Strings["setup.setupDir"]).apply { setOnAction { showSetupDirectory() } }
@@ -273,6 +311,11 @@ class MainWindow(
                 }
             }
             items += buildLanguageMenu()
+            items += SeparatorMenuItem()
+            items += MenuItem(Strings["window.toggleAiChat"]).apply {
+                accelerator = accelerator("window.toggleAiChat")
+                setOnAction { toggleAiChatPanel() }
+            }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["window.closeTab"]).apply {
                 accelerator = accelerator("window.closeTab")
@@ -636,6 +679,75 @@ class MainWindow(
         applyAdditionalSettingsToAll(updated)
     }
 
+    private fun bootRestApiIfEnabled() {
+        RestApiManager.configure(
+            RestApiHooksImpl(
+                findControllerById = { id ->
+                    controllers.values.firstOrNull { it.session.id.value == id }
+                },
+                getTftpDefaultCsvPath = { settings.additional.tftpCsvLogPath },
+                aiBridge = com.opentermx.app.ui.ai.HeadlessMacroAiBridge { settings.aiAssistant },
+            )
+        )
+        RestApiManager.runningProperty.addListener { _, _, _ -> updateRestApiLabel() }
+        if (settings.restApi.enabled) {
+            RestApiManager.applySettings(settings.restApi).exceptionOrNull()?.let { e ->
+                statusLabel.text = Strings.format("status.restApi.error", e.message ?: e.javaClass.simpleName)
+            }
+        }
+        updateRestApiLabel()
+    }
+
+    private fun openRestApiConfig() {
+        val updated = RestApiDialog(settings.restApi)
+            .also { it.initOwner(stage) }
+            .showAndWait().orElse(null) ?: return
+        persist { it.copy(restApi = updated) }
+        val applied = RestApiManager.applySettings(updated)
+        applied.exceptionOrNull()?.let { e ->
+            statusLabel.text = Strings.format("status.restApi.error", e.message ?: e.javaClass.simpleName)
+        }
+        updateRestApiLabel()
+    }
+
+    private fun updateRestApiLabel() {
+        val running = RestApiManager.isRunning
+        restApiLabel.isVisible = running
+        restApiLabel.isManaged = running
+        if (running) {
+            restApiLabel.text = Strings.format("status.restApi.running", RestApiManager.activePort)
+            restApiLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.restApi.tooltip"])
+        }
+    }
+
+    private fun openAiAssistantConfig() {
+        val updated = AiAssistantDialog(settings.aiAssistant)
+            .also { it.initOwner(stage) }
+            .showAndWait().orElse(null) ?: return
+        persist { it.copy(aiAssistant = updated) }
+        updateAiStatusLabel()
+        if (::centerSplit.isInitialized && aiChatPanel in centerSplit.items) {
+            aiChatPanel.refreshProviderLabel()
+        }
+    }
+
+    private fun updateAiStatusLabel() {
+        val ai = settings.aiAssistant
+        if (!ai.isConfigured()) {
+            aiStatusLabel.text = Strings["status.ai.notConfigured"]
+            aiStatusLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.ai.notConfiguredTooltip"])
+            return
+        }
+        val providerName = ai.providerKind().name
+        val model = ai.lastVerifiedModel ?: ai.modelFor(ai.providerKind()).orEmpty()
+        aiStatusLabel.text = if (ai.isVerified()) {
+            Strings.format("status.ai.connected", providerName, model)
+        } else {
+            Strings.format("status.ai.unverified", providerName)
+        }
+        aiStatusLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.ai.tooltip"])
+    }
+
     private fun openSerialPortSetup() {
         val cfg = SerialConfigDialog().showAndWait().orElse(null) ?: return
         openSession(cfg, cfg.portName, SerialConnection(cfg))
@@ -803,20 +915,86 @@ class MainWindow(
      * repaint — so it stays anchored to the window centre regardless of terminal activity.
      */
     private fun buildCenterWithWatermark(): Region {
-        val image = runCatching {
-            javaClass.getResourceAsStream("/images/Compuhelp.png")?.use { Image(it) }
-        }.getOrNull() ?: return tabPane
-        val watermark = ImageView(image).apply {
-            opacity = 0.25
-            isMouseTransparent = true
-            isPreserveRatio = true
+        val tabsArea: Region = run {
+            val image = runCatching {
+                javaClass.getResourceAsStream("/images/Compuhelp.png")?.use { Image(it) }
+            }.getOrNull()
+            if (image == null) {
+                tabPane
+            } else {
+                val watermark = ImageView(image).apply {
+                    opacity = 0.25
+                    isMouseTransparent = true
+                    isPreserveRatio = true
+                }
+                StackPane(tabPane, watermark).apply {
+                    StackPane.setAlignment(tabPane, javafx.geometry.Pos.CENTER)
+                    StackPane.setAlignment(watermark, javafx.geometry.Pos.CENTER)
+                    watermark.fitWidthProperty().bind(widthProperty().multiply(0.5))
+                    watermark.fitHeightProperty().bind(heightProperty().multiply(0.5))
+                }
+            }
         }
-        return StackPane(tabPane, watermark).apply {
-            StackPane.setAlignment(tabPane, javafx.geometry.Pos.CENTER)
-            StackPane.setAlignment(watermark, javafx.geometry.Pos.CENTER)
-            watermark.fitWidthProperty().bind(widthProperty().multiply(0.5))
-            watermark.fitHeightProperty().bind(heightProperty().multiply(0.5))
+        centerSplit = javafx.scene.control.SplitPane().apply {
+            orientation = javafx.geometry.Orientation.HORIZONTAL
+            items.add(tabsArea)
         }
+        return centerSplit
+    }
+
+    private lateinit var centerSplit: javafx.scene.control.SplitPane
+
+    private val aiChatPanel: AiChatPanel by lazy {
+        AiChatPanel(
+            getSettings = { settings.aiAssistant },
+            onSettingsUpdated = { updated ->
+                persist { it.copy(aiAssistant = updated) }
+                updateAiStatusLabel()
+            },
+            getTerminalContext = { buildAiTerminalContext() },
+            getCommandSink = {
+                currentController()?.session?.id?.let {
+                    com.opentermx.common.ai.SessionRegistry.sinkOf(it)
+                }
+            },
+            onClose = { setAiChatPanelVisible(false) },
+        ).also { panel ->
+            panel.openSetupCallback = { openAiAssistantConfig() }
+        }
+    }
+
+    private fun toggleAiChatPanel() {
+        if (!::centerSplit.isInitialized) return
+        val visible = aiChatPanel in centerSplit.items
+        setAiChatPanelVisible(!visible)
+    }
+
+    private fun setAiChatPanelVisible(visible: Boolean) {
+        if (!::centerSplit.isInitialized) return
+        if (visible) {
+            if (aiChatPanel !in centerSplit.items) {
+                centerSplit.items += aiChatPanel
+                centerSplit.setDividerPositions(0.7)
+            }
+            aiChatPanel.refreshProviderLabel()
+        } else {
+            centerSplit.items.remove(aiChatPanel)
+        }
+    }
+
+    private fun buildAiTerminalContext(): com.opentermx.app.ui.ai.TerminalContextSnapshot? {
+        val ctl = currentController() ?: return null
+        val id = ctl.session.id
+        val meta = com.opentermx.common.ai.SessionRegistry.metadataOf(id) ?: return null
+        val lines = com.opentermx.common.ai.SessionRegistry.lastLinesOf(id, 50)
+        return com.opentermx.app.ui.ai.TerminalContextSnapshot(
+            sessionId = id.value,
+            protocol = meta.protocol,
+            host = meta.host,
+            port = meta.port,
+            username = meta.username,
+            terminalLines = lines,
+        )
     }
 
     /**
@@ -840,7 +1018,7 @@ class MainWindow(
 
     private fun buildStatusBar(): Region {
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
-        return HBox(12.0, statusLabel, spacer, tftpClientLabel, tftpServerLabel, protocolLabel, Separator(), themeLabel).apply {
+        return HBox(12.0, statusLabel, spacer, restApiLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, Separator(), themeLabel).apply {
             styleClass += "status-bar"
         }
     }
@@ -1104,7 +1282,7 @@ class MainWindow(
                 val script = file.readText(Charsets.UTF_8)
                 val engine = com.opentermx.macro.MacroEngine()
                 val bridge = MacroUiBridgeImpl()
-                engine.start(script, ctl.session.connection, ctl.session.id.value, bridge) { /* drop log entries */ }
+                engine.start(script, ctl.session.connection, ctl.session.id.value, bridge, macroAiBridge) { /* drop log entries */ }
             } catch (e: Exception) {
                 log.warn("Auto-login macro fallido", e)
                 javafx.application.Platform.runLater {

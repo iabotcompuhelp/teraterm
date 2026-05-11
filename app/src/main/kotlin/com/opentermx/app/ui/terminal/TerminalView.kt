@@ -65,6 +65,12 @@ class TerminalView(
     var onInput: (String) -> Unit = {}
     var onResize: (cols: Int, rows: Int) -> Unit = { _, _ -> }
 
+    /**
+     * Devuelve las últimas [count] líneas plano (sin atributos) del buffer. Usado por
+     * el AI Assistant (contexto del terminal) y por el endpoint REST `GET /api/terminal/buffer`.
+     */
+    fun snapshotLastLines(count: Int): List<String> = buffer.snapshotLastLines(count)
+
     init {
         styleClass += "terminal-area"
         center = canvas

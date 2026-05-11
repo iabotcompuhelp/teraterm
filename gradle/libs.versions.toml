@@ -14,6 +14,10 @@ junit = "5.11.3"
 junitPlatform = "1.11.3"
 mockito = "5.14.2"
 richtextfx = "0.11.5"
+okhttp = "4.12.0"
+lucene = "9.12.0"
+pdfbox = "3.0.3"
+javalin = "6.4.0"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
@@ -31,6 +35,13 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "jun
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatform" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 richtextfx = { module = "org.fxmisc.richtext:richtextfx", version.ref = "richtextfx" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
+lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
+lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

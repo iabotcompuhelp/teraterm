@@ -1,8 +1,17 @@
 package com.opentermx.app.viewmodel
 
 import com.opentermx.app.ui.terminal.TerminalView
+import com.opentermx.common.ai.CommandSink
+import com.opentermx.common.ai.SessionMetadata
+import com.opentermx.common.ai.SessionRegistry
+import com.opentermx.common.ai.TerminalBufferProvider
 import com.opentermx.common.connection.Connection
+import com.opentermx.common.connection.ConnectionConfig
 import com.opentermx.common.connection.ConnectionState
+import com.opentermx.common.connection.SerialConfig
+import com.opentermx.common.connection.SshConfig
+import com.opentermx.common.connection.TcpRawConfig
+import com.opentermx.common.connection.TelnetConfig
 import com.opentermx.common.event.ConnectionEvent
 import com.opentermx.common.event.EventBus
 import com.opentermx.common.event.SessionEvent
@@ -66,8 +75,39 @@ class TerminalSessionController(
             }
         }
 
+        SessionRegistry.register(
+            id = session.id,
+            metadata = buildMetadata(session.config),
+            provider = TerminalBufferProvider { count -> terminal.snapshotLastLines(count) },
+            sink = CommandSink { line ->
+                if (connection.state != ConnectionState.CONNECTED) return@CommandSink false
+                runCatching {
+                    val payload = if (line.endsWith("\n")) line else "$line\n"
+                    val bytes = payload.toByteArray(Charsets.UTF_8)
+                    scope.launch {
+                        runCatching { connection.send(bytes) }
+                            .onFailure { log.warn("CommandSink envío fallido", it) }
+                    }
+                    EventBus.publish(
+                        ConnectionEvent.DataSent(
+                            sessionId = session.id.value,
+                            length = bytes.size,
+                        )
+                    )
+                    true
+                }.getOrElse { false }
+            },
+        )
         EventBus.publish(SessionEvent.Opened(session.id.value, session.name))
         connect()
+    }
+
+    private fun buildMetadata(config: ConnectionConfig): SessionMetadata = when (config) {
+        is SshConfig -> SessionMetadata(session.name, "SSH", config.host, config.port, config.username)
+        is TelnetConfig -> SessionMetadata(session.name, "Telnet", config.host, config.port, null)
+        is TcpRawConfig -> SessionMetadata(session.name, "TCP/Raw", config.host, config.port, null)
+        is SerialConfig -> SessionMetadata(session.name, "Serial", config.portName, null, null)
+        else -> SessionMetadata(session.name, config.javaClass.simpleName, null, null, null)
     }
 
     fun connect() {
@@ -117,6 +157,7 @@ class TerminalSessionController(
     fun stop() {
         runCatching { connection.close() }
             .onFailure { log.warn("Error cerrando conexión", it) }
+        SessionRegistry.unregister(session.id)
         scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
         EventBus.publish(SessionEvent.Closed(session.id.value))
     }

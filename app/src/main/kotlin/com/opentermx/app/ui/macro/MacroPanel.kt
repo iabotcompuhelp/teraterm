@@ -1,6 +1,7 @@
 package com.opentermx.app.ui.macro
 
 import com.opentermx.app.viewmodel.TerminalSessionController
+import com.opentermx.macro.MacroAiBridge
 import com.opentermx.macro.MacroEngine
 import com.opentermx.macro.MacroExecution
 import com.opentermx.macro.MacroLogEntry
@@ -24,6 +25,7 @@ import java.io.File
 
 class MacroPanel(
     private val activeSessions: () -> List<TerminalSessionController>,
+    private val aiBridgeProvider: () -> MacroAiBridge = { MacroAiBridge.NoOp() },
 ) : BorderPane() {
 
     private val engine = MacroEngine()
@@ -117,6 +119,7 @@ class MacroPanel(
             target?.session?.connection,
             target?.session?.id?.value,
             bridge,
+            aiBridgeProvider(),
         ) { entry -> Platform.runLater { appendLog(formatEntry(entry)) } }
 
         currentExecution = exec

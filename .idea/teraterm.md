@@ -29,6 +29,7 @@ Diseña el proyecto con la siguiente estructura de módulos y lenguajes:
 - Envío de BREAK signal
 - Buffer circular configurable para historial de datos recibidos
 - Logging de datos raw (hex y ASCII simultáneo)
+- **Backend serial nativo opcional**: librería C `opentermx_native` (`native/src/serial_native.{c,h}`, build CMake) expuesta a Java vía JNA bajo `serial-comm/.../nativeio/`. La DLL/so/dylib se empaca en `serial-comm/src/main/resources/<platform>/` y JNA la carga desde el classpath. Interfaz común `SerialPortConnection` para que `SerialConnection` (jSerialComm) y `NativeSerialConnection` sean drop-in. Selección del backend en runtime con esta precedencia: (1) system property `-Dopentermx.serial.backend=native|jserialcomm`; (2) `AdditionalSettings.serialBackend` (Setup → Additional → tab Serial). Fallback silencioso a jSerialComm con warning si la DLL no carga. El módulo nativo también expone un emulador VT (`NativeTerminal`, `opentermx_term_*`) disponible pero no integrado en `TerminalView`.
 
 ### Módulo 3: Comunicación SSH — Java
 - Cliente SSH2 usando Apache MINA SSHD o JSch

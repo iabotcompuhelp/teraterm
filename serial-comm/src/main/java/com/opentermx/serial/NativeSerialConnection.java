@@ -1,11 +1,13 @@
 package com.opentermx.serial;
 
-import com.fazecast.jSerialComm.SerialPort;
 import com.opentermx.common.connection.ConnectionConfig;
 import com.opentermx.common.connection.ConnectionState;
 import com.opentermx.common.connection.DataHandler;
 import com.opentermx.common.connection.SerialConfig;
 import com.opentermx.common.connection.StateHandler;
+import com.opentermx.serial.nativeio.NativeSerialConfig;
+import com.opentermx.serial.nativeio.NativeSerialPort;
+import com.opentermx.serial.nativeio.OpenTermXNative;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,12 +15,20 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class SerialConnection implements SerialPortConnection {
+/**
+ * Backend de puerto serial basado en la librería nativa {@code opentermx_native}
+ * (ver native/src/serial_native.c y serial-comm/.../nativeio/).
+ *
+ * <p>Drop-in para {@link SerialConnection}: misma interfaz {@link SerialPortConnection},
+ * mismo modelo de estado, mismo reader-loop con history circular.</p>
+ */
+public final class NativeSerialConnection implements SerialPortConnection {
 
-    private static final Logger log = LoggerFactory.getLogger(SerialConnection.class);
+    private static final Logger log = LoggerFactory.getLogger(NativeSerialConnection.class);
     private static final int DEFAULT_HISTORY_BYTES = 64 * 1024;
     private static final int READ_BUFFER_SIZE = 4096;
     private static final int READ_TIMEOUT_MS = 100;
+    private static final int WRITE_TIMEOUT_MS = 1000;
 
     private final String id;
     private final SerialConfig config;
@@ -26,18 +36,18 @@ public final class SerialConnection implements SerialPortConnection {
             new AtomicReference<>(ConnectionState.DISCONNECTED);
     private final CircularByteBuffer history;
 
-    private SerialPort port;
+    private volatile NativeSerialPort port;
     private Thread readerThread;
     private volatile DataHandler dataHandler;
     private volatile StateHandler stateHandler;
     private volatile boolean dtr = true;
     private volatile boolean rts = true;
 
-    public SerialConnection(SerialConfig config) {
+    public NativeSerialConnection(SerialConfig config) {
         this(config, DEFAULT_HISTORY_BYTES);
     }
 
-    public SerialConnection(SerialConfig config, int historyBytes) {
+    public NativeSerialConnection(SerialConfig config, int historyBytes) {
         this.id = UUID.randomUUID().toString();
         this.config = config;
         this.history = new CircularByteBuffer(historyBytes);
@@ -62,18 +72,9 @@ public final class SerialConnection implements SerialPortConnection {
     public void connect() throws Exception {
         transition(ConnectionState.CONNECTING, null);
         try {
-            port = SerialPort.getCommPort(config.getPortName());
-            port.setBaudRate(config.getBaudRate());
-            port.setNumDataBits(config.getDataBits());
-            port.setNumStopBits(toJSerialStopBits(config.getStopBits()));
-            port.setParity(toJSerialParity(config.getParity()));
-            port.setFlowControl(toJSerialFlow(config.getFlowControl()));
-            port.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, READ_TIMEOUT_MS, 0);
-            if (!port.openPort()) {
-                throw new IOException("No se pudo abrir el puerto " + config.getPortName());
-            }
-            port.setDTR();
-            port.setRTS();
+            NativeSerialConfig cfg = toNative(config);
+            port = NativeSerialPort.open(config.getPortName(), cfg);
+            applySignals();
             startReader();
             transition(ConnectionState.CONNECTED, null);
         } catch (Exception e) {
@@ -83,8 +84,19 @@ public final class SerialConnection implements SerialPortConnection {
         }
     }
 
+    private void applySignals() {
+        NativeSerialPort p = port;
+        if (p == null) return;
+        try {
+            p.setDTR(dtr);
+            p.setRTS(rts);
+        } catch (IOException e) {
+            log.warn("No se pudo aplicar DTR/RTS iniciales", e);
+        }
+    }
+
     private void startReader() {
-        readerThread = new Thread(this::readLoop, "serial-reader-" + config.getPortName());
+        readerThread = new Thread(this::readLoop, "native-serial-reader-" + config.getPortName());
         readerThread.setDaemon(true);
         readerThread.start();
     }
@@ -92,8 +104,14 @@ public final class SerialConnection implements SerialPortConnection {
     private void readLoop() {
         byte[] buf = new byte[READ_BUFFER_SIZE];
         try {
-            while (!Thread.currentThread().isInterrupted() && port != null && port.isOpen()) {
-                int n = port.readBytes(buf, buf.length);
+            while (!Thread.currentThread().isInterrupted() && port != null) {
+                int n;
+                try {
+                    n = port.read(buf);
+                } catch (IOException e) {
+                    if (Thread.currentThread().isInterrupted() || port == null) break;
+                    throw e;
+                }
                 if (n > 0) {
                     history.write(buf, 0, n);
                     DataHandler h = dataHandler;
@@ -104,14 +122,12 @@ public final class SerialConnection implements SerialPortConnection {
                             log.warn("DataHandler threw", t);
                         }
                     }
-                } else if (n < 0) {
-                    break;
                 }
             }
         } catch (Exception e) {
             ConnectionState s = state.get();
             if (s != ConnectionState.DISCONNECTING && s != ConnectionState.DISCONNECTED) {
-                log.error("Error en lectura serial", e);
+                log.error("Error en lectura serial nativa", e);
                 transition(ConnectionState.ERROR, e);
             }
         }
@@ -119,8 +135,8 @@ public final class SerialConnection implements SerialPortConnection {
 
     @Override
     public void send(byte[] data, int offset, int length) throws Exception {
-        SerialPort p = port;
-        if (p == null || !p.isOpen()) {
+        NativeSerialPort p = port;
+        if (p == null) {
             throw new IOException("No conectado");
         }
         byte[] toWrite;
@@ -130,7 +146,7 @@ public final class SerialConnection implements SerialPortConnection {
             toWrite = new byte[length];
             System.arraycopy(data, offset, toWrite, 0, length);
         }
-        int written = p.writeBytes(toWrite, length);
+        int written = p.write(toWrite, length);
         if (written != length) {
             throw new IOException("Escritura serial parcial: " + written + "/" + length);
         }
@@ -181,52 +197,74 @@ public final class SerialConnection implements SerialPortConnection {
         return stateHandler;
     }
 
-    public void sendBreak(int durationMillis) throws InterruptedException {
-        SerialPort p = port;
-        if (p == null || !p.isOpen()) return;
-        p.setBreak();
+    @Override
+    public void sendBreak(int durationMillis) {
+        NativeSerialPort p = port;
+        if (p == null) return;
         try {
-            Thread.sleep(durationMillis);
-        } finally {
-            p.clearBreak();
+            p.sendBreak(durationMillis);
+        } catch (IOException e) {
+            log.warn("sendBreak falló", e);
         }
     }
 
+    @Override
     public void setDTR(boolean on) {
-        SerialPort p = port;
-        if (p == null || !p.isOpen()) return;
-        if (on) p.setDTR();
-        else p.clearDTR();
         dtr = on;
+        NativeSerialPort p = port;
+        if (p == null) return;
+        try {
+            p.setDTR(on);
+        } catch (IOException e) {
+            log.warn("setDTR falló", e);
+        }
     }
 
+    @Override
     public void setRTS(boolean on) {
-        SerialPort p = port;
-        if (p == null || !p.isOpen()) return;
-        if (on) p.setRTS();
-        else p.clearRTS();
         rts = on;
+        NativeSerialPort p = port;
+        if (p == null) return;
+        try {
+            p.setRTS(on);
+        } catch (IOException e) {
+            log.warn("setRTS falló", e);
+        }
     }
 
+    @Override
     public SerialSignals readSignals() {
-        SerialPort p = port;
-        if (p == null || !p.isOpen()) {
+        NativeSerialPort p = port;
+        if (p == null) {
             return new SerialSignals(false, false, false, false, false, false);
         }
-        return new SerialSignals(dtr, rts, p.getCTS(), p.getDSR(), p.getDCD(), p.getRI());
+        try {
+            int mask = p.readSignals();
+            return new SerialSignals(
+                    (mask & OpenTermXNative.SIGNAL_DTR) != 0,
+                    (mask & OpenTermXNative.SIGNAL_RTS) != 0,
+                    (mask & OpenTermXNative.SIGNAL_CTS) != 0,
+                    (mask & OpenTermXNative.SIGNAL_DSR) != 0,
+                    (mask & OpenTermXNative.SIGNAL_DCD) != 0,
+                    (mask & OpenTermXNative.SIGNAL_RI)  != 0);
+        } catch (IOException e) {
+            log.warn("readSignals falló", e);
+            return new SerialSignals(dtr, rts, false, false, false, false);
+        }
     }
 
+    @Override
     public CircularByteBuffer history() {
         return history;
     }
 
     private void cleanupPort() {
-        SerialPort p = port;
-        if (p != null && p.isOpen()) {
+        NativeSerialPort p = port;
+        if (p != null) {
             try {
-                p.closePort();
+                p.close();
             } catch (Exception e) {
-                log.warn("Error cerrando puerto serial", e);
+                log.warn("Error cerrando puerto serial nativo", e);
             }
         }
         port = null;
@@ -248,29 +286,41 @@ public final class SerialConnection implements SerialPortConnection {
         }
     }
 
-    private static int toJSerialStopBits(SerialConfig.StopBits sb) {
+    private static NativeSerialConfig toNative(SerialConfig src) {
+        NativeSerialConfig out = new NativeSerialConfig();
+        out.baudRate = src.getBaudRate();
+        out.dataBits = src.getDataBits();
+        out.stopBits = toNativeStopBits(src.getStopBits());
+        out.parity = toNativeParity(src.getParity());
+        out.flowControl = toNativeFlow(src.getFlowControl());
+        out.readTimeoutMs = READ_TIMEOUT_MS;
+        out.writeTimeoutMs = WRITE_TIMEOUT_MS;
+        return out;
+    }
+
+    private static int toNativeStopBits(SerialConfig.StopBits sb) {
         return switch (sb) {
-            case ONE -> SerialPort.ONE_STOP_BIT;
-            case ONE_AND_HALF -> SerialPort.ONE_POINT_FIVE_STOP_BITS;
-            case TWO -> SerialPort.TWO_STOP_BITS;
+            case ONE -> NativeSerialConfig.STOP_ONE;
+            case ONE_AND_HALF -> NativeSerialConfig.STOP_ONE_HALF;
+            case TWO -> NativeSerialConfig.STOP_TWO;
         };
     }
 
-    private static int toJSerialParity(SerialConfig.Parity p) {
+    private static int toNativeParity(SerialConfig.Parity p) {
         return switch (p) {
-            case NONE -> SerialPort.NO_PARITY;
-            case ODD -> SerialPort.ODD_PARITY;
-            case EVEN -> SerialPort.EVEN_PARITY;
-            case MARK -> SerialPort.MARK_PARITY;
-            case SPACE -> SerialPort.SPACE_PARITY;
+            case NONE -> NativeSerialConfig.PARITY_NONE;
+            case ODD -> NativeSerialConfig.PARITY_ODD;
+            case EVEN -> NativeSerialConfig.PARITY_EVEN;
+            case MARK -> NativeSerialConfig.PARITY_MARK;
+            case SPACE -> NativeSerialConfig.PARITY_SPACE;
         };
     }
 
-    private static int toJSerialFlow(SerialConfig.FlowControl fc) {
+    private static int toNativeFlow(SerialConfig.FlowControl fc) {
         return switch (fc) {
-            case NONE -> SerialPort.FLOW_CONTROL_DISABLED;
-            case RTS_CTS -> SerialPort.FLOW_CONTROL_RTS_ENABLED | SerialPort.FLOW_CONTROL_CTS_ENABLED;
-            case XON_XOFF -> SerialPort.FLOW_CONTROL_XONXOFF_IN_ENABLED | SerialPort.FLOW_CONTROL_XONXOFF_OUT_ENABLED;
+            case NONE -> NativeSerialConfig.FLOW_NONE;
+            case RTS_CTS -> NativeSerialConfig.FLOW_RTSCTS;
+            case XON_XOFF -> NativeSerialConfig.FLOW_XONXOFF;
         };
     }
 }

@@ -1,7 +1,7 @@
 package com.opentermx.app.ui.dialog
 
 import com.opentermx.app.i18n.Strings
-import com.opentermx.serial.SerialConnection
+import com.opentermx.serial.SerialPortConnection
 import javafx.animation.KeyFrame
 import javafx.animation.Timeline
 import javafx.geometry.Insets
@@ -24,7 +24,7 @@ import javafx.util.Duration
  * Live indicator for the six standard serial control lines plus toggles for the two we own as the
  * DTE side (DTR and RTS). The remaining four are read-only.
  */
-class SerialSignalsDialog(owner: Window, private val connection: SerialConnection) : Stage() {
+class SerialSignalsDialog(owner: Window, private val connection: SerialPortConnection) : Stage() {
 
     private val ledDtr = led()
     private val ledRts = led()

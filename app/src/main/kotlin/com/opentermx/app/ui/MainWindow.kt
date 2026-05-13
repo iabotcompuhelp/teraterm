@@ -61,7 +61,8 @@ import com.opentermx.common.connection.TelnetConfig
 import com.opentermx.common.session.Session
 import com.opentermx.common.session.SessionId
 import com.opentermx.logger.LogManager
-import com.opentermx.serial.SerialConnection
+import com.opentermx.serial.SerialConnectionFactory
+import com.opentermx.serial.SerialPortConnection
 import com.opentermx.ssh.SshConnection
  import com.opentermx.telnet.RawTcpConnection
 import com.opentermx.telnet.TelnetConnection
@@ -453,7 +454,7 @@ class MainWindow(
 
     private fun openTftpClientDialog() {
         val initialHost = controllers.values
-            .firstOrNull { it.session.connection !is SerialConnection }
+            .firstOrNull { it.session.connection !is SerialPortConnection }
             ?.session?.config?.let { cfg ->
                 when (cfg) {
                     is TelnetConfig -> cfg.host
@@ -750,7 +751,7 @@ class MainWindow(
 
     private fun openSerialPortSetup() {
         val cfg = SerialConfigDialog().showAndWait().orElse(null) ?: return
-        openSession(cfg, cfg.portName, SerialConnection(cfg))
+        openSession(cfg, cfg.portName, SerialConnectionFactory.createSerial(cfg))
     }
 
     private fun saveSetup() {
@@ -828,7 +829,7 @@ class MainWindow(
                 openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
             }
             is TcpRawConfig -> openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
-            is SerialConfig -> openSession(cfg, cfg.portName, SerialConnection(cfg))
+            is SerialConfig -> openSession(cfg, cfg.portName, SerialConnectionFactory.createSerial(cfg))
         }
     }
 
@@ -1131,7 +1132,7 @@ class MainWindow(
             is NewConnectionChoice.Serial -> {
                 val seed = SerialConfig(portName = choice.port.systemPortName)
                 val cfg = SerialConfigDialog(seed).showAndWait().orElse(null) ?: return
-                openSession(cfg, cfg.portName, SerialConnection(cfg))
+                openSession(cfg, cfg.portName, SerialConnectionFactory.createSerial(cfg))
             }
             is NewConnectionChoice.Ssh -> {
                 if (choice.sshVersion == SshVersion.SSH1) {
@@ -1462,7 +1463,7 @@ class MainWindow(
     private fun openSerialSignals() {
         val ctl = currentController()
         val conn = ctl?.session?.connection
-        if (conn !is SerialConnection || ctl.state.value != ConnectionState.CONNECTED) {
+        if (conn !is SerialPortConnection || ctl.state.value != ConnectionState.CONNECTED) {
             statusLabel.text = Strings["status.serialSignalsRequires"]
             return
         }
@@ -1472,7 +1473,7 @@ class MainWindow(
     private fun sendBreakOnCurrent() {
         val ctl = currentController() ?: return
         val conn = ctl.session.connection
-        if (conn is SerialConnection) {
+        if (conn is SerialPortConnection) {
             ioScope.launch {
                 runCatching { conn.sendBreak(250) }
                     .onFailure { log.warn("BREAK falló", it) }

@@ -18,6 +18,7 @@ okhttp = "4.12.0"
 lucene = "9.12.0"
 pdfbox = "3.0.3"
 javalin = "6.4.0"
+jna = "5.15.0"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
@@ -42,6 +43,8 @@ lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", 
 lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

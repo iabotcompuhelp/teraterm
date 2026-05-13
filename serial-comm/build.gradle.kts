@@ -11,6 +11,8 @@ java {
 dependencies {
     api(project(":common"))
     implementation(libs.jserialcomm)
+    implementation(libs.jna)
+    implementation(libs.jna.platform)
     implementation(libs.slf4j.api)
 
     testImplementation(libs.junit.jupiter)

@@ -146,4 +146,10 @@ data class AdditionalSettings(
     val tftpDefaultRoot: String = System.getProperty("user.home"),
     val tftpDefaultBlocksize: Int = 512,
     val tftpCsvLogPath: String = "",
+    /**
+     * Backend de E/S serial: "JSERIALCOMM" (default, jSerialComm puro Java) o "NATIVE"
+     * (librería nativa opentermx_native vía JNA). La system property
+     * `-Dopentermx.serial.backend` sigue ganando si está fijada.
+     */
+    val serialBackend: String = "JSERIALCOMM",
 )

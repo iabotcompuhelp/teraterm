@@ -751,7 +751,18 @@ class MainWindow(
 
     private fun openSerialPortSetup() {
         val cfg = SerialConfigDialog().showAndWait().orElse(null) ?: return
-        openSession(cfg, cfg.portName, SerialConnectionFactory.createSerial(cfg))
+        openSession(cfg, cfg.portName, SerialConnectionFactory.create(cfg, resolveSerialBackend()))
+    }
+
+    /**
+     * El backend serial se resuelve con esta prioridad: (1) system property
+     * `opentermx.serial.backend` si está fijada (override para tests/CLI);
+     * (2) el valor persistido en `settings.additional.serialBackend`.
+     */
+    private fun resolveSerialBackend(): SerialConnectionFactory.Backend {
+        val sys = System.getProperty(SerialConnectionFactory.BACKEND_PROPERTY)
+        if (!sys.isNullOrBlank()) return SerialConnectionFactory.Backend.fromSystemProperty()
+        return SerialConnectionFactory.Backend.fromName(settings.additional.serialBackend)
     }
 
     private fun saveSetup() {
@@ -829,7 +840,7 @@ class MainWindow(
                 openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
             }
             is TcpRawConfig -> openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
-            is SerialConfig -> openSession(cfg, cfg.portName, SerialConnectionFactory.createSerial(cfg))
+            is SerialConfig -> openSession(cfg, cfg.portName, SerialConnectionFactory.create(cfg, resolveSerialBackend()))
         }
     }
 
@@ -1132,7 +1143,7 @@ class MainWindow(
             is NewConnectionChoice.Serial -> {
                 val seed = SerialConfig(portName = choice.port.systemPortName)
                 val cfg = SerialConfigDialog(seed).showAndWait().orElse(null) ?: return
-                openSession(cfg, cfg.portName, SerialConnectionFactory.createSerial(cfg))
+                openSession(cfg, cfg.portName, SerialConnectionFactory.create(cfg, resolveSerialBackend()))
             }
             is NewConnectionChoice.Ssh -> {
                 if (choice.sshVersion == SshVersion.SSH1) {

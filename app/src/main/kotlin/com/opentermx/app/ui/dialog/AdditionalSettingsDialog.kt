@@ -91,6 +91,10 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
             if (file != null) tftpCsvField.text = file.absolutePath
         }
     }
+    private val serialBackendCombo = ComboBox<String>().apply {
+        items.addAll("JSERIALCOMM", "NATIVE")
+        value = if (initial.serialBackend.equals("NATIVE", ignoreCase = true)) "NATIVE" else "JSERIALCOMM"
+    }
     private val autoLoginField = TextField(initial.autoLoginMacroPath)
     private val browseAutoLogin = Button(Strings["setup.additional.browseDir"]).apply {
         setOnAction {
@@ -137,6 +141,15 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 add(Label(Strings["setup.additional.logMaxSize"]), 0, r); add(logSizeMbSpinner, 1, r); r++
                 add(Label(Strings["setup.additional.logInterval"]), 0, r); add(logIntervalSpinner, 1, r); r++
             })
+            tabs += Tab(Strings["setup.additional.tabSerial"], GridPane().apply {
+                hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
+                var r = 0
+                add(Label(Strings["setup.additional.serialBackend"]), 0, r)
+                add(serialBackendCombo, 1, r); r++
+                add(Label(Strings["setup.additional.serialBackend.hint"]).apply {
+                    isWrapText = true; maxWidth = 360.0
+                }, 0, r, 2, 1); r++
+            })
             tabs += Tab(Strings["setup.additional.tabTftp"], GridPane().apply {
                 hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
                 var r = 0
@@ -169,6 +182,7 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 tftpDefaultBlocksize = tftpBlockSpinner.value,
                 tftpCsvLogPath = tftpCsvField.text.trim(),
                 autoLoginMacroPath = autoLoginField.text.trim(),
+                serialBackend = serialBackendCombo.value ?: "JSERIALCOMM",
             )
         }
     }

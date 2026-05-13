@@ -29,9 +29,13 @@ public final class SerialConnectionFactory implements ConnectionFactory {
         NATIVE;
 
         public static Backend fromSystemProperty() {
-            String raw = System.getProperty(BACKEND_PROPERTY);
-            if (raw == null || raw.isBlank()) return JSERIALCOMM;
-            return switch (raw.trim().toLowerCase()) {
+            return fromName(System.getProperty(BACKEND_PROPERTY));
+        }
+
+        /** Parsea un nombre libre (case-insensitive). Valores desconocidos o null → {@link #JSERIALCOMM}. */
+        public static Backend fromName(String name) {
+            if (name == null || name.isBlank()) return JSERIALCOMM;
+            return switch (name.trim().toLowerCase()) {
                 case "native", "opentermx", "jna" -> NATIVE;
                 default -> JSERIALCOMM;
             };

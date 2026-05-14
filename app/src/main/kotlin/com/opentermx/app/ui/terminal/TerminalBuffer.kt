@@ -422,6 +422,36 @@ class TerminalBuffer(
         touch()
     }
 
+    /**
+     * Overwrites the [rows] x [cols] visible window with a full grid produced by an external
+     * VT engine (e.g. the native emulator) and repositions the cursor. The scrollback (`lines`
+     * older than the visible window) is left untouched but is not extended by this path —
+     * external engines that own their own grid have no concept of history here.
+     */
+    fun replaceVisibleGrid(
+        cells: Array<TerminalCell>,
+        cursorVisRow: Int,
+        cursorCol: Int,
+        cursorVisible: Boolean,
+    ) {
+        require(cells.size == rows * cols) {
+            "replaceVisibleGrid expected ${rows * cols} cells, got ${cells.size}"
+        }
+        val top = visibleTop
+        for (r in 0 until rows) {
+            val line = lines[top + r]
+            while (line.size < cols) line.add(TerminalCell.EMPTY)
+            for (c in 0 until cols) {
+                line[c] = cells[r * cols + c]
+            }
+            while (line.size > cols) line.removeLast()
+        }
+        cursorRow = top + cursorVisRow.coerceIn(0, rows - 1)
+        this.cursorCol = cursorCol.coerceIn(0, cols - 1)
+        this.cursorVisible = cursorVisible
+        touch()
+    }
+
     private data class SavedScreen(
         val lines: List<MutableList<TerminalCell>>,
         val cursorRow: Int,

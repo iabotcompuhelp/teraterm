@@ -1,5 +1,8 @@
 package com.opentermx.app.ui.terminal
 
+import com.opentermx.serial.SerialConnectionFactory
+import com.opentermx.serial.nativeio.NativeCell
+import com.opentermx.serial.nativeio.NativeTerminal
 import javafx.animation.AnimationTimer
 import javafx.application.Platform
 import javafx.beans.property.ReadOnlyStringProperty
@@ -14,9 +17,13 @@ import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.BorderPane
+import org.slf4j.LoggerFactory
 import java.nio.charset.Charset
 import java.nio.charset.IllegalCharsetNameException
 import java.nio.charset.UnsupportedCharsetException
+
+/** Motor VT que la vista usa para interpretar la entrada. */
+enum class TerminalEngine { KOTLIN, NATIVE }
 
 private val ESC = Char(0x1B).toString()
 private val DEL = Char(0x7F).toString()
@@ -26,12 +33,18 @@ private const val CURSOR_BLINK_PERIOD_NS = 500_000_000L
 private const val TEXT_BLINK_PERIOD_NS = 800_000_000L
 private const val SMOOTH_SCROLL_STEP_NS = 16_000_000L
 
+/** Valor centinela `OPENTERMX_COLOR_DEFAULT` en native/src/terminal_emu.h. */
+private const val NATIVE_COLOR_DEFAULT: Int = -0x1   // 0xFFFFFFFF como int con signo
+
+private val log = LoggerFactory.getLogger(TerminalView::class.java)
+
 class TerminalView(
     fontFamily: String = "Consolas",
     fontSize: Double = 14.0,
     scrollbackLimit: Int = 10_000,
     initialCols: Int = 80,
     initialRows: Int = 24,
+    engine: TerminalEngine = TerminalEngine.KOTLIN,
 ) : BorderPane() {
 
     private val canvas = Canvas(800.0, 480.0)
@@ -40,6 +53,13 @@ class TerminalView(
     private val emulator = TerminalEmulator(buffer)
     private val renderer = TerminalRenderer(fontFamily, fontSize)
     private val selection = Selection()
+
+    /**
+     * El motor efectivo: aunque el constructor pida NATIVE, si la librería nativa no carga
+     * caemos a KOTLIN con un warning. El campo refleja lo que está realmente en uso.
+     */
+    val engine: TerminalEngine
+    private var nativeTerminal: NativeTerminal? = null
 
     private var charset: Charset = Charsets.UTF_8
     private var newlineSequence: String = "\r"
@@ -83,33 +103,157 @@ class TerminalView(
         heightProperty().addListener { _, _, _ -> updateCanvasSize() }
         scrollBar.widthProperty().addListener { _, _, _ -> updateCanvasSize() }
 
+        this.engine = initNativeEngine(engine, initialCols, initialRows)
+
         setupKeyboard()
         setupMouse()
         setupScrollBar()
         startAnimator()
     }
 
+    /**
+     * Intenta levantar el emulador VT nativo si lo piden y la librería carga. En cualquier
+     * fallo deja `nativeTerminal = null` y devuelve KOTLIN, para que el resto de la vista
+     * use el motor Kotlin sin que el usuario tenga que reaccionar.
+     */
+    private fun initNativeEngine(
+        requested: TerminalEngine,
+        cols: Int,
+        rows: Int,
+    ): TerminalEngine {
+        if (requested != TerminalEngine.NATIVE) return TerminalEngine.KOTLIN
+        if (!SerialConnectionFactory.isNativeAvailable()) {
+            log.warn("Motor VT nativo solicitado pero opentermx_native no carga; usando motor Kotlin")
+            return TerminalEngine.KOTLIN
+        }
+        return try {
+            val nt = NativeTerminal.create(rows, cols)
+            nt.setWriteCallback { reply ->
+                if (reply.isEmpty()) return@setWriteCallback
+                // Las respuestas del emulador (DA, CPR, …) siempre van en bytes VT/ASCII,
+                // pero el `charset` actual gobierna cómo onInput las codifica de vuelta al transporte.
+                val text = String(reply, charset)
+                Platform.runLater { onInput(text) }
+            }
+            nativeTerminal = nt
+            syncFromNative()
+            TerminalEngine.NATIVE
+        } catch (t: Throwable) {
+            log.warn("No se pudo crear NativeTerminal ({}); usando motor Kotlin", t.toString())
+            TerminalEngine.KOTLIN
+        }
+    }
+
     fun append(text: String) = runOnFx {
-        emulator.feed(text)
+        val nt = nativeTerminal
+        if (nt != null) {
+            val bytes = text.toByteArray(charset)
+            feedNative(nt, bytes, bytes.size)
+        } else {
+            emulator.feed(text)
+        }
         afterFeed()
     }
 
     fun appendBytes(data: ByteArray, length: Int, cs: Charset = charset) {
-        val text = String(data, 0, length, cs)
         runOnFx {
-            emulator.feed(text)
+            val nt = nativeTerminal
+            if (nt != null) {
+                feedNative(nt, transcodeForNative(data, length, cs))
+            } else {
+                emulator.feed(String(data, 0, length, cs))
+            }
             afterFeed()
         }
     }
 
     fun clear() = runOnFx {
+        nativeTerminal?.reset()
         buffer.reset()
         selection.clear()
         viewportTop = 0
         followBottom = true
         dirty = true
+        if (nativeTerminal != null) syncFromNative()
         updateScrollBar()
     }
+
+    /**
+     * Libera el emulador nativo si la vista lo abrió. Llamar al cerrar la pestaña que la contiene
+     * para no dejar el handle JNA colgado durante toda la vida de la JVM.
+     */
+    fun dispose() = runOnFx {
+        nativeTerminal?.close()
+        nativeTerminal = null
+    }
+
+    private fun feedNative(nt: NativeTerminal, bytes: ByteArray, length: Int = bytes.size) {
+        nt.feed(bytes, length)
+        syncFromNative()
+    }
+
+    /** Convierte el bloque entrante al UTF-8 que espera el emulador nativo. */
+    private fun transcodeForNative(data: ByteArray, length: Int, cs: Charset): ByteArray {
+        if (cs == Charsets.UTF_8) {
+            return if (length == data.size) data else data.copyOfRange(0, length)
+        }
+        return String(data, 0, length, cs).toByteArray(Charsets.UTF_8)
+    }
+
+    /**
+     * Vuelca la snapshot del emulador nativo en el TerminalBuffer (visible window) y
+     * reposiciona el cursor. El renderer y la lógica de scroll/select existentes pintan
+     * sin enterarse de qué motor parseó la entrada.
+     *
+     * Nota: la librería nativa no mantiene historial — sólo el grid visible. En modo NATIVE
+     * el scrollback que la vista conserva sólo se rellena con lo que viva en el viewport.
+     */
+    private fun syncFromNative() {
+        val nt = nativeTerminal ?: return
+        val nRows = nt.rows()
+        val nCols = nt.cols()
+        if (nRows <= 0 || nCols <= 0) return
+        if (buffer.cols != nCols || buffer.rows != nRows) {
+            buffer.resize(nCols, nRows)
+        }
+        val raw = nt.snapshot()
+        val mapped = Array(nRows * nCols) { TerminalCell.EMPTY }
+        for (i in 0 until nRows * nCols) {
+            mapped[i] = nativeCellToTerminalCell(raw[i])
+        }
+        val cur = nt.cursor()
+        buffer.replaceVisibleGrid(
+            cells = mapped,
+            cursorVisRow = cur.row,
+            cursorCol = cur.col,
+            cursorVisible = cur.visible.toInt() != 0,
+        )
+    }
+
+    private fun nativeCellToTerminalCell(nc: NativeCell): TerminalCell {
+        val cp = nc.codepoint
+        val ch = if (cp <= 0 || cp > 0xFFFF) ' ' else cp.toChar()
+        val a = nc.attrs.toInt() and 0xFFFF
+        return TerminalCell(
+            char = ch,
+            attrs = CellAttributes(
+                fg = nativeColor(nc.fgRgb),
+                bg = nativeColor(nc.bgRgb),
+                bold = a and 0x01 != 0,
+                dim = a and 0x02 != 0,
+                italic = a and 0x04 != 0,
+                underline = a and 0x08 != 0,
+                blink = a and 0x10 != 0,
+                inverse = a and 0x20 != 0,
+                hidden = a and 0x40 != 0,
+                strikethrough = a and 0x80 != 0,
+            ),
+        )
+    }
+
+    private fun nativeColor(rgb: Int): AnsiColor =
+        if (rgb == NATIVE_COLOR_DEFAULT) AnsiColor.Default
+        else AnsiColor.Rgb((rgb ushr 16) and 0xFF, (rgb ushr 8) and 0xFF, rgb and 0xFF)
 
     fun applyColors(foreground: javafx.scene.paint.Color, background: javafx.scene.paint.Color,
                     cursor: javafx.scene.paint.Color, selection: javafx.scene.paint.Color) = runOnFx {
@@ -256,7 +400,11 @@ class TerminalView(
         val newCols = renderer.colsFor(canvas.width)
         val newRows = renderer.rowsFor(canvas.height)
         if (newCols != buffer.cols || newRows != buffer.rows) {
+            // El motor nativo es dueño del grid: redimensiona primero allí, luego en el buffer
+            // (que el sync sólo vuelca sobre la ventana visible).
+            nativeTerminal?.resize(newRows, newCols)
             buffer.resize(newCols, newRows)
+            if (nativeTerminal != null) syncFromNative()
             if (followBottom) viewportTop = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
             updateScrollBar()
             onResize(newCols, newRows)

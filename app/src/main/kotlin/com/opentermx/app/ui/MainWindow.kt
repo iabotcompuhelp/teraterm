@@ -40,6 +40,7 @@ import com.opentermx.app.ui.macro.MacroUiBridgeImpl
 import com.opentermx.app.ui.macro.MacroWindow
 import com.opentermx.app.ui.sftp.SftpPanel
 import com.opentermx.app.ui.terminal.TerminalCapture
+import com.opentermx.app.ui.terminal.TerminalEngine
 import com.opentermx.app.ui.terminal.TerminalView
 import com.opentermx.app.ui.tftp.TftpServerManager
 import com.opentermx.app.ui.tftp.TftpTransferManager
@@ -765,6 +766,16 @@ class MainWindow(
         return SerialConnectionFactory.Backend.fromName(settings.additional.serialBackend)
     }
 
+    /**
+     * Selecciona el motor VT del `TerminalView`. Por ahora el único override es la system
+     * property `opentermx.terminal.engine=native` para activar el emulador nativo en CLI/tests
+     * sin tocar persistencia. Si la librería no carga, TerminalView ya hace fallback silencioso.
+     */
+    private fun resolveTerminalEngine(): TerminalEngine {
+        val sys = System.getProperty("opentermx.terminal.engine")?.trim()?.lowercase()
+        return if (sys == "native") TerminalEngine.NATIVE else TerminalEngine.KOTLIN
+    }
+
     private fun saveSetup() {
         val file = FileChooser().apply {
             title = Strings["setup.saveSetup"]
@@ -1041,6 +1052,7 @@ class MainWindow(
         terminal.append(Strings["welcome.line2"] + "\n")
         terminal.onInput = { input -> terminal.append(input) }
         val tab = Tab(Strings["welcome.tabTitle"], terminal).apply { isClosable = true }
+        tab.setOnClosed { terminal.dispose() }
         tabPane.tabs += tab
         tabPane.selectionModel.select(tab)
     }
@@ -1052,6 +1064,7 @@ class MainWindow(
             scrollbackLimit = settings.terminalScrollbackLimit,
             initialCols = settings.terminal.cols,
             initialRows = settings.terminal.rows,
+            engine = resolveTerminalEngine(),
         )
         val c = effectiveTerminalColors()
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
@@ -1251,7 +1264,10 @@ class MainWindow(
             isClosable = true
         }
         bindTabTitle(tab, controller)
-        tab.setOnClosed { stopController(tab) }
+        tab.setOnClosed {
+            stopController(tab)
+            terminal.dispose()
+        }
 
         controllers[tab] = controller
         tabPane.tabs += tab

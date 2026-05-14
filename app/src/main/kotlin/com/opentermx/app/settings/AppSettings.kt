@@ -152,4 +152,11 @@ data class AdditionalSettings(
      * `-Dopentermx.serial.backend` sigue ganando si está fijada.
      */
     val serialBackend: String = "JSERIALCOMM",
+    /**
+     * Motor VT que usa el `TerminalView`: "KOTLIN" (default, parser ANSI puro Kotlin) o
+     * "NATIVE" (emulador C de opentermx_native vía JNA). Aplica a pestañas nuevas — las
+     * abiertas conservan el motor con el que se crearon. La system property
+     * `-Dopentermx.terminal.engine` sigue ganando si está fijada.
+     */
+    val terminalEngine: String = "KOTLIN",
 )

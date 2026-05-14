@@ -95,6 +95,10 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
         items.addAll("JSERIALCOMM", "NATIVE")
         value = if (initial.serialBackend.equals("NATIVE", ignoreCase = true)) "NATIVE" else "JSERIALCOMM"
     }
+    private val terminalEngineCombo = ComboBox<String>().apply {
+        items.addAll("KOTLIN", "NATIVE")
+        value = if (initial.terminalEngine.equals("NATIVE", ignoreCase = true)) "NATIVE" else "KOTLIN"
+    }
     private val autoLoginField = TextField(initial.autoLoginMacroPath)
     private val browseAutoLogin = Button(Strings["setup.additional.browseDir"]).apply {
         setOnAction {
@@ -150,6 +154,15 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                     isWrapText = true; maxWidth = 360.0
                 }, 0, r, 2, 1); r++
             })
+            tabs += Tab(Strings["setup.additional.tabEngine"], GridPane().apply {
+                hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
+                var r = 0
+                add(Label(Strings["setup.additional.terminalEngine"]), 0, r)
+                add(terminalEngineCombo, 1, r); r++
+                add(Label(Strings["setup.additional.terminalEngine.hint"]).apply {
+                    isWrapText = true; maxWidth = 360.0
+                }, 0, r, 2, 1); r++
+            })
             tabs += Tab(Strings["setup.additional.tabTftp"], GridPane().apply {
                 hgap = 10.0; vgap = 8.0; padding = Insets(16.0)
                 var r = 0
@@ -183,6 +196,7 @@ class AdditionalSettingsDialog(initial: AdditionalSettings) : Dialog<AdditionalS
                 tftpCsvLogPath = tftpCsvField.text.trim(),
                 autoLoginMacroPath = autoLoginField.text.trim(),
                 serialBackend = serialBackendCombo.value ?: "JSERIALCOMM",
+                terminalEngine = terminalEngineCombo.value ?: "KOTLIN",
             )
         }
     }

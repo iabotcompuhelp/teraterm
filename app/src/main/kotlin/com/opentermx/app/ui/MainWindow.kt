@@ -767,13 +767,21 @@ class MainWindow(
     }
 
     /**
-     * Selecciona el motor VT del `TerminalView`. Por ahora el único override es la system
-     * property `opentermx.terminal.engine=native` para activar el emulador nativo en CLI/tests
-     * sin tocar persistencia. Si la librería no carga, TerminalView ya hace fallback silencioso.
+     * Selecciona el motor VT del `TerminalView` con la misma cadena de precedencia que
+     * `resolveSerialBackend`: (1) system property `opentermx.terminal.engine` si está fijada;
+     * (2) `settings.additional.terminalEngine`. Si el motor nativo no carga, `TerminalView`
+     * hace fallback silencioso a Kotlin.
      */
     private fun resolveTerminalEngine(): TerminalEngine {
         val sys = System.getProperty("opentermx.terminal.engine")?.trim()?.lowercase()
-        return if (sys == "native") TerminalEngine.NATIVE else TerminalEngine.KOTLIN
+        if (!sys.isNullOrBlank()) {
+            return if (sys == "native") TerminalEngine.NATIVE else TerminalEngine.KOTLIN
+        }
+        return if (settings.additional.terminalEngine.equals("NATIVE", ignoreCase = true)) {
+            TerminalEngine.NATIVE
+        } else {
+            TerminalEngine.KOTLIN
+        }
     }
 
     private fun saveSetup() {

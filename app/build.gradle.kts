@@ -16,6 +16,12 @@ tasks.named<JavaExec>("run") {
     jvmArgs("-Dprism.order=sw")
 }
 
+// Los UI tests del dialog instancian JavaFX; sin pipeline software fallan
+// en runners sin GPU. El runtime principal ya usa este flag (ver `run`).
+tasks.withType<Test>().configureEach {
+    jvmArgs("-Dprism.order=sw")
+}
+
 // Empaqueta un MSI con jpackage (requiere WiX 3.14 instalado en C:\Program Files (x86)\WiX Toolset v3.14).
 // jpackage rechaza versiones con sufijo `-SNAPSHOT`; stripeamos al primer `-`.
 val packageMsi by tasks.registering(Exec::class) {

@@ -1,0 +1,20 @@
+{
+  "lastUpdate": "2026-05-16T00:00:00Z",
+  "currentTask": null,
+  "scope": "Fix NPE en NGCanvas.RenderBuf.validate al abrir cualquier sesión. Hipótesis original (race listener↔AnimationTimer en FX thread) descartada — el FX thread es single-threaded. Causa real: AnimationTimer.handle() ejecuta renderer.paint(canvas, ...) antes de que el Canvas esté en una Scene con Window mostrada, y la primera renderForcedContent dispara RTTexture.createGraphics()=null. Opción A elegida: gate del AnimationTimer en canvas.scene?.window?.isShowing.",
+  "tasks": {
+    "investigate-hypothesis": "done — descartada; documentada en chat",
+    "gate-animator-on-showing": "done",
+    "remove-prism-sw-workaround": "done — quitado de tasks.named<JavaExec>(run) y de applicationDefaultJvmArgs; -Dprism.order=sw queda solo en el bloque de tests para runners sin GPU",
+    "headless-lifecycle-tests": "done — TerminalViewLifecycleTest (2 casos)",
+    "build-green": "done — :app:check verde (1m 14s)"
+  },
+  "filesTouched": [
+    "app/build.gradle.kts",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt",
+    "app/src/test/kotlin/com/opentermx/app/ui/terminal/TerminalViewLifecycleTest.kt"
+  ],
+  "openIssues": [
+    "Validación humana: correr ./gradlew run en Windows, abrir sesión SSH, confirmar que no hay NPE con pipeline default (D3D)."
+  ]
+}

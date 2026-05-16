@@ -593,6 +593,12 @@ class TerminalView(
             private var lastTextToggle: Long = 0L
             private var lastSmoothStep: Long = 0L
             override fun handle(now: Long) {
+                // No pintar hasta que el Canvas esté en una Scene con Window mostrada.
+                // Emitir draw commands antes de eso deja NGCanvas con cola pendiente pero
+                // sin RTTexture válida; en la primera renderForcedContent que dispara la
+                // pulse al adjuntar la scene, RTTexture.createGraphics() devuelve null y
+                // se levanta NPE en NGCanvas$RenderBuf.validate.
+                if (canvas.scene?.window?.isShowing != true) return
                 if (renderer.cursorBlink && now - lastCursorToggle >= CURSOR_BLINK_PERIOD_NS) {
                     renderer.cursorPhaseOn = !renderer.cursorPhaseOn
                     lastCursorToggle = now

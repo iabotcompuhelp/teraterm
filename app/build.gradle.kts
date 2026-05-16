@@ -12,12 +12,9 @@ application {
     mainClass.set("com.opentermx.app.MainKt")
 }
 
-tasks.named<JavaExec>("run") {
-    jvmArgs("-Dprism.order=sw")
-}
-
 // Los UI tests del dialog instancian JavaFX; sin pipeline software fallan
-// en runners sin GPU. El runtime principal ya usa este flag (ver `run`).
+// en runners sin GPU. El runtime principal usa el pipeline default
+// (D3D en Windows, Metal en Mac, GL en Linux).
 tasks.withType<Test>().configureEach {
     jvmArgs("-Dprism.order=sw")
 }

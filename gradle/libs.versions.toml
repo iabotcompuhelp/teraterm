@@ -20,6 +20,7 @@ pdfbox = "3.0.3"
 javalin = "6.4.0"
 jna = "5.15.0"
 mcpKotlinSdk = "0.5.0"
+javalinSsl = "6.1.6"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
@@ -47,6 +48,7 @@ javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 mcp-kotlin-sdk = { module = "io.modelcontextprotocol:kotlin-sdk", version.ref = "mcpKotlinSdk" }
+javalin-ssl-plugin = { module = "io.javalin.community.ssl:ssl-plugin", version.ref = "javalinSsl" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -4,6 +4,7 @@ import com.opentermx.ai.audit.AiAuditEntry
 import com.opentermx.ai.audit.AiAuditLog
 import com.opentermx.ai.context.Vendor
 import com.opentermx.ai.context.VendorDetector
+import com.opentermx.ai.safety.CredentialRedactor
 import com.opentermx.ai.safety.RiskClassifier
 import com.opentermx.ai.safety.RiskLevel
 import com.opentermx.common.ai.SessionRegistry
@@ -37,6 +38,7 @@ class ProposeCommandsHandler(
     private val approvalGate: ApprovalGate,
     private val auditLog: AiAuditLog = AiAuditLog(),
     private val injectDelayMillis: Long = DEFAULT_INJECT_DELAY_MILLIS,
+    private val redactor: CredentialRedactor = CredentialRedactor(),
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.PROPOSE_COMMANDS
@@ -87,18 +89,19 @@ class ProposeCommandsHandler(
                         kotlinx.coroutines.delay(injectDelayMillis)
                     }
                 }
-                val tail = SessionRegistry.lastLinesOf(sessionId, 20).joinToString("\n")
+                val tailRaw = SessionRegistry.lastLinesOf(sessionId, 20).joinToString("\n")
+                val tailRedacted = redactor.redact(tailRaw, vendor)
                 logAudit(
                     auditLogId, sessionId, metadata.host, vendor,
                     rationale, approved, decision.risks,
-                    executed = executed, failed = failed, rejected = false, outputTail = tail,
+                    executed = executed, failed = failed, rejected = false, outputTail = tailRedacted,
                 )
                 linkedMapOf(
                     "approved" to true,
                     "executed" to executed,
                     "rejected" to (commands.size - approved.size),
                     "auditLogId" to auditLogId,
-                    "output" to tail,
+                    "output" to tailRedacted,
                     "riskSummary" to riskSummaryOf(decision.risks),
                 )
             }

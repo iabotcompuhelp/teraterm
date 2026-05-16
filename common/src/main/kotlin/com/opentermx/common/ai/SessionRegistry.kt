@@ -33,7 +33,9 @@ object SessionRegistry {
 
     private val providers = ConcurrentHashMap<SessionId, TerminalBufferProvider>()
     private val sinks = ConcurrentHashMap<SessionId, CommandSink>()
+    private val connections = ConcurrentHashMap<SessionId, com.opentermx.common.connection.Connection>()
     private val metadata = ConcurrentHashMap<SessionId, SessionMetadata>()
+    private val changeListeners = java.util.concurrent.CopyOnWriteArrayList<(SessionChange) -> Unit>()
 
     @JvmStatic
     @JvmOverloads
@@ -42,17 +44,22 @@ object SessionRegistry {
         metadata: SessionMetadata,
         provider: TerminalBufferProvider,
         sink: CommandSink? = null,
+        connection: com.opentermx.common.connection.Connection? = null,
     ) {
         this.metadata[id] = metadata
         providers[id] = provider
         if (sink != null) sinks[id] = sink else sinks.remove(id)
+        if (connection != null) connections[id] = connection else connections.remove(id)
+        notify(SessionChange.Opened(id, metadata))
     }
 
     @JvmStatic
     fun unregister(id: SessionId) {
+        val meta = metadata.remove(id)
         providers.remove(id)
         sinks.remove(id)
-        metadata.remove(id)
+        connections.remove(id)
+        if (meta != null) notify(SessionChange.Closed(id, meta))
     }
 
     @JvmStatic
@@ -60,6 +67,9 @@ object SessionRegistry {
 
     @JvmStatic
     fun sinkOf(id: SessionId): CommandSink? = sinks[id]
+
+    @JvmStatic
+    fun connectionOf(id: SessionId): com.opentermx.common.connection.Connection? = connections[id]
 
     @JvmStatic
     fun metadataOf(id: SessionId): SessionMetadata? = metadata[id]
@@ -71,6 +81,30 @@ object SessionRegistry {
     @JvmStatic
     fun lastLinesOf(id: SessionId, count: Int): List<String> =
         providers[id]?.lastLines(count) ?: emptyList()
+
+    /**
+     * Suscribe a cambios de estado del registro (sesiones abiertas/cerradas). Devuelve un
+     * `AutoCloseable` que des-suscribe al cerrarse. Pensado para que el servidor MCP
+     * pueda emitir `notifications/sessions/changed` (T11 de phase 2).
+     */
+    @JvmStatic
+    fun addChangeListener(listener: (SessionChange) -> Unit): AutoCloseable {
+        changeListeners += listener
+        return AutoCloseable { changeListeners -= listener }
+    }
+
+    private fun notify(change: SessionChange) {
+        changeListeners.forEach { runCatching { it(change) } }
+    }
+}
+
+/** Evento del [SessionRegistry] — alimenta las notifications SSE. */
+sealed interface SessionChange {
+    val id: SessionId
+    val metadata: SessionMetadata
+
+    data class Opened(override val id: SessionId, override val metadata: SessionMetadata) : SessionChange
+    data class Closed(override val id: SessionId, override val metadata: SessionMetadata) : SessionChange
 }
 
 data class SessionMetadata(

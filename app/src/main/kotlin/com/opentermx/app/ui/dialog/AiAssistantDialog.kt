@@ -201,10 +201,63 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
     private val mcpShowTokenBtn = Button(Strings["setup.ai.mcp.showToken"]).apply {
         setOnAction { toggleTokenVisibility() }
     }
+    private val mcpClientCombo = ComboBox<com.opentermx.app.ui.mcp.McpSnippets.Client>().apply {
+        items.setAll(*com.opentermx.app.ui.mcp.McpSnippets.Client.entries.toTypedArray())
+        value = com.opentermx.app.ui.mcp.McpSnippets.Client.CLAUDE_DESKTOP
+    }
+    private val mcpSnippetPathLabel = Label("").apply {
+        isWrapText = true; maxWidth = 460.0
+        style = "-fx-text-fill: derive(-fx-text-base-color, 20%); -fx-font-size: 11px;"
+    }
+    private val mcpOpenFolderBtn = Button("Open folder").apply {
+        setOnAction {
+            val ok = com.opentermx.app.ui.mcp.McpSnippets.openConfigFolder(mcpClientCombo.value)
+            mcpSnippetStatus.text = if (ok) "Carpeta abierta." else "No se pudo abrir la carpeta."
+        }
+    }
     private val mcpSnippetArea = TextArea().apply {
         isEditable = false
         prefRowCount = 8
         style = "-fx-font-family: 'Consolas', 'Menlo', monospace; -fx-font-size: 11px;"
+    }
+    private val mcpVerboseLogCheck = CheckBox(Strings["setup.ai.mcp.verboseLog"]).apply {
+        isSelected = initial.mcpServerVerboseLog
+    }
+    private val mcpStdioProxyCheck = CheckBox(Strings["setup.ai.mcp.stdioProxy"]).apply {
+        isSelected = initial.mcpStdioProxyEnabled
+    }
+    private val mcpStdioProxyStatus = Label("").apply {
+        isWrapText = true; maxWidth = 460.0
+        style = "-fx-text-fill: derive(-fx-text-base-color, 30%); -fx-font-size: 11px;"
+    }
+    private val mcpReadOnlyCheck = CheckBox(Strings["setup.ai.mcp.readOnly"]).apply {
+        isSelected = initial.mcpServerReadOnly
+        graphic = Label("🔒")
+    }
+    private val mcpAllowedSessionGlobField = javafx.scene.control.TextField(initial.mcpServerAllowedSessionGlob.orEmpty()).apply {
+        prefColumnCount = 30
+        promptText = "lab-*,test-?"
+    }
+    private val mcpTlsEnabledCheck = CheckBox(Strings["setup.ai.mcp.tlsEnabled"]).apply {
+        isSelected = initial.mcpServerTlsEnabled
+    }
+    private val mcpKeyStorePathField = javafx.scene.control.TextField(initial.mcpServerKeyStorePath.orEmpty()).apply {
+        prefColumnCount = 40
+    }
+    private val mcpKeyStorePickerBtn = Button("…").apply {
+        setOnAction {
+            val chosen = FileChooser().apply {
+                title = "Keystore JKS o PKCS12"
+                extensionFilters.add(FileChooser.ExtensionFilter("Keystore", "*.jks", "*.p12", "*.pfx"))
+            }.showOpenDialog(dialogPane.scene?.window)
+            chosen?.let { mcpKeyStorePathField.text = it.absolutePath }
+        }
+    }
+    private val mcpKeyStorePasswordField = PasswordField().apply { prefColumnCount = 24 }
+    private var mcpKeyStorePasswordStash: EncryptedValue? = initial.mcpServerKeyStorePassword
+    private val mcpTlsInfo = Label("").apply {
+        isWrapText = true; maxWidth = 460.0
+        style = "-fx-text-fill: derive(-fx-text-base-color, 30%); -fx-font-size: 11px;"
     }
     private val mcpCopySnippetBtn = Button(Strings["setup.ai.mcp.copySnippet"]).apply {
         setOnAction { copyMcpSnippet() }
@@ -265,6 +318,13 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
                 mcpServerPort = mcpPortSpinner.value,
                 mcpServerBindAddress = mcpBindField.text.trim().ifBlank { "127.0.0.1" },
                 mcpServerToken = stashMcpToken(),
+                mcpServerVerboseLog = mcpVerboseLogCheck.isSelected,
+                mcpStdioProxyEnabled = mcpStdioProxyCheck.isSelected,
+                mcpServerReadOnly = mcpReadOnlyCheck.isSelected,
+                mcpServerAllowedSessionGlob = mcpAllowedSessionGlobField.text.trim().ifBlank { null },
+                mcpServerTlsEnabled = mcpTlsEnabledCheck.isSelected,
+                mcpServerKeyStorePath = mcpKeyStorePathField.text.trim().ifBlank { null },
+                mcpServerKeyStorePassword = stashKeyStorePassword(),
             )
         }
     }
@@ -317,26 +377,66 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
         val tokenForSnippet = typedToken.ifBlank {
             mcpTokenStash?.let { decryptOrNull(it) }.orEmpty()
         }
-        val headersLine = if (tokenForSnippet.isNotBlank()) {
-            ",\n      \"headers\": {\"Authorization\": \"Bearer $tokenForSnippet\"}"
-        } else ""
-        mcpSnippetArea.text = """
-            |{
-            |  "mcpServers": {
-            |    "opentermx": {
-            |      "url": "http://$host:$port/mcp"$headersLine
-            |    }
-            |  }
-            |}
-        """.trimMargin()
+        val client = mcpClientCombo.value ?: com.opentermx.app.ui.mcp.McpSnippets.Client.CLAUDE_DESKTOP
+        val stdioWrapper = if (mcpStdioProxyCheck.isSelected) {
+            val home = java.nio.file.Path.of(System.getProperty("user.home"))
+            val isWin = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+            val name = if (isWin) "opentermx-mcp-stdio.bat" else "opentermx-mcp-stdio"
+            home.resolve(".opentermx/bin/$name").toString()
+        } else null
+        val bundle = com.opentermx.app.ui.mcp.McpSnippets.bundle(client, host, port, tokenForSnippet, stdioWrapper)
+        mcpSnippetArea.text = bundle.snippet
+        mcpSnippetPathLabel.text = "Pegar en: ${bundle.configPath}"
         mcpBindWarning.text = if (host.trim() == "0.0.0.0") Strings["setup.ai.mcp.bindWarning"] else ""
         mcpSnippetStatus.text = ""
+    }
+
+    private fun stashKeyStorePassword(): EncryptedValue? {
+        val typed = mcpKeyStorePasswordField.text.orEmpty().trim()
+        if (typed.isEmpty()) return null
+        val prev = mcpKeyStorePasswordStash?.let { runCatching { SecretCipher.decrypt(it) }.getOrNull() }
+        return if (typed == prev) mcpKeyStorePasswordStash else SecretCipher.encrypt(typed)
+    }
+
+    private fun refreshTlsInfo() {
+        val tlsOn = mcpTlsEnabledCheck.isSelected
+        val bindIsLoopback = mcpBindField.text.trim().let { it == "127.0.0.1" || it == "::1" || it.isBlank() }
+        mcpTlsInfo.text = when {
+            !tlsOn && !bindIsLoopback -> Strings["setup.ai.mcp.tlsWarningNoLoopback"]
+            tlsOn && bindIsLoopback -> Strings["setup.ai.mcp.tlsInfoLoopback"]
+            else -> ""
+        }
+    }
+
+    private fun handleStdioProxyToggle(enabled: Boolean) {
+        val snapshot = AiAssistantSettings(
+            mcpServerBindAddress = mcpBindField.text.ifBlank { "127.0.0.1" },
+            mcpServerPort = mcpPortSpinner.value,
+            mcpServerToken = stashMcpToken(),
+        )
+        if (enabled) {
+            val result = runCatching {
+                com.opentermx.app.ui.mcp.StdioProxyInstaller.install(snapshot)
+            }
+            result.fold(
+                onSuccess = { mcpStdioProxyStatus.text = Strings.format("setup.ai.mcp.stdioProxyInstalled", it.wrapperFile.toString()) },
+                onFailure = { mcpStdioProxyStatus.text = it.message ?: it.javaClass.simpleName },
+            )
+        } else {
+            runCatching { com.opentermx.app.ui.mcp.StdioProxyInstaller.uninstall() }
+            mcpStdioProxyStatus.text = Strings["setup.ai.mcp.stdioProxyUninstalled"]
+        }
     }
 
     private fun buildMcpServerTab(): javafx.scene.Node {
         // Initialize plain mirror text so toggle preserves it
         mcpTokenField.text = mcpTokenStash?.let { decryptOrNull(it) }.orEmpty()
         mcpTokenPlain.text = mcpTokenField.text
+        mcpStdioProxyCheck.selectedProperty().addListener { _, _, sel -> handleStdioProxyToggle(sel) }
+        mcpKeyStorePasswordField.text = mcpKeyStorePasswordStash?.let { runCatching { SecretCipher.decrypt(it) }.getOrNull() }.orEmpty()
+        mcpTlsEnabledCheck.selectedProperty().addListener { _, _, _ -> refreshTlsInfo() }
+        mcpBindField.textProperty().addListener { _, _, _ -> refreshTlsInfo() }
+        refreshTlsInfo()
 
         // Listeners para refrescar snippet/warning on cualquier cambio.
         val refresh = javafx.beans.value.ChangeListener<Any?> { _, _, _ -> refreshMcpSnippet() }
@@ -360,9 +460,27 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
                 isWrapText = true; maxWidth = 460.0
                 style = "-fx-text-fill: derive(-fx-text-base-color, 30%); -fx-font-size: 11px;"
             }, 1, r); r++
+            add(Label(""), 0, r); add(mcpVerboseLogCheck, 1, r); r++
+            add(Label(""), 0, r); add(mcpStdioProxyCheck, 1, r); r++
+            add(Label(""), 0, r); add(mcpStdioProxyStatus, 1, r); r++
+            add(Label(""), 0, r); add(mcpReadOnlyCheck, 1, r); r++
+            add(Label(Strings["setup.ai.mcp.allowedSessions"]), 0, r); add(mcpAllowedSessionGlobField, 1, r); r++
+            add(Label(""), 0, r); add(mcpTlsEnabledCheck, 1, r); r++
+            add(Label(Strings["setup.ai.mcp.keyStorePath"]), 0, r)
+            add(HBox(6.0, mcpKeyStorePathField, mcpKeyStorePickerBtn).apply { alignment = Pos.CENTER_LEFT }, 1, r); r++
+            add(Label(Strings["setup.ai.mcp.keyStorePassword"]), 0, r); add(mcpKeyStorePasswordField, 1, r); r++
+            add(Label(""), 0, r); add(mcpTlsInfo, 1, r); r++
         }
-        val snippetHeader = HBox(8.0, Label(Strings["setup.ai.mcp.snippetLabel"]), mcpCopySnippetBtn, mcpSnippetStatus)
-            .apply { alignment = Pos.CENTER_LEFT }
+        mcpClientCombo.valueProperty().addListener { _, _, _ -> refreshMcpSnippet() }
+        mcpStdioProxyCheck.selectedProperty().addListener { _, _, _ -> refreshMcpSnippet() }
+        val snippetHeader = HBox(
+            8.0,
+            Label(Strings["setup.ai.mcp.snippetLabel"]),
+            mcpClientCombo,
+            mcpOpenFolderBtn,
+            mcpCopySnippetBtn,
+            mcpSnippetStatus,
+        ).apply { alignment = Pos.CENTER_LEFT }
 
         refreshMcpSnippet()
 
@@ -371,6 +489,7 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
             children += header
             children += grid
             children += snippetHeader
+            children += mcpSnippetPathLabel
             children += mcpSnippetArea.also { VBox.setVgrow(it, Priority.SOMETIMES) }
         }
     }

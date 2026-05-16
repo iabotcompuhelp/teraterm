@@ -6,10 +6,17 @@ import com.opentermx.app.ui.ai.KnowledgeBaseHolder
 import com.opentermx.common.crypto.EncryptedValue
 import com.opentermx.common.crypto.SecretCipher
 import com.opentermx.mcp.McpServer
+import com.opentermx.mcp.handlers.CloseSessionHandler
 import com.opentermx.mcp.handlers.InspectSessionHandler
+import com.opentermx.mcp.handlers.ListMacrosHandler
 import com.opentermx.mcp.handlers.ListSessionsHandler
+import com.opentermx.mcp.handlers.OpenSessionHandler
 import com.opentermx.mcp.handlers.ProposeCommandsHandler
+import com.opentermx.mcp.handlers.ReadAuditLogHandler
+import com.opentermx.mcp.handlers.RunMacroHandler
 import com.opentermx.mcp.handlers.SearchKnowledgeBaseHandler
+import com.opentermx.mcp.handlers.TailSessionHandler
+import com.opentermx.mcp.security.TailManager
 import com.opentermx.mcp.security.ApprovalGate
 import javafx.stage.Window
 import org.slf4j.LoggerFactory
@@ -46,31 +53,51 @@ object McpServerManager {
      */
     @Synchronized
     fun applySettings(): Result<Unit> = runCatching {
-        val s = settingsProvider()
+        val s = migrateLegacyTokenIfNeeded(settingsProvider())
         val current = server
         if (!s.mcpServerEnabled) {
             stopInternal()
             return@runCatching
         }
-        val tokenPlain = decodeToken(s.mcpServerToken)
+        val needsAuth = s.mcpServerTokens.any { !it.isExpired() } || !decodeToken(s.mcpServerToken).isNullOrBlank()
         val needsRestart = current != null && (
             current.binding()?.host != s.mcpServerBindAddress ||
                 current.binding()?.port != s.mcpServerPort ||
-                current.binding()?.hasAuth != !tokenPlain.isNullOrBlank()
+                current.binding()?.hasAuth != needsAuth
             )
         if (current == null || needsRestart) {
             stopInternal()
             val fresh = buildServer()
             try {
-                fresh.start(s.mcpServerPort, s.mcpServerBindAddress, tokenPlain)
+                // Si hay multi-token configurado, no usamos legacy token; el verifier hace match.
+                val legacyToken = if (s.mcpServerTokens.isEmpty()) decodeToken(s.mcpServerToken) else null
+                fresh.start(s.mcpServerPort, s.mcpServerBindAddress, legacyToken)
                 server = fresh
             } catch (e: Throwable) {
-                // start() ya cambió status a FAILED; lo guardamos para que la status bar
-                // pueda mostrar tooltip con el motivo aunque el server no esté en server.
                 server = fresh
                 throw e
             }
         }
+    }
+
+    /**
+     * Si el operador no tocó la nueva lista pero tiene token legacy, lo migra una vez:
+     * crea un `McpTokenEntry` con `name="legacy"` apuntando al hash del plaintext actual.
+     * Devuelve los settings modificados pero NO los persiste — el flujo normal de Setup
+     * lo hace al cerrar el diálogo.
+     */
+    private fun migrateLegacyTokenIfNeeded(s: AiAssistantSettings): AiAssistantSettings {
+        if (s.mcpServerTokens.isNotEmpty()) return s
+        val legacy = decodeToken(s.mcpServerToken) ?: return s
+        if (legacy.isBlank()) return s
+        val entry = com.opentermx.app.settings.McpTokenEntry(
+            id = java.util.UUID.randomUUID().toString(),
+            name = "legacy",
+            hash = com.opentermx.app.settings.McpTokenEntry.hashOf(legacy),
+            createdAtMillis = System.currentTimeMillis(),
+        )
+        log.info("Migrando token legacy a `mcpServerTokens` (id=${entry.id})")
+        return s.copy(mcpServerTokens = listOf(entry))
     }
 
     /**
@@ -97,14 +124,44 @@ object McpServerManager {
     }
 
     private fun buildServer(): McpServer {
+        val settings = settingsProvider()
         val approvalGate: ApprovalGate = JavaFxApprovalGate(ownerProvider)
+        val redactor = com.opentermx.mcp.security.RedactorFactory.fromCustomRules(settings.mcpServerCustomRedactionRules)
+        val tailManager = TailManager()
         val handlers = listOf(
             ListSessionsHandler(),
-            InspectSessionHandler(),
+            InspectSessionHandler(redactor),
             SearchKnowledgeBaseHandler { KnowledgeBaseHolder.get(settingsProvider()) },
-            ProposeCommandsHandler(approvalGate),
+            ProposeCommandsHandler(approvalGate, redactor = redactor),
+            ListMacrosHandler(),
+            RunMacroHandler(approvalGate),
+            OpenSessionHandler(approvalGate, JavaFxSessionOpener),
+            CloseSessionHandler(approvalGate),
+            ReadAuditLogHandler(redactor = redactor),
+            TailSessionHandler(tailManager),
         )
-        return McpServer(handlers)
+        val tlsConfig: McpServer.TlsConfig? = if (settings.mcpServerTlsEnabled && !settings.mcpServerKeyStorePath.isNullOrBlank()) {
+            val password = decodeToken(settings.mcpServerKeyStorePassword).orEmpty()
+            McpServer.TlsConfig(keyStorePath = settings.mcpServerKeyStorePath, keyStorePassword = password)
+        } else null
+        val tokenVerifier: ((String) -> Boolean)? = if (settings.mcpServerTokens.isNotEmpty()) {
+            { plaintext ->
+                com.opentermx.app.settings.McpTokenEntry.matchAny(plaintext, settings.mcpServerTokens) != null
+            }
+        } else null
+        return McpServer(
+            handlers = handlers,
+            verboseLog = settings.mcpServerVerboseLog,
+            readOnly = settings.mcpServerReadOnly,
+            allowedSessionGlob = settings.mcpServerAllowedSessionGlob,
+            rateLimitEnabled = settings.mcpServerRateLimitEnabled,
+            tokenVerifier = tokenVerifier,
+            tlsConfig = tlsConfig,
+            auditLog = com.opentermx.ai.audit.AiAuditLog(),
+            redactor = redactor,
+            tailManager = tailManager,
+            resourceProvider = com.opentermx.mcp.OpenTermXResources(redactor = redactor),
+        )
     }
 
     private fun decodeToken(value: EncryptedValue?): String? {

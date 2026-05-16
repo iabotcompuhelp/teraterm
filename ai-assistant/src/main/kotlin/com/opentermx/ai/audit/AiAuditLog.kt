@@ -21,6 +21,17 @@ import org.slf4j.LoggerFactory
 class AiAuditLog(private val file: Path = defaultPath()) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+    private val listeners = java.util.concurrent.CopyOnWriteArrayList<(AiAuditEntry) -> Unit>()
+
+    /**
+     * Registra un listener que recibe cada [AiAuditEntry] apenas se persiste. Pensado para
+     * que el servidor MCP pueda emitir `notifications/audit/appended` a clientes SSE.
+     * Devuelve un `AutoCloseable` que desuscribe al cerrarse.
+     */
+    fun addAppendListener(listener: (AiAuditEntry) -> Unit): AutoCloseable {
+        listeners += listener
+        return AutoCloseable { listeners -= listener }
+    }
 
     fun append(entry: AiAuditEntry) {
         runCatching {
@@ -38,6 +49,7 @@ class AiAuditLog(private val file: Path = defaultPath()) {
         }.onFailure { e ->
             log.warn("No se pudo escribir el audit log IA en {}: {}", file, e.message)
         }
+        listeners.forEach { runCatching { it(entry) } }
     }
 
     private fun toCsvRow(e: AiAuditEntry): String {
@@ -65,6 +77,86 @@ class AiAuditLog(private val file: Path = defaultPath()) {
     private fun csvEscape(value: String): String {
         val needsQuote = value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }
         return if (!needsQuote) value else "\"${value.replace("\"", "\"\"")}\""
+    }
+
+    /**
+     * Lee el log filtrando por [sessionId] (prefijo: la entrada puede tener sessionId
+     * de la forma `id#executionId`), rango temporal `[sinceMillis, untilMillis]` y
+     * limita a [limit] entradas (más nuevas primero).
+     *
+     * Si el archivo no existe devuelve lista vacía. Tolera líneas mal formadas.
+     */
+    fun read(
+        sessionId: String? = null,
+        sinceMillis: Long? = null,
+        untilMillis: Long? = null,
+        limit: Int = 50,
+    ): List<AiAuditEntry> {
+        if (!Files.exists(file)) return emptyList()
+        val lines = runCatching { Files.readAllLines(file, StandardCharsets.UTF_8) }.getOrElse { return emptyList() }
+        val entries = mutableListOf<AiAuditEntry>()
+        for (line in lines.drop(1)) { // saltar header
+            if (line.isBlank()) continue
+            val entry = parseCsvRow(line) ?: continue
+            if (sessionId != null && !entry.sessionId.startsWith(sessionId)) continue
+            if (sinceMillis != null && entry.timestampMillis < sinceMillis) continue
+            if (untilMillis != null && entry.timestampMillis > untilMillis) continue
+            entries += entry
+        }
+        return entries.sortedByDescending { it.timestampMillis }.take(limit)
+    }
+
+    private fun parseCsvRow(row: String): AiAuditEntry? = runCatching {
+        val fields = parseCsvFields(row)
+        if (fields.size < 12) return null
+        val ts = runCatching {
+            java.time.LocalDateTime.parse(fields[0], FORMATTER).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }.getOrElse { 0L }
+        val commands = fields[10].split(" || ").filter { it.isNotEmpty() }
+        val risks = fields[5].split(';').mapNotNull {
+            val parts = it.split('=')
+            if (parts.size == 2) runCatching { RiskLevel.valueOf(parts[0]) }.getOrNull()?.let { lvl -> Pair(lvl, parts[1].toIntOrNull() ?: 0) } else null
+        }.flatMap { (lvl, count) -> List(count) { lvl } }
+        AiAuditEntry(
+            timestampMillis = ts,
+            sessionId = fields[1],
+            host = fields[2].ifEmpty { null },
+            vendor = fields[3].ifEmpty { null },
+            prompt = fields[4],
+            commands = commands,
+            commandRisks = risks,
+            executedCount = fields[6].toIntOrNull() ?: 0,
+            skippedCount = fields[7].toIntOrNull() ?: 0,
+            failedCount = fields[8].toIntOrNull() ?: 0,
+            rejected = fields[9].toBooleanStrictOrNull() ?: false,
+            outputTail = fields[11].replace(" ⏎ ", "\n"),
+        )
+    }.getOrNull()
+
+    /** Parser CSV minimalista que respeta comillas dobles + escape `""`. */
+    private fun parseCsvFields(row: String): List<String> {
+        val out = mutableListOf<String>()
+        val sb = StringBuilder()
+        var inQuotes = false
+        var i = 0
+        while (i < row.length) {
+            val c = row[i]
+            if (inQuotes) {
+                if (c == '"') {
+                    if (i + 1 < row.length && row[i + 1] == '"') { sb.append('"'); i++ }
+                    else { inQuotes = false }
+                } else sb.append(c)
+            } else {
+                when (c) {
+                    ',' -> { out += sb.toString(); sb.clear() }
+                    '"' -> inQuotes = true
+                    else -> sb.append(c)
+                }
+            }
+            i++
+        }
+        out += sb.toString()
+        return out
     }
 
     companion object {

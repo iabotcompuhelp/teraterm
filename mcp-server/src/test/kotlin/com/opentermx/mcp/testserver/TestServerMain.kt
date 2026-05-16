@@ -8,10 +8,18 @@ import com.opentermx.common.ai.SessionRegistry
 import com.opentermx.common.ai.TerminalBufferProvider
 import com.opentermx.common.session.SessionId
 import com.opentermx.mcp.McpServer
+import com.opentermx.mcp.handlers.CloseSessionHandler
 import com.opentermx.mcp.handlers.InspectSessionHandler
+import com.opentermx.mcp.handlers.ListMacrosHandler
 import com.opentermx.mcp.handlers.ListSessionsHandler
+import com.opentermx.mcp.handlers.OpenSessionHandler
 import com.opentermx.mcp.handlers.ProposeCommandsHandler
+import com.opentermx.mcp.handlers.ReadAuditLogHandler
+import com.opentermx.mcp.handlers.RunMacroHandler
 import com.opentermx.mcp.handlers.SearchKnowledgeBaseHandler
+import com.opentermx.mcp.handlers.TailSessionHandler
+import com.opentermx.mcp.security.SessionOpener
+import com.opentermx.mcp.security.TailManager
 import com.opentermx.mcp.security.ApprovalDecision
 import com.opentermx.mcp.security.ApprovalGate
 
@@ -45,6 +53,12 @@ object TestServerMain {
             InspectSessionHandler(),
             SearchKnowledgeBaseHandler { null }, // KB null en tests — handler debe devolver []
             ProposeCommandsHandler(gate, injectDelayMillis = 0L),
+            ListMacrosHandler(),
+            RunMacroHandler(gate),
+            OpenSessionHandler(gate, SessionOpener.NoOp),
+            CloseSessionHandler(gate),
+            ReadAuditLogHandler(),
+            TailSessionHandler(TailManager()),
         )
         val server = McpServer(handlers, serverName = "opentermx-mcp-test")
         server.start(port, bind, token)

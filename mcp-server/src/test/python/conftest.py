@@ -130,9 +130,30 @@ def server(auth_token: str) -> Iterator[dict]:
         proc.wait(timeout=5)
 
 
-@pytest.fixture
-def client(server) -> Iterator[httpx.Client]:
+@pytest.fixture(scope="session")
+def negotiated_protocol_version(server) -> str:
+    """Hace `initialize` una sola vez por sesión y devuelve la versión negociada.
+
+    El servidor identifica al cliente por IP + prefijo del token, así que la negociación
+    persiste para toda la suite. Después de esto, todo request con `client` lleva el
+    header `MCP-Protocol-Version` correcto.
+    """
     headers = {"Authorization": f"Bearer {server['token']}"}
+    with httpx.Client(base_url=server["base"], headers=headers, timeout=15.0) as c:
+        r = c.post("/mcp", json={
+            "jsonrpc": "2.0", "id": 0, "method": "initialize",
+            "params": {"protocolVersion": "2024-11-05", "clientInfo": {"name": "pytest"}},
+        })
+        r.raise_for_status()
+        return r.json()["result"]["protocolVersion"]
+
+
+@pytest.fixture
+def client(server, negotiated_protocol_version) -> Iterator[httpx.Client]:
+    headers = {
+        "Authorization": f"Bearer {server['token']}",
+        "MCP-Protocol-Version": negotiated_protocol_version,
+    }
     with httpx.Client(base_url=server["base"], headers=headers, timeout=15.0) as c:
         yield c
 

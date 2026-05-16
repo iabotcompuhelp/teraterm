@@ -52,6 +52,39 @@ data class AiAssistantSettings(
      * en su propia máquina. Si se setea, todo request debe traer `Authorization: Bearer <token>`.
      */
     val mcpServerToken: EncryptedValue? = null,
+    /**
+     * Logging detallado del servidor MCP: para cada request HTTP entrante loguea método,
+     * headers, body crudo (truncado), código de respuesta y body de salida. Útil para
+     * diagnosticar problemas de integración con clientes externos. Default OFF.
+     */
+    val mcpServerVerboseLog: Boolean = false,
+    /** Si está activo, OpenTermX mantiene el wrapper stdio en `~/.opentermx/bin/` actualizado. */
+    val mcpStdioProxyEnabled: Boolean = false,
+    /**
+     * Reglas de redacción de credenciales custom del operador, en formato `(regex, replacement)`.
+     * Se aplican después de las reglas built-in del [com.opentermx.ai.safety.CredentialRedactor].
+     */
+    val mcpServerCustomRedactionRules: List<Pair<String, String>> = emptyList(),
+    /** Si está activo, todas las tools mutativas devuelven error sin invocar handler. */
+    val mcpServerReadOnly: Boolean = false,
+    /**
+     * Glob coma-separado de sessionIds permitidos. `null` o vacío = todas las sesiones.
+     * Ejemplos: `lab-*` solo matchea sesiones que empiezan con "lab-"; `lab-*,test-?` matchea
+     * "lab-foo", "lab-bar" y "test-A", "test-B".
+     */
+    val mcpServerAllowedSessionGlob: String? = null,
+    /** Si `false`, deshabilita el token bucket y el circuit breaker (no recomendado). */
+    val mcpServerRateLimitEnabled: Boolean = true,
+    /** Si está activo, el servidor MCP solo escucha en HTTPS usando el keystore configurado. */
+    val mcpServerTlsEnabled: Boolean = false,
+    val mcpServerKeyStorePath: String? = null,
+    val mcpServerKeyStorePassword: EncryptedValue? = null,
+    /**
+     * Lista de tokens activos (multi-token, T14 de phase 2). Cada entrada lleva un hash
+     * SHA-256 — el plaintext nunca se persiste. Migra automáticamente al primer load si
+     * está vacía y `mcpServerToken` (legacy) tiene valor.
+     */
+    val mcpServerTokens: List<McpTokenEntry> = emptyList(),
 ) {
     fun providerKind(): ProviderKind = runCatching { ProviderKind.valueOf(provider) }
         .getOrDefault(ProviderKind.CLAUDE)

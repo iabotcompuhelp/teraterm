@@ -174,11 +174,216 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val LIST_MACROS = ToolDef(
+        name = "list_macros",
+        description = "Lista los macros Groovy disponibles en `~/.opentermx/macros/`. " +
+            "Solo lectura.",
+        inputSchema = obj("type" to "object", "properties" to emptyMap<String, Any?>(), "additionalProperties" to false),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("macros"),
+            "properties" to obj(
+                "macros" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("name"),
+                        "properties" to obj(
+                            "name" to obj("type" to "string"),
+                            "description" to obj("type" to "string"),
+                            "parameters" to obj(
+                                "type" to "array",
+                                "items" to obj(
+                                    "type" to "object",
+                                    "required" to listOf("name", "type", "required"),
+                                    "properties" to obj(
+                                        "name" to obj("type" to "string"),
+                                        "type" to obj("type" to "string"),
+                                        "required" to obj("type" to "boolean"),
+                                        "description" to obj("type" to "string"),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val RUN_MACRO = ToolDef(
+        name = "run_macro",
+        description = "Ejecuta un macro registrado contra una sesión activa. Tool MUTATIVA: " +
+            "el operador ve el código del macro en el diálogo de aprobación antes de que se inyecte nada.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("macroName"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "macroName" to obj("type" to "string", "minLength" to 1),
+                "parameters" to obj("type" to "object", "additionalProperties" to true),
+                "sessionId" to obj("type" to "string"),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("approved", "executed", "executionId"),
+            "properties" to obj(
+                "approved" to obj("type" to "boolean"),
+                "executed" to obj("type" to "boolean"),
+                "executionId" to obj("type" to "string"),
+                "output" to obj("type" to listOf("string", "null")),
+                "errors" to obj("type" to "array", "items" to obj("type" to "string")),
+            ),
+        ),
+        mutating = true,
+    )
+
+    val TAIL_SESSION = ToolDef(
+        name = "tail_session",
+        description = "Inicia un stream SSE con la salida en vivo de una sesión activa. " +
+            "El servidor emite `notifications/sessions/output` con cada chunk nuevo que " +
+            "llega al buffer. Auto-stop a los 30 minutos.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("started"),
+            "properties" to obj(
+                "started" to obj("type" to "boolean"),
+                "expiresAtMillis" to obj("type" to "integer"),
+                "error" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        // No es mutativa en el sentido de inyectar comandos, pero abre un side-channel —
+        // marcamos `mutating = false` para no requerir aprobación (es solo-lectura del
+        // buffer). El operator puede revocar el token si abusa.
+        mutating = false,
+    )
+
+    val READ_AUDIT_LOG = ToolDef(
+        name = "read_audit_log",
+        description = "Devuelve entradas del audit log de IA (CSV en `~/.opentermx/audit-ia.csv`). " +
+            "Solo lectura, con redacción de credenciales aplicada a comandos y output.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to listOf("string", "null")),
+                "sinceMillis" to obj("type" to listOf("integer", "null")),
+                "untilMillis" to obj("type" to listOf("integer", "null")),
+                "limit" to obj(
+                    "type" to "integer",
+                    "minimum" to 1,
+                    "maximum" to MAX_AUDIT_LIMIT,
+                    "default" to DEFAULT_AUDIT_LIMIT,
+                ),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("entries"),
+            "properties" to obj(
+                "entries" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("timestampMillis", "sessionId"),
+                        "properties" to obj(
+                            "timestampMillis" to obj("type" to "integer"),
+                            "sessionId" to obj("type" to "string"),
+                            "host" to obj("type" to listOf("string", "null")),
+                            "vendor" to obj("type" to listOf("string", "null")),
+                            "prompt" to obj("type" to "string"),
+                            "commands" to obj("type" to "array", "items" to obj("type" to "string")),
+                            "executedCount" to obj("type" to "integer"),
+                            "failedCount" to obj("type" to "integer"),
+                            "rejected" to obj("type" to "boolean"),
+                            "outputTail" to obj("type" to "string"),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val OPEN_SESSION = ToolDef(
+        name = "open_session",
+        description = "Abre una sesión nueva al destino indicado. Tool MUTATIVA: el operador " +
+            "ve y aprueba el destino antes de conectar. `credentialRef` apunta al keychain " +
+            "interno de OpenTermX; passwords en plaintext nunca cruzan MCP.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("protocol"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "protocol" to obj(
+                    "type" to "string",
+                    "enum" to listOf("SSH", "TELNET", "SERIAL", "RAWTCP"),
+                ),
+                "host" to obj("type" to listOf("string", "null")),
+                "port" to obj("type" to listOf("integer", "null")),
+                "username" to obj("type" to listOf("string", "null")),
+                "credentialRef" to obj("type" to listOf("string", "null")),
+                "label" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("approved"),
+            "properties" to obj(
+                "approved" to obj("type" to "boolean"),
+                "sessionId" to obj("type" to listOf("string", "null")),
+                "error" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = true,
+    )
+
+    val CLOSE_SESSION = ToolDef(
+        name = "close_session",
+        description = "Cierra una sesión activa. Tool MUTATIVA: el operador aprueba el cierre " +
+            "porque puede interrumpir trabajo en curso.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+                "reason" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("approved", "closed"),
+            "properties" to obj(
+                "approved" to obj("type" to "boolean"),
+                "closed" to obj("type" to "boolean"),
+                "error" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = true,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
         SEARCH_KNOWLEDGE_BASE,
         PROPOSE_COMMANDS,
+        LIST_MACROS,
+        RUN_MACRO,
+        OPEN_SESSION,
+        CLOSE_SESSION,
+        READ_AUDIT_LOG,
+        TAIL_SESSION,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }
@@ -187,6 +392,8 @@ object ToolDefinitions {
     const val MAX_LAST_LINES = 500
     const val DEFAULT_TOP_K = 5
     const val MAX_TOP_K = 20
+    const val DEFAULT_AUDIT_LIMIT = 50
+    const val MAX_AUDIT_LIMIT = 200
 
     private fun obj(vararg pairs: Pair<String, Any?>): Map<String, Any?> = linkedMapOf(*pairs)
 }

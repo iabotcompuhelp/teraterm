@@ -79,6 +79,7 @@ class TerminalSessionController(
             id = session.id,
             metadata = buildMetadata(session.config),
             provider = TerminalBufferProvider { count -> terminal.snapshotLastLines(count) },
+            connection = connection,
             sink = CommandSink { line ->
                 if (connection.state != ConnectionState.CONNECTED) return@CommandSink false
                 runCatching {

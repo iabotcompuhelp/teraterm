@@ -71,6 +71,130 @@ val packageMsi by tasks.registering(Exec::class) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// jpackage helpers para .dmg (Mac), .deb/.rpm (Linux). El .msi ya existe arriba.
+// Cada task solo funciona en el OS correspondiente — jpackage es OS-bound.
+// El JRE viene empaquetado vía jlink que hace jpackage automáticamente cuando
+// se pasa `--input` con todos los jars del runtime.
+// -----------------------------------------------------------------------------
+
+fun appVersion(): String {
+    val raw = project.version.toString().substringBefore('-')
+    return if (raw.matches(Regex("\\d+(\\.\\d+){0,2}"))) raw else "0.0.0"
+}
+
+fun jpackageExecutable(): String {
+    val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
+    val isWin = org.gradle.internal.os.OperatingSystem.current().isWindows
+    return "$javaHome/bin/jpackage" + if (isWin) ".exe" else ""
+}
+
+val jpackageMac by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "Genera instalador .dmg (jpackage). Sólo en macOS."
+    dependsOn(tasks.named("installDist"))
+    val installDir = layout.buildDirectory.dir("install/app")
+    val outDir = layout.buildDirectory.dir("jpackage-mac")
+    val mainJarName = tasks.named<Jar>("jar").flatMap { it.archiveFileName }
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isMacOsX }
+    executable = jpackageExecutable()
+    argumentProviders.add {
+        listOf(
+            "--type", "dmg",
+            "--name", "OpenTermX",
+            "--app-version", appVersion(),
+            "--vendor", "COMPUHELP",
+            "--description", "OpenTermX — emulador de terminal multi-protocolo con servidor MCP integrado",
+            "--input", installDir.get().dir("lib").asFile.absolutePath,
+            "--main-jar", mainJarName.get(),
+            "--main-class", "com.opentermx.app.MainKt",
+            "--dest", outDir.get().asFile.absolutePath,
+            "--mac-package-name", "OpenTermX",
+            "--java-options", "-Dprism.order=sw",
+        )
+    }
+}
+
+val jpackageLinuxDeb by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "Genera instalador .deb (jpackage). Sólo en Linux con dpkg."
+    dependsOn(tasks.named("installDist"))
+    val installDir = layout.buildDirectory.dir("install/app")
+    val outDir = layout.buildDirectory.dir("jpackage-deb")
+    val mainJarName = tasks.named<Jar>("jar").flatMap { it.archiveFileName }
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isLinux }
+    executable = jpackageExecutable()
+    argumentProviders.add {
+        listOf(
+            "--type", "deb",
+            "--name", "opentermx",
+            "--app-version", appVersion(),
+            "--vendor", "COMPUHELP",
+            "--description", "OpenTermX — terminal emulator with built-in MCP server",
+            "--input", installDir.get().dir("lib").asFile.absolutePath,
+            "--main-jar", mainJarName.get(),
+            "--main-class", "com.opentermx.app.MainKt",
+            "--dest", outDir.get().asFile.absolutePath,
+            "--linux-shortcut",
+            "--linux-menu-group", "Network",
+            "--java-options", "-Dprism.order=sw",
+        )
+    }
+}
+
+val jpackageLinuxRpm by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "Genera instalador .rpm (jpackage). Sólo en Linux con rpmbuild."
+    dependsOn(tasks.named("installDist"))
+    val installDir = layout.buildDirectory.dir("install/app")
+    val outDir = layout.buildDirectory.dir("jpackage-rpm")
+    val mainJarName = tasks.named<Jar>("jar").flatMap { it.archiveFileName }
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isLinux }
+    executable = jpackageExecutable()
+    argumentProviders.add {
+        listOf(
+            "--type", "rpm",
+            "--name", "opentermx",
+            "--app-version", appVersion(),
+            "--vendor", "COMPUHELP",
+            "--description", "OpenTermX — terminal emulator with built-in MCP server",
+            "--input", installDir.get().dir("lib").asFile.absolutePath,
+            "--main-jar", mainJarName.get(),
+            "--main-class", "com.opentermx.app.MainKt",
+            "--dest", outDir.get().asFile.absolutePath,
+            "--linux-shortcut",
+            "--linux-menu-group", "Network",
+            "--java-options", "-Dprism.order=sw",
+        )
+    }
+}
+
+val installStdioProxy by tasks.registering {
+    group = "distribution"
+    description = "Genera el wrapper script del stdio proxy en `~/.opentermx/bin/`."
+    doLast {
+        val home = File(System.getProperty("user.home"))
+        val binDir = File(home, ".opentermx/bin")
+        binDir.mkdirs()
+        val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
+        val isWin = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val javaExe = "$javaHome/bin/java" + if (isWin) ".exe" else ""
+        val installLib = layout.buildDirectory.dir("install/app/lib").get().asFile.absolutePath
+        val cpGlob = if (isWin) "$installLib\\*" else "$installLib/*"
+        val wrapperBody = if (isWin) {
+            "@echo off\n\"$javaExe\" -cp \"$cpGlob\" com.opentermx.mcp.StdioProxyMain %*\n"
+        } else {
+            "#!/usr/bin/env bash\nexec \"$javaExe\" -cp \"$cpGlob\" com.opentermx.mcp.StdioProxyMain \"$@\"\n"
+        }
+        val wrapper = File(binDir, if (isWin) "opentermx-mcp-stdio.bat" else "opentermx-mcp-stdio")
+        wrapper.writeText(wrapperBody)
+        if (!isWin) {
+            wrapper.setExecutable(true, false)
+        }
+        println("Wrapper instalado en: ${wrapper.absolutePath}")
+    }
+}
+
 javafx {
     version = "21.0.5"
     modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.swing")

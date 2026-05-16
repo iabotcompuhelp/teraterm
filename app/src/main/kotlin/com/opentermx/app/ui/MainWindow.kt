@@ -690,9 +690,12 @@ class MainWindow(
     }
 
     private fun bootMcpServerIfEnabled() {
+        val launcher = com.opentermx.app.ui.mcp.MainWindowSessionLauncher(this)
         com.opentermx.app.ui.mcp.McpServerManager.configure(
             owner = { stage },
             settings = { settings.aiAssistant },
+            sessionLauncher = { launcher },
+            credentialStore = { com.opentermx.app.settings.SettingsCredentialStore { settings.aiAssistant } },
         )
         com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
         updateMcpServerLabel()
@@ -1335,7 +1338,7 @@ class MainWindow(
         persist { it.copy(recentHosts = deduped) }
     }
 
-    private fun openSession(config: ConnectionConfig, name: String, connection: Connection) {
+    private fun openSession(config: ConnectionConfig, name: String, connection: Connection): SessionId {
         val session = Session(SessionId.random(), name, config, connection)
         val terminal = newTerminal()
         terminal.append("→ ${config.displayName}\n")
@@ -1365,7 +1368,31 @@ class MainWindow(
             }
         }
         controller.start()
+        return session.id
     }
+
+    /**
+     * API headless: abre una sesión programáticamente sin pasar por el diálogo "New Connection".
+     * Pensada para la tool MCP `open_session` (T9). Si se llama desde fuera del FX thread, postea
+     * la apertura con [javafx.application.Platform.runLater] y bloquea hasta tener el `SessionId`.
+     * Devuelve el id resultante para que el caller pueda registrarlo / devolverlo al cliente.
+     */
+    fun launchSession(config: ConnectionConfig, name: String, connection: Connection): SessionId {
+        if (javafx.application.Platform.isFxApplicationThread()) {
+            return openSession(config, name, connection)
+        }
+        val future = java.util.concurrent.CompletableFuture<SessionId>()
+        javafx.application.Platform.runLater {
+            try {
+                future.complete(openSession(config, name, connection))
+            } catch (t: Throwable) {
+                future.completeExceptionally(t)
+            }
+        }
+        return future.get()
+    }
+
+    fun hostKeyVerifier(): com.opentermx.common.connection.HostKeyVerifier = hostKeyVerifier
 
     /**
      * Runs the configured auto-login macro against this session right after CONNECTED. The

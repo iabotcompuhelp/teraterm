@@ -3,6 +3,7 @@ package com.opentermx.app.settings
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.opentermx.common.ai.ProviderKind
+import com.opentermx.common.credentials.CredentialEntry
 import com.opentermx.common.crypto.EncryptedValue
 
 /**
@@ -85,6 +86,13 @@ data class AiAssistantSettings(
      * está vacía y `mcpServerToken` (legacy) tiene valor.
      */
     val mcpServerTokens: List<McpTokenEntry> = emptyList(),
+    /**
+     * Keychain interno: credenciales referenciables por `id` desde la tool MCP `open_session`
+     * (campo `credentialRef`). Cada entry guarda passwords y passphrases cifradas con
+     * `SecretCipher`; el plaintext nunca cruza MCP, solo se descifra in-process para construir
+     * un `SshAuth` al abrir la sesión.
+     */
+    val credentials: List<CredentialEntry> = emptyList(),
 ) {
     fun providerKind(): ProviderKind = runCatching { ProviderKind.valueOf(provider) }
         .getOrDefault(ProviderKind.CLAUDE)

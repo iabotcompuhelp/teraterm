@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-05-15T00:00:00Z",
+  "lastUpdate": "2026-05-16T00:00:00Z",
   "currentTask": null,
   "phase": 2,
   "tasks": {
@@ -25,6 +25,8 @@
   "filesCreated": [
     "ai-assistant/src/main/kotlin/com/opentermx/ai/safety/CredentialRedactor.kt",
     "ai-assistant/src/test/kotlin/com/opentermx/ai/safety/CredentialRedactorTest.kt",
+    "common/src/main/kotlin/com/opentermx/common/credentials/CredentialEntry.kt",
+    "common/src/main/kotlin/com/opentermx/common/credentials/CredentialStore.kt",
     "macro-engine/src/main/java/com/opentermx/macro/MacroRegistry.java",
     "mcp-server/src/main/kotlin/com/opentermx/mcp/OpenTermXResources.kt",
     "mcp-server/src/main/kotlin/com/opentermx/mcp/StdioProxyMain.kt",
@@ -44,9 +46,13 @@
     "mcp-server/src/test/kotlin/com/opentermx/mcp/security/GlobMatcherTest.kt",
     "mcp-server/src/test/kotlin/com/opentermx/mcp/security/RateLimiterTest.kt",
     "app/src/main/kotlin/com/opentermx/app/settings/McpTokenEntry.kt",
+    "app/src/main/kotlin/com/opentermx/app/settings/SettingsCredentialStore.kt",
     "app/src/main/kotlin/com/opentermx/app/ui/mcp/JavaFxSessionOpener.kt",
     "app/src/main/kotlin/com/opentermx/app/ui/mcp/McpSnippets.kt",
+    "app/src/main/kotlin/com/opentermx/app/ui/mcp/SessionLauncher.kt",
     "app/src/main/kotlin/com/opentermx/app/ui/mcp/StdioProxyInstaller.kt",
+    "app/src/test/kotlin/com/opentermx/app/ui/mcp/JavaFxSessionOpenerTest.kt",
+    "mcp-server/src/test/kotlin/com/opentermx/mcp/handlers/OpenSessionHandlerTest.kt",
     "docs/mcp/CLIENT_TEST_PLAN.md",
     "docs/mcp/USER_GUIDE.md",
     "docs/mcp/USER_GUIDE.en.md",
@@ -59,6 +65,7 @@
     "ai-assistant/src/main/kotlin/com/opentermx/ai/audit/AiAuditLog.kt",
     "app/build.gradle.kts",
     "app/src/main/kotlin/com/opentermx/app/settings/AiAssistantSettings.kt",
+    "app/src/main/kotlin/com/opentermx/app/ui/MainWindow.kt",
     "app/src/main/kotlin/com/opentermx/app/ui/dialog/AiAssistantDialog.kt",
     "app/src/main/kotlin/com/opentermx/app/ui/mcp/McpServerManager.kt",
     "app/src/main/kotlin/com/opentermx/app/viewmodel/TerminalSessionController.kt",
@@ -80,7 +87,6 @@
   "openIssues": [
     "T1 — validación humana con Claude Desktop / Cursor / Cline / Continue siguiendo docs/mcp/CLIENT_TEST_PLAN.md",
     "T16 — firma de binarios (Authenticode / Apple Developer ID / GPG) por un humano siguiendo docs/release/SIGNING.md",
-    "T17 — capturar screenshots reales para reemplazar los `![screenshot: ...]` placeholders en docs/mcp/USER_GUIDE.md",
-    "T9 — open_session vía MCP devuelve `Failure` con mensaje pedagógico; falta refactor de MainWindow.openSession para que sea invocable headless + keychain de credenciales"
+    "T17 — capturar screenshots reales para reemplazar los `![screenshot: ...]` placeholders en docs/mcp/USER_GUIDE.md"
   ]
 }

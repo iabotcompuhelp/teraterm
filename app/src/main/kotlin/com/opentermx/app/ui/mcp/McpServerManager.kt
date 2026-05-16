@@ -1,8 +1,10 @@
 package com.opentermx.app.ui.mcp
 
 import com.opentermx.app.settings.AiAssistantSettings
+import com.opentermx.app.settings.SettingsCredentialStore
 import com.opentermx.app.ui.ai.JavaFxApprovalGate
 import com.opentermx.app.ui.ai.KnowledgeBaseHolder
+import com.opentermx.common.credentials.CredentialStore
 import com.opentermx.common.crypto.EncryptedValue
 import com.opentermx.common.crypto.SecretCipher
 import com.opentermx.mcp.McpServer
@@ -37,14 +39,27 @@ object McpServerManager {
     @Volatile private var server: McpServer? = null
     @Volatile private var ownerProvider: (() -> Window?) = { null }
     @Volatile private var settingsProvider: (() -> AiAssistantSettings) = { AiAssistantSettings() }
+    @Volatile private var sessionLauncherProvider: (() -> SessionLauncher?) = { null }
+    @Volatile private var credentialStoreProvider: (() -> CredentialStore) = { CredentialStore.Empty }
 
     /**
      * Configura los proveedores de contexto. Llamarse una sola vez al arrancar `MainWindow`,
      * antes de cualquier `applySettings`.
+     *
+     * `sessionLauncher` y `credentialStore` son opcionales para no romper tests que solo levantan
+     * el manager sin GUI; si no se configuran, la tool `open_session` devolverá `Failure` con un
+     * mensaje claro indicando que la integración no está cableada.
      */
-    fun configure(owner: () -> Window?, settings: () -> AiAssistantSettings) {
+    fun configure(
+        owner: () -> Window?,
+        settings: () -> AiAssistantSettings,
+        sessionLauncher: () -> SessionLauncher? = { null },
+        credentialStore: () -> CredentialStore = { SettingsCredentialStore(settings) },
+    ) {
         this.ownerProvider = owner
         this.settingsProvider = settings
+        this.sessionLauncherProvider = sessionLauncher
+        this.credentialStoreProvider = credentialStore
     }
 
     /**
@@ -135,7 +150,7 @@ object McpServerManager {
             ProposeCommandsHandler(approvalGate, redactor = redactor),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
-            OpenSessionHandler(approvalGate, JavaFxSessionOpener),
+            OpenSessionHandler(approvalGate, resolveSessionOpener()),
             CloseSessionHandler(approvalGate),
             ReadAuditLogHandler(redactor = redactor),
             TailSessionHandler(tailManager),
@@ -162,6 +177,12 @@ object McpServerManager {
             tailManager = tailManager,
             resourceProvider = com.opentermx.mcp.OpenTermXResources(redactor = redactor),
         )
+    }
+
+    private fun resolveSessionOpener(): com.opentermx.mcp.security.SessionOpener {
+        val launcher = sessionLauncherProvider()
+            ?: return com.opentermx.mcp.security.SessionOpener.NoOp
+        return JavaFxSessionOpener(launcher, credentialStoreProvider())
     }
 
     private fun decodeToken(value: EncryptedValue?): String? {

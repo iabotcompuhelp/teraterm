@@ -36,6 +36,22 @@ data class AiAssistantSettings(
     val lastVerifiedAt: Long? = null,
     val lastVerifiedProvider: String? = null,
     val lastVerifiedModel: String? = null,
+    /**
+     * Servidor MCP (Model Context Protocol). Cuando está habilitado, OpenTermX expone sus
+     * sesiones, KB y la capacidad de proponer comandos a clientes externos (Claude Desktop,
+     * Cursor, Claude Code) sobre HTTP/SSE. Default OFF: el operador debe activarlo en
+     * Setup → AI Assistant → MCP Server. Bind por defecto a `127.0.0.1` para no exponerse
+     * a la red sin querer.
+     */
+    val mcpServerEnabled: Boolean = false,
+    val mcpServerPort: Int = 8765,
+    val mcpServerBindAddress: String = "127.0.0.1",
+    /**
+     * Bearer token opcional. Si `null` o vacío (`EncryptedValue.EMPTY`) los requests al
+     * servidor MCP NO requieren auth — útil cuando bind es loopback y el operador confía
+     * en su propia máquina. Si se setea, todo request debe traer `Authorization: Bearer <token>`.
+     */
+    val mcpServerToken: EncryptedValue? = null,
 ) {
     fun providerKind(): ProviderKind = runCatching { ProviderKind.valueOf(provider) }
         .getOrDefault(ProviderKind.CLAUDE)

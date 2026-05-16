@@ -87,6 +87,7 @@ dependencies {
     implementation(project(":logger"))
     implementation(project(":ai-assistant"))
     implementation(project(":rest-api"))
+    implementation(project(":mcp-server"))
 
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.core)

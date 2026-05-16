@@ -99,6 +99,13 @@ OpenTermX/
 │   └── src/main/groovy/
 ├── logger/                          # Logging y captura (Kotlin)
 │   └── src/main/kotlin/
+├── rest-api/                        # API REST headless (Kotlin + Javalin)
+│   └── src/main/kotlin/
+├── mcp-server/                      # Servidor MCP (Kotlin + Javalin) — expone sesiones,
+│   │                                # KB y propose_commands a clientes externos como
+│   │                                # Claude Desktop, Cursor o Claude Code
+│   ├── src/main/kotlin/
+│   └── src/test/python/             # Tests de integración black-box (pytest + httpx)
 └── common/                          # Interfaces compartidas y eventos
     └── src/main/kotlin/
 ```

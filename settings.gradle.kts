@@ -12,4 +12,5 @@ include(
     ":logger",
     ":ai-assistant",
     ":rest-api",
+    ":mcp-server",
 )

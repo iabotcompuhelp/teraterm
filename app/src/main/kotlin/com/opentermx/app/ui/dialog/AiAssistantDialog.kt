@@ -172,6 +172,48 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
 
     private val keyFormatHint = Label("").apply { style = "-fx-text-fill: derive(-fx-text-base-color, 30%); -fx-font-size: 10.5px;" }
 
+    // -------- MCP Server (Fase MCP) --------
+    private val mcpEnabledCheck = CheckBox(Strings["setup.ai.mcp.enabled"]).apply {
+        isSelected = initial.mcpServerEnabled
+    }
+    private val mcpPortSpinner = Spinner<Int>().apply {
+        valueFactory = SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535, initial.mcpServerPort, 1)
+        isEditable = true; prefWidth = 120.0
+    }
+    private val mcpBindField = javafx.scene.control.TextField(initial.mcpServerBindAddress).apply {
+        prefColumnCount = 16
+    }
+    private val mcpBindWarning = Label("").apply {
+        isWrapText = true; maxWidth = 460.0
+        style = "-fx-text-fill: #c62828; -fx-font-size: 11px;"
+    }
+    private val mcpTokenField = PasswordField().apply { prefColumnCount = 36 }
+    private val mcpTokenPlain = javafx.scene.control.TextField().apply {
+        prefColumnCount = 36; isVisible = false; isManaged = false
+    }
+    private val mcpGenerateTokenBtn = Button(Strings["setup.ai.mcp.generateToken"]).apply {
+        setOnAction {
+            val uuid = java.util.UUID.randomUUID().toString()
+            mcpTokenField.text = uuid
+            mcpTokenPlain.text = uuid
+        }
+    }
+    private val mcpShowTokenBtn = Button(Strings["setup.ai.mcp.showToken"]).apply {
+        setOnAction { toggleTokenVisibility() }
+    }
+    private val mcpSnippetArea = TextArea().apply {
+        isEditable = false
+        prefRowCount = 8
+        style = "-fx-font-family: 'Consolas', 'Menlo', monospace; -fx-font-size: 11px;"
+    }
+    private val mcpCopySnippetBtn = Button(Strings["setup.ai.mcp.copySnippet"]).apply {
+        setOnAction { copyMcpSnippet() }
+    }
+    private val mcpSnippetStatus = Label("").apply {
+        style = "-fx-text-fill: -fx-accent; -fx-font-size: 11px;"
+    }
+    private var mcpTokenStash: EncryptedValue? = initial.mcpServerToken
+
     init {
         title = Strings["setup.ai.title"]
         headerText = Strings["setup.ai.header"]
@@ -192,6 +234,7 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
             tabs += Tab(Strings["setup.ai.tabProvider"], buildProviderTab())
             tabs += Tab(Strings["setup.ai.tabSystemPrompt"], buildSystemPromptTab())
             tabs += Tab(Strings["setup.ai.tabKnowledge"], buildKnowledgeBaseTab())
+            tabs += Tab(Strings["setup.ai.tabMcp"], buildMcpServerTab())
         }
 
         dialogPane.content = VBox(8.0, tabs, statusBadge).apply { padding = Insets(8.0) }
@@ -218,7 +261,117 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
                 lastVerifiedAt = lastVerifiedAt,
                 lastVerifiedProvider = lastVerifiedProvider,
                 lastVerifiedModel = lastVerifiedModel,
+                mcpServerEnabled = mcpEnabledCheck.isSelected,
+                mcpServerPort = mcpPortSpinner.value,
+                mcpServerBindAddress = mcpBindField.text.trim().ifBlank { "127.0.0.1" },
+                mcpServerToken = stashMcpToken(),
             )
+        }
+    }
+
+    private fun stashMcpToken(): EncryptedValue? {
+        val typed = (if (mcpTokenPlain.isVisible) mcpTokenPlain.text else mcpTokenField.text).orEmpty().trim()
+        if (typed.isEmpty()) {
+            // Si el usuario lo borró explícitamente, persistimos null.
+            return null
+        }
+        // Si el usuario no modificó el field (sigue mostrando los puntos pero coincide con la
+        // longitud del placeholder original) preservamos el valor cifrado anterior.
+        val previousPlain = mcpTokenStash?.let { decryptOrNull(it) }
+        return if (typed == previousPlain) {
+            mcpTokenStash
+        } else {
+            SecretCipher.encrypt(typed)
+        }
+    }
+
+    private fun decryptOrNull(v: EncryptedValue): String? =
+        runCatching { SecretCipher.decrypt(v).takeIf { it.isNotBlank() } }.getOrNull()
+
+    private fun toggleTokenVisibility() {
+        if (mcpTokenPlain.isVisible) {
+            mcpTokenField.text = mcpTokenPlain.text
+            mcpTokenField.isVisible = true; mcpTokenField.isManaged = true
+            mcpTokenPlain.isVisible = false; mcpTokenPlain.isManaged = false
+            mcpShowTokenBtn.text = Strings["setup.ai.mcp.showToken"]
+        } else {
+            mcpTokenPlain.text = mcpTokenField.text
+            mcpTokenPlain.isVisible = true; mcpTokenPlain.isManaged = true
+            mcpTokenField.isVisible = false; mcpTokenField.isManaged = false
+            mcpShowTokenBtn.text = Strings["setup.ai.mcp.hideToken"]
+        }
+    }
+
+    private fun copyMcpSnippet() {
+        val clip = Clipboard.getSystemClipboard()
+        val content = javafx.scene.input.ClipboardContent()
+        content.putString(mcpSnippetArea.text)
+        clip.setContent(content)
+        mcpSnippetStatus.text = Strings["setup.ai.mcp.copyDone"]
+    }
+
+    private fun refreshMcpSnippet() {
+        val host = mcpBindField.text.ifBlank { "127.0.0.1" }
+        val port = mcpPortSpinner.value
+        val typedToken = (if (mcpTokenPlain.isVisible) mcpTokenPlain.text else mcpTokenField.text).orEmpty().trim()
+        val tokenForSnippet = typedToken.ifBlank {
+            mcpTokenStash?.let { decryptOrNull(it) }.orEmpty()
+        }
+        val headersLine = if (tokenForSnippet.isNotBlank()) {
+            ",\n      \"headers\": {\"Authorization\": \"Bearer $tokenForSnippet\"}"
+        } else ""
+        mcpSnippetArea.text = """
+            |{
+            |  "mcpServers": {
+            |    "opentermx": {
+            |      "url": "http://$host:$port/mcp"$headersLine
+            |    }
+            |  }
+            |}
+        """.trimMargin()
+        mcpBindWarning.text = if (host.trim() == "0.0.0.0") Strings["setup.ai.mcp.bindWarning"] else ""
+        mcpSnippetStatus.text = ""
+    }
+
+    private fun buildMcpServerTab(): javafx.scene.Node {
+        // Initialize plain mirror text so toggle preserves it
+        mcpTokenField.text = mcpTokenStash?.let { decryptOrNull(it) }.orEmpty()
+        mcpTokenPlain.text = mcpTokenField.text
+
+        // Listeners para refrescar snippet/warning on cualquier cambio.
+        val refresh = javafx.beans.value.ChangeListener<Any?> { _, _, _ -> refreshMcpSnippet() }
+        mcpBindField.textProperty().addListener { _, _, _ -> refreshMcpSnippet() }
+        mcpPortSpinner.valueProperty().addListener(refresh)
+        mcpTokenField.textProperty().addListener { _, _, _ -> refreshMcpSnippet() }
+        mcpTokenPlain.textProperty().addListener { _, _, _ -> refreshMcpSnippet() }
+
+        val header = Label(Strings["setup.ai.mcp.header"]).apply { isWrapText = true; maxWidth = 560.0 }
+        val tokenRow = HBox(6.0, mcpTokenField, mcpTokenPlain, mcpGenerateTokenBtn, mcpShowTokenBtn)
+            .apply { alignment = Pos.CENTER_LEFT }
+        val grid = GridPane().apply {
+            hgap = 10.0; vgap = 8.0
+            var r = 0
+            add(Label(""), 0, r); add(mcpEnabledCheck, 1, r); r++
+            add(Label(Strings["setup.ai.mcp.port"]), 0, r); add(mcpPortSpinner, 1, r); r++
+            add(Label(Strings["setup.ai.mcp.bind"]), 0, r); add(mcpBindField, 1, r); r++
+            add(Label(""), 0, r); add(mcpBindWarning, 1, r); r++
+            add(Label(Strings["setup.ai.mcp.token"]), 0, r); add(tokenRow, 1, r); r++
+            add(Label(""), 0, r); add(Label(Strings["setup.ai.mcp.tokenHint"]).apply {
+                isWrapText = true; maxWidth = 460.0
+                style = "-fx-text-fill: derive(-fx-text-base-color, 30%); -fx-font-size: 11px;"
+            }, 1, r); r++
+        }
+        val snippetHeader = HBox(8.0, Label(Strings["setup.ai.mcp.snippetLabel"]), mcpCopySnippetBtn, mcpSnippetStatus)
+            .apply { alignment = Pos.CENTER_LEFT }
+
+        refreshMcpSnippet()
+
+        return VBox(10.0).apply {
+            padding = Insets(16.0)
+            children += header
+            children += grid
+            children += snippetHeader
+            children += mcpSnippetArea.also { VBox.setVgrow(it, Priority.SOMETIMES) }
         }
     }
 

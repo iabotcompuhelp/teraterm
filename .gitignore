@@ -40,3 +40,10 @@ bin/
 
 ### Claude Code ###
 .claude/
+
+### Python (tests de integración mcp-server + tools/mcp) ###
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.venv/
+**/python-venv/

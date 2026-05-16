@@ -140,6 +140,12 @@ class MainWindow(
         setOnMouseClicked { openRestApiConfig() }
         isVisible = false; isManaged = false
     }
+    private val mcpServerLabel = Label().apply {
+        cursor = javafx.scene.Cursor.HAND
+        styleClass += "status-mcp"
+        setOnMouseClicked { openAiAssistantConfig() }
+        isVisible = false; isManaged = false
+    }
     private var tftpServerDialogRef: TftpServerDialog? = null
     private var tftpTransfersPanelRef: TftpTransfersPanel? = null
 
@@ -187,6 +193,7 @@ class MainWindow(
             TftpServerManager.stop()
             TftpTransferManager.cancelAll()
             RestApiManager.stop()
+            com.opentermx.app.ui.mcp.McpServerManager.stop()
             com.opentermx.app.ui.ai.KnowledgeBaseHolder.shutdown()
         }
         TftpServerManager.runningProperty.addListener { _, _, _ -> updateTftpServerLabel() }
@@ -197,6 +204,7 @@ class MainWindow(
         updateTftpClientLabel()
         updateAiStatusLabel()
         bootRestApiIfEnabled()
+        bootMcpServerIfEnabled()
         subscribeConnectionErrorPopups()
         stage.show()
 
@@ -681,6 +689,66 @@ class MainWindow(
         applyAdditionalSettingsToAll(updated)
     }
 
+    private fun bootMcpServerIfEnabled() {
+        com.opentermx.app.ui.mcp.McpServerManager.configure(
+            owner = { stage },
+            settings = { settings.aiAssistant },
+        )
+        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
+        updateMcpServerLabel()
+        if (!settings.aiAssistant.mcpServerEnabled) return
+        com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
+            statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)
+        }
+        // El StateFlow se crea al primer start, así que reintentamos el subscribe aquí.
+        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
+        updateMcpServerLabel()
+    }
+
+    private var mcpStatusBinding: kotlinx.coroutines.Job? = null
+    private fun observeMcpStatus(state: kotlinx.coroutines.flow.StateFlow<com.opentermx.mcp.McpServer.Status>) {
+        mcpStatusBinding?.cancel()
+        mcpStatusBinding = ioScope.launch {
+            state.collect {
+                javafx.application.Platform.runLater { updateMcpServerLabel() }
+            }
+        }
+    }
+
+    private fun updateMcpServerLabel() {
+        val mgr = com.opentermx.app.ui.mcp.McpServerManager
+        val current = mgr.status()?.value
+        when (current) {
+            null, com.opentermx.mcp.McpServer.Status.STOPPED -> {
+                val show = settings.aiAssistant.mcpServerEnabled && current != null
+                mcpServerLabel.isVisible = show
+                mcpServerLabel.isManaged = show
+                if (show) mcpServerLabel.text = Strings["status.mcp.off"]
+            }
+            com.opentermx.mcp.McpServer.Status.STARTING,
+            com.opentermx.mcp.McpServer.Status.STOPPING -> {
+                mcpServerLabel.isVisible = true; mcpServerLabel.isManaged = true
+                mcpServerLabel.text = "MCP: " + current.name.lowercase()
+                mcpServerLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.mcp.tooltip"])
+            }
+            com.opentermx.mcp.McpServer.Status.RUNNING -> {
+                mcpServerLabel.isVisible = true; mcpServerLabel.isManaged = true
+                val binding = mgr.binding()
+                val where = binding?.let { "${it.host}:${it.port}" } ?: "?"
+                mcpServerLabel.text = Strings.format("status.mcp.running", where)
+                mcpServerLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.mcp.tooltip"])
+            }
+            com.opentermx.mcp.McpServer.Status.FAILED -> {
+                mcpServerLabel.isVisible = true; mcpServerLabel.isManaged = true
+                mcpServerLabel.text = Strings["status.mcp.failed"]
+                val msg = mgr.lastError().orEmpty()
+                mcpServerLabel.tooltip = javafx.scene.control.Tooltip(
+                    Strings.format("status.mcp.tooltipFailed", msg)
+                )
+            }
+        }
+    }
+
     private fun bootRestApiIfEnabled() {
         RestApiManager.configure(
             RestApiHooksImpl(
@@ -731,6 +799,12 @@ class MainWindow(
         if (::centerSplit.isInitialized && aiChatPanel in centerSplit.items) {
             aiChatPanel.refreshProviderLabel()
         }
+        // Si cambiaron settings del MCP (enabled / port / bind / token), reconfigurar.
+        com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
+            statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)
+        }
+        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
+        updateMcpServerLabel()
     }
 
     private fun updateAiStatusLabel() {
@@ -1049,7 +1123,7 @@ class MainWindow(
 
     private fun buildStatusBar(): Region {
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
-        return HBox(12.0, statusLabel, spacer, restApiLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, Separator(), themeLabel).apply {
+        return HBox(12.0, statusLabel, spacer, restApiLabel, mcpServerLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, Separator(), themeLabel).apply {
             styleClass += "status-bar"
         }
     }

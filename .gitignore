@@ -9,9 +9,13 @@ out/
 !**/src/test/**/out/
 .kotlin
 *.iml
-.idea/
+# Patrón `.idea/*` (no `.idea/`) para que las re-inclusiones de docs funcionen:
+# git no permite rescatar archivos dentro de un dir excluído entero.
+.idea/*
 # La spec maestra vive en .idea/teraterm.md — preservarla.
 !.idea/teraterm.md
+# La spec del módulo mcp-server vive en .idea/opentermx-mcp.md — preservarla.
+!.idea/opentermx-mcp.md
 
 ### Eclipse ###
 .apt_generated

@@ -204,12 +204,29 @@ class TerminalView(
     }
 
     fun appendBytes(data: ByteArray, length: Int, cs: Charset = charset) {
+        // CRITICAL: `data` es un buffer compartido reusado por el reader del SSH/Telnet
+        // (`SshConnection.readLoop` declara `byte[] buf` UNA sola vez fuera del while
+        // y llama `h.onData(buf, n)` con la misma referencia en cada iteración).
+        //
+        // Si queueamos `runOnFx { emulator.feed(String(data, ..., cs)) }`, la decodificación
+        // ocurre en el FX thread DESPUÉS de que el reader ya hizo otro `read(buf)` y
+        // sobreescribió los bytes — el FX termina procesando los bytes del chunk SIGUIENTE.
+        // Síntoma observado: el segundo `\r\n` dentro de un chunk de 40 bytes
+        // (prompt + \r\n + prompt) se procesaba pero el primer chunk (`\r\n` de 2 bytes)
+        // veía bytes del chunk 2 → faltaba un lineFeed → dos prompts apilados en la
+        // misma fila ([lf-trace] mostraba solo 1 lineFeed por Enter en vez de 2).
+        //
+        // Fix: decodificar/copiar AHORA, en el reader thread, antes del runOnFx.
+        // `String(data, 0, length, cs)` hace una copia interna (chars), `ByteArray.copyOfRange`
+        // hace una copia explícita. Ambos snapshots son seguros pasarlos al FX thread.
+        val text = if (nativeTerminal == null) String(data, 0, length, cs) else ""
+        val nativeBytes = if (nativeTerminal != null) data.copyOfRange(0, length) else null
         runOnFx {
             val nt = nativeTerminal
-            if (nt != null) {
-                feedNative(nt, transcodeForNative(data, length, cs))
+            if (nt != null && nativeBytes != null) {
+                feedNative(nt, transcodeForNative(nativeBytes, nativeBytes.size, cs))
             } else {
-                emulator.feed(String(data, 0, length, cs))
+                emulator.feed(text)
             }
             afterFeed()
         }

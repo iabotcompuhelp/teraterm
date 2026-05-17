@@ -121,6 +121,46 @@ class TerminalBufferLineFeedTest {
     }
 
     @Test
+    fun `bug repro real - segundo LF en el mismo chunk no avanza fila`() {
+        // Replica EXACTO de la corrida real (trace bu8l613lf):
+        // El cursor está en (5, 19) después del prompt inicial.
+        // Server envía DOS chunks separados:
+        //  Chunk 1: "\r\n" (2 bytes)
+        //  Chunk 2: "prompt + \r\n + prompt" (40 bytes)
+        // Esperamos: 2 lineFeeds totales, el cursor debe quedar en (7, 19).
+        // Realidad observada: solo 1 lineFeed se dispara → cursor en (6, 19),
+        // y la fila 5 termina con el doble prompt porque chunk 2 escribió ambos
+        // prompts en la misma fila (\r vuelve al col 0 pero \n no advance).
+        val emu = TerminalEmulator(TerminalBuffer(initialCols = 80, initialRows = 45, scrollbackLimit = 1000))
+        val buf = emu.buffer
+        val prompt = "d0:4d:c6:c6:8c:86# "
+        // Setup: bring cursor to (5, 19) after a prompt.
+        emu.feed("\r\n\r\n\r\n\r\n\r\n$prompt")
+        assertEquals(5, buf.cursorRow)
+        assertEquals(19, buf.cursorCol)
+
+        // Aquí: chunk 1 y chunk 2 como SEPARATE feed calls (replicando el orden
+        // real con dos runOnFx callbacks).
+        emu.feed("\r\n")
+        emu.feed("$prompt\r\n$prompt")
+
+        // Verificación: la fila 5 NO debe tener doble prompt; chunk 2 debe poner
+        // los dos prompts en filas distintas.
+        val row5 = (0 until prompt.length).joinToString("") { buf.cellAt(5, it).char.toString() }
+        val row6 = (0 until prompt.length).joinToString("") { buf.cellAt(6, it).char.toString() }
+        val row7 = (0 until prompt.length).joinToString("") { buf.cellAt(7, it).char.toString() }
+        // Lo que esperamos:
+        // row 5: prompt original (sin tocar)
+        // row 6: primer prompt nuevo (post-chunk1 \r\n + chunk2 primer prompt)
+        // row 7: segundo prompt nuevo (post-chunk2 \r\n + chunk2 segundo prompt)
+        assertEquals(prompt, row5, "row 5 (prompt original) intacto")
+        assertEquals(prompt, row6, "row 6 (primer prompt chunk 2)")
+        assertEquals(prompt, row7, "row 7 (segundo prompt chunk 2)")
+        assertEquals(7, buf.cursorRow, "cursor debe estar en row 7")
+        assertEquals(19, buf.cursorCol, "cursor col al final del prompt")
+    }
+
+    @Test
     fun `lineFeed lejos del bottom solo avanza cursor sin crear linea`() {
         val buf = TerminalBuffer(initialCols = 80, initialRows = 10, scrollbackLimit = 100)
         feed(buf, "x")

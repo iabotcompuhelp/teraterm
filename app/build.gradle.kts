@@ -12,9 +12,10 @@ application {
     mainClass.set("com.opentermx.app.MainKt")
 }
 
-// Los UI tests del dialog instancian JavaFX; sin pipeline software fallan
-// en runners sin GPU. El runtime principal usa el pipeline default
-// (D3D en Windows, Metal en Mac, GL en Linux).
+// Tests instancian JavaFX y los runners de CI no tienen GPU; el pipeline software
+// es la opción estable para esos casos. El runtime de producción usa el pipeline
+// default (D3D en Windows, Metal en macOS, GL en Linux) — JavaFX 21.0.7+ arregló
+// el NPE de NGCanvas$RenderBuf.validate que afectaba a 21.0.5 con D3D.
 tasks.withType<Test>().configureEach {
     jvmArgs("-Dprism.order=sw")
 }
@@ -193,7 +194,7 @@ val installStdioProxy by tasks.registering {
 }
 
 javafx {
-    version = "21.0.5"
+    version = libs.versions.javafx.get()
     modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.swing")
 }
 

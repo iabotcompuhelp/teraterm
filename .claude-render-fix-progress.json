@@ -1,20 +1,37 @@
 {
-  "lastUpdate": "2026-05-16T00:00:00Z",
+  "lastUpdate": "2026-05-16T20:55:00Z",
   "currentTask": null,
-  "scope": "Fix NPE en NGCanvas.RenderBuf.validate al abrir cualquier sesión. Hipótesis original (race listener↔AnimationTimer en FX thread) descartada — el FX thread es single-threaded. Causa real: AnimationTimer.handle() ejecuta renderer.paint(canvas, ...) antes de que el Canvas esté en una Scene con Window mostrada, y la primera renderForcedContent dispara RTTexture.createGraphics()=null. Opción A elegida: gate del AnimationTimer en canvas.scene?.window?.isShowing.",
-  "tasks": {
-    "investigate-hypothesis": "done — descartada; documentada en chat",
-    "gate-animator-on-showing": "done",
-    "remove-prism-sw-workaround": "done — quitado de tasks.named<JavaExec>(run) y de applicationDefaultJvmArgs; -Dprism.order=sw queda solo en el bloque de tests para runners sin GPU",
-    "headless-lifecycle-tests": "done — TerminalViewLifecycleTest (2 casos)",
-    "build-green": "done — :app:check verde (1m 14s)"
-  },
-  "filesTouched": [
-    "app/build.gradle.kts",
-    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt",
-    "app/src/test/kotlin/com/opentermx/app/ui/terminal/TerminalViewLifecycleTest.kt"
+  "scope": "Fix NPE en NGCanvas.RenderBuf.validate al abrir cualquier sesión + bugs UX que el workaround SW estaba enmascarando (typing roto, scroll roto).",
+  "status": "FIXED Y VALIDADO POR EL USUARIO. App funciona con pipeline D3D, typing OK, scrollback OK, prompt con padding al fondo.",
+  "rootCauses": [
+    "NPE: bug upstream en JavaFX 21.0.5 + D3D con Canvas bajo presión de RTTexture. JavaFX 21.0.6/21.0.7 lo arregló.",
+    "Typing roto: TabPane skin reclamaba focus en cada mouse press dentro del área de contenido. Los KeyEvent no llegaban al canvas. Fix: consumir mouse press en canvas para que no bubblee al TabPane.",
+    "Scroll roto: Canvas.prefHeight = canvas.getHeight() alimentaba al BorderPane padre, que crecía 2px/pulse en loop infinito. Buffer.resize llenaba blanks. Fix: override Canvas prefWidth/prefHeight a 0 para romper el feedback.",
+    "Follow-bottom no se re-engachaba: scroll manual ponía followBottom=false y nunca volvía. Fix: emitInput re-engancha follow al tipear (UX estándar terminal).",
+    "Prompt al fondo del canvas: incómodo ergonómicamente. Fix: BOTTOM_PADDING_ROWS = 3 con escala gradual para evitar perder contenido en buffers chicos."
   ],
-  "openIssues": [
-    "Validación humana: correr ./gradlew run en Windows, abrir sesión SSH, confirmar que no hay NPE con pipeline default (D3D)."
+  "fixesShipped": [
+    "gradle/libs.versions.toml: javafx 21.0.5 → 21.0.7",
+    "app/build.gradle.kts: javafx { version = libs.versions.javafx.get() }; removido `-Dprism.order=sw` del run y applicationDefaultJvmArgs; mantenido sólo en tests",
+    "app/src/main/kotlin/com/opentermx/app/ui/MainWindow.kt: TabPane.isFocusTraversable = false (defensivo)",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt: Canvas anónimo con prefWidth/prefHeight/minWidth/minHeight = 0 (rompe loop layout)",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt: setOnMousePressed consume() (fix typing)",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt: emitInput re-engancha followBottom (snap-to-bottom on type)",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt: BOTTOM_PADDING_ROWS = 3 + followBottomTarget() (padding gradual)",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt: AnimationTimer gate isShowing (inocuo, defensivo)"
+  ],
+  "diagnosticInstrumentation": "Removida. Quedaron solo comentarios explicando el porqué de los fixes.",
+  "filesTouched": [
+    "gradle/libs.versions.toml",
+    "app/build.gradle.kts",
+    "app/src/main/kotlin/com/opentermx/app/ui/MainWindow.kt",
+    "app/src/main/kotlin/com/opentermx/app/ui/terminal/TerminalView.kt",
+    "app/src/main/kotlin/com/opentermx/app/viewmodel/TerminalSessionController.kt"
+  ],
+  "validacionUsuario": [
+    "typing OK: tipeó `show run` + Enter, comando ejecutó",
+    "scroll OK: rows estable, scrollback acumula correctamente, viewport sigue al fondo",
+    "padding OK: 'opcion A es mas adecuada'",
+    "final OK: 'funciona, commit'"
   ]
 }

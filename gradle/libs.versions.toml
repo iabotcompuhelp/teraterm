@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.2.20"
 coroutines = "1.9.0"
-javafx = "21.0.5"
+javafx = "21.0.7"
 javafxPlugin = "0.1.0"
 jserialcomm = "2.11.0"
 jsch = "0.2.21"

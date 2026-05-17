@@ -33,6 +33,14 @@ private const val CURSOR_BLINK_PERIOD_NS = 500_000_000L
 private const val TEXT_BLINK_PERIOD_NS = 800_000_000L
 private const val SMOOTH_SCROLL_STEP_NS = 16_000_000L
 
+/**
+ * Filas de margen entre la fila del cursor (prompt) y el borde inferior del canvas
+ * cuando `followBottom` está activo. Sin este margen, el prompt queda pegado al borde
+ * inferior de la ventana, ergonómicamente incómodo. Equivale al `scrolloff` de Vim
+ * aplicado solo al fondo.
+ */
+private const val BOTTOM_PADDING_ROWS = 3
+
 /** Valor centinela `OPENTERMX_COLOR_DEFAULT` en native/src/terminal_emu.h. */
 private const val NATIVE_COLOR_DEFAULT: Int = -0x1   // 0xFFFFFFFF como int con signo
 
@@ -47,7 +55,19 @@ class TerminalView(
     engine: TerminalEngine = TerminalEngine.KOTLIN,
 ) : BorderPane() {
 
-    private val canvas = Canvas(800.0, 480.0)
+    // Canvas con prefSize = 0 para que NO contribuya al prefSize del BorderPane
+    // contenedor. Sin esto, `canvas.getHeight()` (= prefHeight default) alimenta el
+    // prefHeight del BorderPane → el padre crece 2px por pulse → updateCanvasSize
+    // setea canvas.height más grande → loop infinito que llena el buffer de blanks
+    // y deja al usuario sin scrollback útil. Ver `[scroll-diag]` instrumentation.
+    private val canvas = object : Canvas(800.0, 480.0) {
+        override fun prefWidth(height: Double): Double = 0.0
+        override fun prefHeight(width: Double): Double = 0.0
+        override fun minWidth(height: Double): Double = 0.0
+        override fun minHeight(width: Double): Double = 0.0
+        override fun maxWidth(height: Double): Double = Double.MAX_VALUE
+        override fun maxHeight(width: Double): Double = Double.MAX_VALUE
+    }
     private val scrollBar = ScrollBar().apply { orientation = Orientation.VERTICAL }
     private val buffer = TerminalBuffer(initialCols, initialRows, scrollbackLimit = scrollbackLimit)
     private val emulator = TerminalEmulator(buffer)
@@ -376,13 +396,28 @@ class TerminalView(
         }
     }
 
+    /**
+     * Top del viewport cuando `followBottom` está activo. Suma hasta `BOTTOM_PADDING_ROWS`
+     * al `totalLines - rows` clásico para que el cursor (prompt) quede unas filas por encima
+     * del borde inferior del canvas, con espacio inexistente debajo (renderer las pinta
+     * como bg vacío).
+     *
+     * El padding crece gradualmente con el scrollback: sin scrollback no se aplica (sino
+     * el cursor terminaría por encima del viewport y desaparecería); con scrollback >= 3
+     * llega al tope de `BOTTOM_PADDING_ROWS`.
+     */
+    private fun followBottomTarget(): Int {
+        val plain = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
+        return plain + BOTTOM_PADDING_ROWS.coerceAtMost(plain)
+    }
+
     private fun afterFeed() {
         if (buffer.windowTitle != lastTitle) {
             lastTitle = buffer.windowTitle
             titleWrapper.value = lastTitle
         }
         if (followBottom) {
-            val target = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
+            val target = followBottomTarget()
             if (smoothScroll) {
                 smoothTargetTop = target
             } else {
@@ -405,7 +440,7 @@ class TerminalView(
             nativeTerminal?.resize(newRows, newCols)
             buffer.resize(newCols, newRows)
             if (nativeTerminal != null) syncFromNative()
-            if (followBottom) viewportTop = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
+            if (followBottom) viewportTop = followBottomTarget()
             updateScrollBar()
             onResize(newCols, newRows)
         }
@@ -420,6 +455,16 @@ class TerminalView(
         if (localEcho) {
             emulator.feed(text)
             afterFeed()
+        }
+        // UX estándar de terminales: si el operador estaba scrolleado arriba (followBottom=false)
+        // y empieza a tipear, asumimos que quiere ver el prompt y la salida del próximo comando.
+        // Snap al fondo y re-enganchamos el follow para que la output que llegue sea visible.
+        if (!followBottom) {
+            followBottom = true
+            viewportTop = followBottomTarget()
+            smoothTargetTop = viewportTop
+            updateScrollBar()
+            dirty = true
         }
         onInput(text)
     }
@@ -524,6 +569,10 @@ class TerminalView(
             } else if (e.button == MouseButton.MIDDLE) {
                 pasteFromClipboard()
             }
+            // Consumir para que el TabPane padre no reciba el press y se
+            // robe el focus en su skin interno — los KeyEvent dejaban de
+            // llegar al canvas (ver [focus-diag]).
+            e.consume()
         }
         canvas.setOnMouseDragged { e ->
             if (e.button == MouseButton.PRIMARY) {
@@ -557,7 +606,7 @@ class TerminalView(
     }
 
     private fun scrollBy(dRows: Int) {
-        val maxTop = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
+        val maxTop = followBottomTarget()
         viewportTop = (viewportTop + dRows).coerceIn(0, maxTop)
         followBottom = (viewportTop == maxTop)
         updateScrollBar()
@@ -571,8 +620,8 @@ class TerminalView(
         scrollBar.valueProperty().addListener { _, _, newVal ->
             val intVal = newVal.toInt()
             if (viewportTop != intVal) {
+                val maxTop = followBottomTarget()
                 viewportTop = intVal
-                val maxTop = (buffer.totalLines - buffer.rows).coerceAtLeast(0)
                 followBottom = (viewportTop == maxTop)
                 dirty = true
             }
@@ -580,7 +629,7 @@ class TerminalView(
     }
 
     private fun updateScrollBar() {
-        val maxTop = (buffer.totalLines - buffer.rows).coerceAtLeast(0).toDouble()
+        val maxTop = followBottomTarget().toDouble()
         scrollBar.max = maxTop
         scrollBar.visibleAmount = buffer.rows.toDouble()
         scrollBar.blockIncrement = buffer.rows.toDouble()

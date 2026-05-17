@@ -111,7 +111,13 @@ class MainWindow(
     private var settings: AppSettings = initialSettings
     private val theme = Theme(parseTheme(initialSettings.theme))
 
-    private val tabPane = TabPane().apply { tabClosingPolicy = TabPane.TabClosingPolicy.ALL_TABS }
+    private val tabPane = TabPane().apply {
+        tabClosingPolicy = TabPane.TabClosingPolicy.ALL_TABS
+        // Sin esto, el TabPane reclama focus en cada mouse press dentro de su área
+        // de contenido y se lo roba al Canvas del terminal — los KeyEvent nunca
+        // llegan al filter de TerminalView. (Reproducido con [focus-diag]).
+        isFocusTraversable = false
+    }
     private val statusLabel = Label()
     private val protocolLabel = Label()
     private val themeLabel = Label()

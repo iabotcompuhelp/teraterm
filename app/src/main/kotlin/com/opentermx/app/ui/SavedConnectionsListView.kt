@@ -102,14 +102,18 @@ class SavedConnectionsListView(
 
     /**
      * Formato de la celda según protocolo:
-     *  - SSH/TELNET: `[SSH] Router Core (admin@10.0.0.1:22)` o `[TELNET] Switch L3 (10.0.0.5:23)`.
-     *  - WEB: `[WEB] MikroTik Core (https://10.0.0.1/)` — el `host` lleva la URL completa
-     *    y `port` no se usa.
+     *  - SSH/TELNET: `[SSH] Router Core (admin@10.0.0.1:22)`.
+     *  - WEB: `[WEB] MikroTik Core (https://10.0.0.1/)` — `host` lleva la URL completa.
+     *  - RDP: `[RDP] Server DC-01 (admin@10.0.0.50)` — omite `:port` si es el default 3389.
      */
     private fun formatCell(s: SavedConnection): String {
         val protoTag = "[${s.protocol}]"
         val endpoint = when (s.protocol) {
             "WEB" -> s.host
+            "RDP" -> {
+                val hostPart = if (s.port == 3389) s.host else "${s.host}:${s.port}"
+                if (s.username.isNotBlank()) "${s.username}@$hostPart" else hostPart
+            }
             else -> if (s.username.isNotBlank()) "${s.username}@${s.host}:${s.port}" else "${s.host}:${s.port}"
         }
         return if (s.label.isNotBlank()) "$protoTag ${s.label} ($endpoint)" else "$protoTag $endpoint"

@@ -244,6 +244,9 @@ class MainWindow(
             items += MenuItem(Strings["file.newWeb"]).apply {
                 setOnAction { openNewWebSessionDialog() }
             }
+            items += MenuItem(Strings["file.newRdp"]).apply {
+                setOnAction { openNewRdpSessionDialog() }
+            }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["file.sftp"]).apply {
                 setOnAction { openSftpForCurrentSession() }
@@ -1491,6 +1494,81 @@ class MainWindow(
         }
     }
 
+    /**
+     * Abre el dialog para crear una sesión RDP. Solo soportado en Windows — en otro OS
+     * mostramos un alert y salimos. Al confirmar, persiste (si tildó "Recordar") y lanza
+     * `mstsc.exe` con la cred previamente registrada en Credential Manager. La ventana
+     * RDP es nativa y NO un tab — eso es una limitación de la integración
+     * (ver explicación en el chat / commit message).
+     */
+    private fun openNewRdpSessionDialog(initial: com.opentermx.app.ui.dialog.RdpConfigDialog.Result? = null) {
+        if (!com.opentermx.app.ui.rdp.RdpLauncher.isSupported) {
+            javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.WARNING,
+                "Las sesiones RDP usan mstsc.exe (cliente nativo de Windows). Esta funcionalidad " +
+                    "solo está disponible en Windows.",
+            ).apply {
+                title = "RDP no disponible"
+                headerText = "Sistema operativo no soportado"
+                initOwner(stage)
+            }.showAndWait()
+            return
+        }
+        val dialog = com.opentermx.app.ui.dialog.RdpConfigDialog(
+            initialHost = initial?.host.orEmpty(),
+            initialPort = initial?.port ?: com.opentermx.app.ui.rdp.RdpLauncher.DEFAULT_RDP_PORT,
+            initialLabel = initial?.label.orEmpty(),
+            initialUsername = initial?.username.orEmpty(),
+            initialPassword = initial?.password.orEmpty(),
+            rememberDefault = initial?.remember ?: false,
+        )
+        val result = dialog.showAndWait().orElse(null) ?: return
+        persistSavedRdp(result)
+        launchRdpSession(result.host, result.port, result.username, result.password)
+    }
+
+    /** Lanza mstsc.exe con la cred ya en Credential Manager. */
+    private fun launchRdpSession(host: String, port: Int, username: String, password: String) {
+        val ok = com.opentermx.app.ui.rdp.RdpLauncher.launch(host, port, username, password)
+        if (!ok) {
+            statusLabel.text = "Fallo al lanzar mstsc.exe (ver log)"
+        }
+    }
+
+    /**
+     * Persiste o elimina una entrada RDP siguiendo la simetría on/off de SSH/Telnet/WEB.
+     * `host` lleva el hostname/IP; `port` el TCP port; password cifrada en `secret`.
+     */
+    private fun persistSavedRdp(result: com.opentermx.app.ui.dialog.RdpConfigDialog.Result) {
+        val current = settings.savedConnections
+        val updated = if (result.remember) {
+            val secret = result.password.takeIf { it.isNotEmpty() }
+                ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
+            val entry = com.opentermx.app.settings.SavedConnection(
+                id = java.util.UUID.randomUUID().toString(),
+                protocol = "RDP",
+                host = result.host,
+                port = result.port,
+                username = result.username,
+                authKind = if (secret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
+                    else com.opentermx.app.settings.SavedAuthKind.NONE,
+                secret = secret,
+                label = result.label,
+            )
+            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
+        } else {
+            // Si destildó "Recordar", también limpiamos la cred del Credential Manager si quedó.
+            com.opentermx.app.ui.rdp.RdpLauncher.deleteCredential(result.host)
+            com.opentermx.app.settings.SavedConnections.removeByHost(
+                current, protocol = "RDP", host = result.host, port = result.port,
+            )
+        }
+        if (updated != current) {
+            persist { it.copy(savedConnections = updated) }
+            savedConnectionsListView.refresh()
+        }
+    }
+
     @Volatile private var sslTrustAllInstalled: Boolean = false
 
     /**
@@ -1537,8 +1615,46 @@ class MainWindow(
             "SSH" -> editSshSaved(saved)
             "TELNET" -> editTelnetSaved(saved)
             "WEB" -> editWebSaved(saved)
+            "RDP" -> editRdpSaved(saved)
             else -> log.warn("editSavedConnection: protocolo no soportado '${saved.protocol}'")
         }
+    }
+
+    private fun editRdpSaved(saved: com.opentermx.app.settings.SavedConnection) {
+        val currentPlain = saved.secret
+            ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
+            ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
+            .orEmpty()
+        val dialog = com.opentermx.app.ui.dialog.RdpConfigDialog(
+            initialHost = saved.host,
+            initialPort = saved.port,
+            initialLabel = saved.label,
+            initialUsername = saved.username,
+            initialPassword = currentPlain,
+            rememberDefault = true,
+        )
+        val result = dialog.showAndWait().orElse(null) ?: return
+        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
+        // Si el host cambió, limpiar cred vieja del Credential Manager.
+        if (!result.host.equals(saved.host, ignoreCase = true)) {
+            com.opentermx.app.ui.rdp.RdpLauncher.deleteCredential(saved.host)
+        }
+        val newSecret = result.password.takeIf { it.isNotEmpty() }
+            ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
+        val newEntry = com.opentermx.app.settings.SavedConnection(
+            id = java.util.UUID.randomUUID().toString(),
+            protocol = "RDP",
+            host = result.host,
+            port = result.port,
+            username = result.username,
+            authKind = if (newSecret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
+                else com.opentermx.app.settings.SavedAuthKind.NONE,
+            secret = newSecret,
+            label = result.label,
+        )
+        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
+        persist { it.copy(savedConnections = updated) }
+        savedConnectionsListView.refresh()
     }
 
     private fun editSshSaved(saved: com.opentermx.app.settings.SavedConnection) {
@@ -1619,8 +1735,15 @@ class MainWindow(
         savedConnectionsListView.refresh()
     }
 
-    /** Borra una entrada guardada desde el panel lateral (clic-derecho → Eliminar o tecla DELETE). */
+    /**
+     * Borra una entrada guardada desde el panel lateral (clic-derecho → Eliminar o tecla DELETE).
+     * Para entries RDP también limpia la cred del Credential Manager de Windows — simetría
+     * on/off: borrar la entrada de OpenTermX también la quita del SO.
+     */
     private fun deleteSavedConnection(saved: com.opentermx.app.settings.SavedConnection) {
+        if (saved.protocol == "RDP") {
+            com.opentermx.app.ui.rdp.RdpLauncher.deleteCredential(saved.host)
+        }
         val updated = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
         if (updated != settings.savedConnections) {
             persist { it.copy(savedConnections = updated) }
@@ -1665,6 +1788,17 @@ class MainWindow(
                     autofillPass = plaintext,
                     autofill = true,
                 )
+            }
+            "RDP" -> {
+                if (!com.opentermx.app.ui.rdp.RdpLauncher.isSupported) {
+                    statusLabel.text = "RDP solo disponible en Windows"
+                    return
+                }
+                val plaintext = saved.secret
+                    ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
+                    ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
+                    .orEmpty()
+                launchRdpSession(saved.host, saved.port, saved.username, plaintext)
             }
             else -> {
                 log.warn("quickConnect: protocolo no soportado '${saved.protocol}' para ${saved.host}")

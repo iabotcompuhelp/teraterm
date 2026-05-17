@@ -215,6 +215,34 @@ class SavedConnectionsTest {
     }
 
     @Test
+    fun `roundtrip JSON con entry RDP preserva host port y password cifrada`() {
+        val encrypted = SecretCipher.encrypt("Adm1n!Pass")
+        val original = AppSettings(
+            savedConnections = listOf(
+                SavedConnection(
+                    id = "rdp-1",
+                    protocol = "RDP",
+                    host = "10.0.0.50",
+                    port = 3389,
+                    username = "DOMAIN\\administrator",
+                    authKind = SavedAuthKind.PASSWORD,
+                    secret = encrypted,
+                    label = "Server DC-01",
+                ),
+            ),
+        )
+        val json = mapper.writeValueAsString(original)
+        val restored = mapper.readValue(json, AppSettings::class.java)
+        val rdp = restored.savedConnections.single()
+        assertEquals("RDP", rdp.protocol)
+        assertEquals("10.0.0.50", rdp.host)
+        assertEquals(3389, rdp.port)
+        assertEquals("DOMAIN\\administrator", rdp.username)
+        assertEquals("Server DC-01", rdp.label)
+        assertEquals("Adm1n!Pass", SecretCipher.decrypt(rdp.secret!!))
+    }
+
+    @Test
     fun `entries legacy sin label deserializan con string vacio`() {
         // Simula settings.json viejos (pre-feature) que no tienen el campo `label`.
         val legacy = """

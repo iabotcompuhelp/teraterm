@@ -195,7 +195,9 @@ val installStdioProxy by tasks.registering {
 
 javafx {
     version = libs.versions.javafx.get()
-    modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.swing")
+    // `javafx.web` agrega ~50MB de WebKit nativo por OS — necesario para las sesiones WEB
+    // (admin UIs de Cisco/Aruba/MikroTik/etc. dentro de un WebView embebido).
+    modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.swing", "javafx.web")
 }
 
 dependencies {

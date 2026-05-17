@@ -176,6 +176,45 @@ class SavedConnectionsTest {
     }
 
     @Test
+    fun `roundtrip JSON con entry WEB preserva URL y password cifrada`() {
+        val encrypted = SecretCipher.encrypt("admin-pwd")
+        val original = AppSettings(
+            savedConnections = listOf(
+                SavedConnection(
+                    id = "web-1",
+                    protocol = "WEB",
+                    host = "https://10.0.0.1/login",
+                    port = 0,
+                    username = "admin",
+                    authKind = SavedAuthKind.PASSWORD,
+                    secret = encrypted,
+                    label = "MikroTik Core",
+                ),
+            ),
+        )
+        val json = mapper.writeValueAsString(original)
+        val restored = mapper.readValue(json, AppSettings::class.java)
+        val web = restored.savedConnections.single()
+        assertEquals("WEB", web.protocol)
+        assertEquals("https://10.0.0.1/login", web.host)
+        assertEquals(0, web.port)
+        assertEquals("MikroTik Core", web.label)
+        assertEquals("admin-pwd", SecretCipher.decrypt(web.secret!!))
+    }
+
+    @Test
+    fun `findMostRecent WEB matchea por URL en host (port 0)`() {
+        val list = listOf(
+            SavedConnection(
+                id = "a", protocol = "WEB", host = "https://10.0.0.1/",
+                port = 0, username = "admin",
+            ),
+        )
+        assertNotNull(SavedConnections.findMostRecent(list, "WEB", "https://10.0.0.1/", 0))
+        assertNull(SavedConnections.findMostRecent(list, "WEB", "https://10.0.0.2/", 0))
+    }
+
+    @Test
     fun `entries legacy sin label deserializan con string vacio`() {
         // Simula settings.json viejos (pre-feature) que no tienen el campo `label`.
         val legacy = """

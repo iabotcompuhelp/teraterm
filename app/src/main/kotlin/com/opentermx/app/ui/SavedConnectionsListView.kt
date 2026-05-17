@@ -26,6 +26,7 @@ import javafx.scene.layout.VBox
 class SavedConnectionsListView(
     private val savedProvider: () -> List<SavedConnection>,
     private val onQuickConnect: (SavedConnection) -> Unit,
+    private val onEdit: (SavedConnection) -> Unit,
     private val onDelete: (SavedConnection) -> Unit,
 ) : BorderPane() {
 
@@ -55,6 +56,9 @@ class SavedConnectionsListView(
         contextMenu = ContextMenu(
             MenuItem("Conectar").apply {
                 setOnAction { selectionModel.selectedItem?.let { onQuickConnect(it) } }
+            },
+            MenuItem("Modificar…").apply {
+                setOnAction { selectionModel.selectedItem?.let { onEdit(it) } }
             },
             MenuItem("Eliminar…").apply {
                 setOnAction { selectionModel.selectedItem?.let { requestDelete(it) } }
@@ -97,12 +101,17 @@ class SavedConnectionsListView(
     }
 
     /**
-     * Formato de la celda: `[SSH] Router Core (admin@10.0.0.1)` o `[TELNET] Switch L3 (10.0.0.5:23)`
-     * según el protocolo y si el operador definió un label. Doble-click conecta inmediatamente.
+     * Formato de la celda según protocolo:
+     *  - SSH/TELNET: `[SSH] Router Core (admin@10.0.0.1:22)` o `[TELNET] Switch L3 (10.0.0.5:23)`.
+     *  - WEB: `[WEB] MikroTik Core (https://10.0.0.1/)` — el `host` lleva la URL completa
+     *    y `port` no se usa.
      */
     private fun formatCell(s: SavedConnection): String {
         val protoTag = "[${s.protocol}]"
-        val endpoint = if (s.username.isNotBlank()) "${s.username}@${s.host}:${s.port}" else "${s.host}:${s.port}"
+        val endpoint = when (s.protocol) {
+            "WEB" -> s.host
+            else -> if (s.username.isNotBlank()) "${s.username}@${s.host}:${s.port}" else "${s.host}:${s.port}"
+        }
         return if (s.label.isNotBlank()) "$protoTag ${s.label} ($endpoint)" else "$protoTag $endpoint"
     }
 }

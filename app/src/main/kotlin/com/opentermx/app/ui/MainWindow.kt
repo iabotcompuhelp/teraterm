@@ -175,6 +175,7 @@ class MainWindow(
         savedConnectionsListView = SavedConnectionsListView(
             savedProvider = { settings.savedConnections },
             onQuickConnect = { quickConnectSaved(it) },
+            onEdit = { editSavedConnection(it) },
             onDelete = { deleteSavedConnection(it) },
         )
         val leftPane = javafx.scene.control.SplitPane(
@@ -239,6 +240,9 @@ class MainWindow(
             }
             items += MenuItem(Strings["file.newSession"]).apply {
                 setOnAction { openWelcomeTab() }
+            }
+            items += MenuItem(Strings["file.newWeb"]).apply {
+                setOnAction { openNewWebSessionDialog() }
             }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["file.sftp"]).apply {
@@ -1405,6 +1409,216 @@ class MainWindow(
         }
     }
 
+    /**
+     * Menu File → Nueva sesión Web. Abre [com.opentermx.app.ui.dialog.WebConfigDialog] para
+     * que el operador entre URL, etiqueta y credenciales; al confirmar, abre un tab con
+     * `WebSessionView` y, si tildó "Recordar", persiste un `SavedConnection(protocol="WEB")`.
+     */
+    private fun openNewWebSessionDialog(initial: com.opentermx.app.ui.dialog.WebConfigDialog.Result? = null) {
+        val dialog = com.opentermx.app.ui.dialog.WebConfigDialog(
+            initialUrl = initial?.url.orEmpty(),
+            initialLabel = initial?.label.orEmpty(),
+            initialUsername = initial?.username.orEmpty(),
+            initialPassword = initial?.password.orEmpty(),
+            autofillDefault = initial?.autofill ?: true,
+            rememberDefault = initial?.remember ?: false,
+        )
+        val result = dialog.showAndWait().orElse(null) ?: return
+        persistSavedWeb(result)
+        openWebSession(result.url, result.label, result.username, result.password, result.autofill)
+    }
+
+    /**
+     * Abre un tab con [com.opentermx.app.ui.web.WebSessionView]. Antes de cargar la primera
+     * URL https, instala (idempotente) un SSLContext trust-all para que los certs auto-firmados
+     * de routers/switches no rompan el load. Trade-off de seguridad documentado en
+     * [installTrustAllSslOnce].
+     */
+    private fun openWebSession(
+        url: String,
+        label: String,
+        autofillUser: String,
+        autofillPass: String,
+        autofill: Boolean,
+    ) {
+        installTrustAllSslOnce()
+        val view = com.opentermx.app.ui.web.WebSessionView(
+            initialUrl = url,
+            autofillUsername = autofillUser,
+            autofillPassword = autofillPass,
+            autofill = autofill,
+        )
+        val tab = Tab().apply {
+            text = label.ifBlank { url }
+            content = view
+            isClosable = true
+            setOnClosed { view.dispose() }
+        }
+        tabPane.tabs += tab
+        tabPane.selectionModel.select(tab)
+    }
+
+    /**
+     * Persiste/elimina una entrada WEB siguiendo la misma simetría que SSH/Telnet: si el
+     * usuario tildó "Recordar", upsert; si destildó y había entries, removeByHost (port = 0).
+     * `host` lleva la URL completa (porque `protocol = "WEB"` no usa el campo `port`).
+     */
+    private fun persistSavedWeb(result: com.opentermx.app.ui.dialog.WebConfigDialog.Result) {
+        val current = settings.savedConnections
+        val updated = if (result.remember) {
+            val secret = result.password.takeIf { it.isNotEmpty() }
+                ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
+            val entry = com.opentermx.app.settings.SavedConnection(
+                id = java.util.UUID.randomUUID().toString(),
+                protocol = "WEB",
+                host = result.url,
+                port = 0,
+                username = result.username,
+                authKind = if (secret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
+                    else com.opentermx.app.settings.SavedAuthKind.NONE,
+                secret = secret,
+                label = result.label,
+            )
+            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
+        } else {
+            com.opentermx.app.settings.SavedConnections.removeByHost(
+                current, protocol = "WEB", host = result.url, port = 0,
+            )
+        }
+        if (updated != current) {
+            persist { it.copy(savedConnections = updated) }
+            savedConnectionsListView.refresh()
+        }
+    }
+
+    @Volatile private var sslTrustAllInstalled: Boolean = false
+
+    /**
+     * Instala un SSLContext "trust-all" una sola vez por proceso. Justificación: los admin UIs
+     * de routers/switches casi siempre traen cert auto-firmado y `WebView` no expone API para
+     * trust per-instancia. Trade-off: cualquier llamada HTTPS saliente del proceso (provider
+     * IA, knowledge base download, etc.) deja de validar el cert. Aceptable para esta
+     * herramienta de administración local pero NO para un entorno con tráfico sensible
+     * (banca, OAuth de producción, etc.).
+     */
+    private fun installTrustAllSslOnce() {
+        if (sslTrustAllInstalled) return
+        synchronized(this) {
+            if (sslTrustAllInstalled) return
+            try {
+                val trustAll = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+                    override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
+                })
+                val ctx = javax.net.ssl.SSLContext.getInstance("TLS").apply {
+                    init(null, trustAll, java.security.SecureRandom())
+                }
+                javax.net.ssl.HttpsURLConnection.setDefaultSSLSocketFactory(ctx.socketFactory)
+                javax.net.ssl.HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
+                javax.net.ssl.SSLContext.setDefault(ctx)
+                sslTrustAllInstalled = true
+                log.warn("SSL trust-all instalado para WebView (admin UIs con cert auto-firmado). " +
+                    "Cualquier HTTPS saliente de este proceso deja de validar cert.")
+            } catch (t: Throwable) {
+                log.warn("No se pudo instalar SSL trust-all: {}", t.message)
+            }
+        }
+    }
+
+    /**
+     * Edita una entrada guardada desde el panel lateral (clic-derecho → Modificar…). Reusa el
+     * dialog correspondiente al protocolo, pre-cargado con los valores actuales. Al confirmar,
+     * reemplaza la entrada vieja por una nueva con los campos actualizados (mismo id) — no abre
+     * tab nuevo.
+     */
+    private fun editSavedConnection(saved: com.opentermx.app.settings.SavedConnection) {
+        when (saved.protocol) {
+            "SSH" -> editSshSaved(saved)
+            "TELNET" -> editTelnetSaved(saved)
+            "WEB" -> editWebSaved(saved)
+            else -> log.warn("editSavedConnection: protocolo no soportado '${saved.protocol}'")
+        }
+    }
+
+    private fun editSshSaved(saved: com.opentermx.app.settings.SavedConnection) {
+        val seed = seedSshConfig(saved.host, saved.port, saved)
+        val dialog = SshConfigDialog(seed, rememberCredentialsDefault = true, initialLabel = saved.label)
+        val cfg = dialog.showAndWait().orElse(null) ?: return
+        val newLabel = dialog.labelField.text?.trim().orEmpty()
+        // Sacamos primero la entrada vieja (por id) para evitar duplicar si user cambió host/port.
+        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
+        val newEntry = buildSavedConnectionFrom(cfg, newLabel)
+        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
+        persist { it.copy(savedConnections = updated) }
+        savedConnectionsListView.refresh()
+    }
+
+    private fun editTelnetSaved(saved: com.opentermx.app.settings.SavedConnection) {
+        val seedCfg = TelnetConfig(
+            host = saved.host,
+            port = saved.port,
+            terminalType = settings.tcpIp.terminalType,
+            keepAlive = settings.tcpIp.keepAlive,
+            recvBufferSize = settings.tcpIp.recvBufferSize,
+            proxy = currentProxyConfig(),
+            dnsMode = settings.tcpIp.dnsMode,
+        )
+        val dialog = com.opentermx.app.ui.dialog.TelnetConfigDialog(
+            initial = seedCfg,
+            initialLabel = saved.label,
+            initialUsername = saved.username,
+            rememberDefault = true,
+        )
+        val confirmed = dialog.showAndWait().orElse(null) ?: return
+        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
+        val newEntry = com.opentermx.app.settings.SavedConnection(
+            id = java.util.UUID.randomUUID().toString(),
+            protocol = "TELNET",
+            host = confirmed.host,
+            port = confirmed.port,
+            username = dialog.usernameField.text?.trim().orEmpty(),
+            authKind = com.opentermx.app.settings.SavedAuthKind.NONE,
+            label = dialog.labelField.text?.trim().orEmpty(),
+        )
+        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
+        persist { it.copy(savedConnections = updated) }
+        savedConnectionsListView.refresh()
+    }
+
+    private fun editWebSaved(saved: com.opentermx.app.settings.SavedConnection) {
+        val currentPlain = saved.secret
+            ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
+            ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
+            .orEmpty()
+        val dialog = com.opentermx.app.ui.dialog.WebConfigDialog(
+            initialUrl = saved.host,
+            initialLabel = saved.label,
+            initialUsername = saved.username,
+            initialPassword = currentPlain,
+            autofillDefault = true,
+            rememberDefault = true,
+        )
+        val result = dialog.showAndWait().orElse(null) ?: return
+        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
+        val newSecret = result.password.takeIf { it.isNotEmpty() }
+            ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
+        val newEntry = com.opentermx.app.settings.SavedConnection(
+            id = java.util.UUID.randomUUID().toString(),
+            protocol = "WEB",
+            host = result.url,
+            port = 0,
+            username = result.username,
+            authKind = if (newSecret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
+                else com.opentermx.app.settings.SavedAuthKind.NONE,
+            secret = newSecret,
+            label = result.label,
+        )
+        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
+        persist { it.copy(savedConnections = updated) }
+        savedConnectionsListView.refresh()
+    }
+
     /** Borra una entrada guardada desde el panel lateral (clic-derecho → Eliminar o tecla DELETE). */
     private fun deleteSavedConnection(saved: com.opentermx.app.settings.SavedConnection) {
         val updated = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
@@ -1437,6 +1651,20 @@ class MainWindow(
                     dnsMode = settings.tcpIp.dnsMode,
                 )
                 openSession(cfg, saved.displayLabel(), TelnetConnection(cfg))
+            }
+            "WEB" -> {
+                // `host` lleva la URL completa; `port` es 0 (no se usa).
+                val plaintext = saved.secret
+                    ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
+                    ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
+                    .orEmpty()
+                openWebSession(
+                    url = saved.host,
+                    label = saved.displayLabel(),
+                    autofillUser = saved.username,
+                    autofillPass = plaintext,
+                    autofill = true,
+                )
             }
             else -> {
                 log.warn("quickConnect: protocolo no soportado '${saved.protocol}' para ${saved.host}")

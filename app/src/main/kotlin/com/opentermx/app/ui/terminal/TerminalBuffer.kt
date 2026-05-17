@@ -121,6 +121,13 @@ class TerminalBuffer(
         val visRow = cursorRow - visibleTop
         if (visRow == scrollBottomVis) {
             scrollUp(scrollTopVis, scrollBottomVis, 1)
+            // Tras el scroll en región completa el cursor debe quedar en la fila bottom
+            // visible (semántica VT100 estándar). Cómputo robusto que ignora si el scroll
+            // creció lines.size o truncó scrollback: `visibleTop + scrollBottomVis` es la
+            // fila absoluta correcta en ambos casos.
+            if (scrollTopVis == 0 && scrollBottomVis == rows - 1 && !alternateMode) {
+                cursorRow = visibleTop + scrollBottomVis
+            }
         } else {
             cursorRow++
             ensureLine(cursorRow)

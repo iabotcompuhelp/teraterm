@@ -27,7 +27,10 @@ import javafx.scene.layout.VBox
 import javafx.stage.FileChooser
 import java.io.File
 
-class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
+class SshConfigDialog(
+    initial: SshConfig? = null,
+    rememberCredentialsDefault: Boolean = false,
+) : Dialog<SshConfig>() {
 
     private val hostField = TextField()
     private val portSpinner = Spinner<Int>().apply {
@@ -51,6 +54,17 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
     }
 
     private val agentForwardingCheck = CheckBox("Reenvío de agente SSH")
+
+    /**
+     * Si está tildado al cerrar con OK, `MainWindow` persiste estas credenciales en
+     * `AppSettings.savedConnections` (password/passphrase cifradas con SecretCipher).
+     * Si está destildado y había una entrada saved previa para `(host, port, user)`,
+     * el caller la elimina. Default viene del constructor — `true` cuando el seed
+     * salió del propio keychain (autofill), `false` para conexiones manuales.
+     */
+    val rememberCredentialsCheck = CheckBox("Recordar credenciales (cifradas localmente)").apply {
+        isSelected = rememberCredentialsDefault
+    }
 
     private var initialForwards: List<PortForward> = emptyList()
     private val forwardsButton = Button()
@@ -107,6 +121,7 @@ class SshConfigDialog(initial: SshConfig? = null) : Dialog<SshConfig>() {
             add(Label("Keep-alive (s):"), 0, 7); add(keepAliveSpinner, 1, 7)
             add(agentForwardingCheck, 1, 8)
             add(forwardsButton, 1, 9)
+            add(rememberCredentialsCheck, 1, 10)
         }
         dialogPane.content = grid
 

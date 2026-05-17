@@ -272,6 +272,7 @@ class MainWindow(
             items += MenuItem(Strings["setup.sshAuth"]).apply { setOnAction { openSshAuthConfig() } }
             items += MenuItem(Strings["setup.sshForwarding"]).apply { setOnAction { openPortForwardDialog() } }
             items += MenuItem(Strings["setup.sshKeygen"]).apply { setOnAction { openSshKeyGenerator() } }
+            items += MenuItem(Strings["setup.savedConnections"]).apply { setOnAction { openSavedConnectionsDialog() } }
             items += SeparatorMenuItem()
             // Grupo 3: red.
             items += MenuItem(Strings["setup.tcpip"]).apply { setOnAction { openTcpIpConfig() } }
@@ -1259,8 +1260,13 @@ class MainWindow(
                     )
                     return
                 }
-                val seed = seedSshConfig(choice.host, choice.tcpPort)
-                val cfg = SshConfigDialog(seed).showAndWait().orElse(null) ?: return
+                val saved = com.opentermx.app.settings.SavedConnections.findMostRecent(
+                    settings.savedConnections, protocol = "SSH", host = choice.host, port = choice.tcpPort,
+                )
+                val seed = seedSshConfig(choice.host, choice.tcpPort, saved)
+                val dialog = SshConfigDialog(seed, rememberCredentialsDefault = saved != null)
+                val cfg = dialog.showAndWait().orElse(null) ?: return
+                persistSavedConnectionDecision(cfg, dialog.rememberCredentialsCheck.isSelected)
                 openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
                 rememberHost(choice.host)
             }
@@ -1294,21 +1300,34 @@ class MainWindow(
     }
 
     /**
-     * Builds an SshConfig prefilled from the global Setup → SSH / SSH Authentication / TCP-IP
-     * settings. The user can still override anything in the per-connection SshConfigDialog;
-     * fields the dialog does not render are passed through unchanged.
+     * Builds an SshConfig prefilled from `saved` (entrada recordada para este host:port) si
+     * existe, sino desde Setup → SSH / SSH Authentication / TCP-IP. El usuario puede sobreescribir
+     * cualquier campo en el [SshConfigDialog]; los campos que el dialog no renderiza pasan
+     * sin cambios.
      */
-    private fun seedSshConfig(host: String, port: Int): SshConfig {
+    private fun seedSshConfig(
+        host: String,
+        port: Int,
+        saved: com.opentermx.app.settings.SavedConnection? = null,
+    ): SshConfig {
         val auth = settings.sshAuth
         val gen = settings.sshGeneral
-        val authObj: SshAuth = if (auth.method == "PUBLIC_KEY" && auth.privateKeyPath.isNotBlank()) {
-            SshAuth.PublicKey(auth.privateKeyPath)
-        } else {
-            SshAuth.Password(CharArray(0))
+        val username = saved?.username?.takeIf { it.isNotBlank() } ?: auth.defaultUsername
+        val authObj: SshAuth = when {
+            saved?.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD -> {
+                val plain = saved.secret?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
+                SshAuth.Password((plain ?: "").toCharArray())
+            }
+            saved?.authKind == com.opentermx.app.settings.SavedAuthKind.SSH_KEY && !saved.keyPath.isNullOrBlank() -> {
+                val passphrase = saved.secret?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
+                SshAuth.PublicKey(saved.keyPath, passphrase?.takeIf { it.isNotEmpty() }?.toCharArray())
+            }
+            auth.method == "PUBLIC_KEY" && auth.privateKeyPath.isNotBlank() -> SshAuth.PublicKey(auth.privateKeyPath)
+            else -> SshAuth.Password(CharArray(0))
         }
         return SshConfig(
             host = host,
-            username = auth.defaultUsername,
+            username = username,
             auth = authObj,
             port = port,
             keepAliveSeconds = gen.heartbeatSeconds,
@@ -1336,12 +1355,69 @@ class MainWindow(
         )
     }
 
+    private fun openSavedConnectionsDialog() {
+        val dialog = com.opentermx.app.ui.dialog.SavedConnectionsDialog(settings.savedConnections)
+        val updated = dialog.showAndWait().orElse(null) ?: return
+        if (updated != settings.savedConnections) persist { it.copy(savedConnections = updated) }
+    }
+
     private fun rememberHost(host: String) {
         if (!settings.historyEnabled || host.isBlank()) return
         // Most-recent first, dedup case-insensitive, cap at 20.
         val deduped = (listOf(host) + settings.recentHosts.filterNot { it.equals(host, ignoreCase = true) })
             .take(20)
         persist { it.copy(recentHosts = deduped) }
+    }
+
+    /**
+     * Persiste o elimina la `SavedConnection` para (cfg.host, cfg.port, cfg.username) según la
+     * decisión del checkbox "Recordar credenciales" del [SshConfigDialog].
+     *  - `remember = true`: cifra password/passphrase con SecretCipher, upsertea con timestamp.
+     *  - `remember = false`: si había entradas para `(host, port)` las elimina (el usuario
+     *    explícitamente destildó). Mantenemos la simetría: tildar/destildar = on/off.
+     */
+    private fun persistSavedConnectionDecision(cfg: SshConfig, remember: Boolean) {
+        val current = settings.savedConnections
+        val updated = if (remember) {
+            val entry = buildSavedConnectionFrom(cfg)
+            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
+        } else {
+            com.opentermx.app.settings.SavedConnections.removeByHost(
+                current, protocol = "SSH", host = cfg.host, port = cfg.port,
+            )
+        }
+        if (updated != current) persist { it.copy(savedConnections = updated) }
+    }
+
+    private fun buildSavedConnectionFrom(cfg: SshConfig): com.opentermx.app.settings.SavedConnection {
+        val (kind, secret, keyPath) = when (val a = cfg.auth) {
+            is SshAuth.Password -> {
+                val pw = String(a.password)
+                Triple(
+                    com.opentermx.app.settings.SavedAuthKind.PASSWORD,
+                    if (pw.isEmpty()) null else com.opentermx.common.crypto.SecretCipher.encrypt(pw),
+                    null,
+                )
+            }
+            is SshAuth.PublicKey -> {
+                val pp = a.passphrase?.let { String(it) }.orEmpty()
+                Triple(
+                    com.opentermx.app.settings.SavedAuthKind.SSH_KEY,
+                    if (pp.isEmpty()) null else com.opentermx.common.crypto.SecretCipher.encrypt(pp),
+                    a.privateKeyPath,
+                )
+            }
+        }
+        return com.opentermx.app.settings.SavedConnection(
+            id = java.util.UUID.randomUUID().toString(),
+            protocol = "SSH",
+            host = cfg.host,
+            port = cfg.port,
+            username = cfg.username,
+            authKind = kind,
+            secret = secret,
+            keyPath = keyPath,
+        )
     }
 
     private fun openSession(config: ConnectionConfig, name: String, connection: Connection): SessionId {

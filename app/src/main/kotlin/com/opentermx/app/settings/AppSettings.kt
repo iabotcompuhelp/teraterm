@@ -23,6 +23,14 @@ data class AppSettings(
     val additional: AdditionalSettings = AdditionalSettings(),
     val aiAssistant: AiAssistantSettings = AiAssistantSettings(),
     val restApi: RestApiPersistedSettings = RestApiPersistedSettings(),
+    /**
+     * Credenciales recordadas para conexiones SSH previas. Cada entrada lleva
+     * `host/port/username` y opcionalmente password o ruta de clave + passphrase, cifrada
+     * con [com.opentermx.common.crypto.SecretCipher]. Se popula al conectar con la opción
+     * "Recordar credenciales" tildada en [com.opentermx.app.ui.dialog.SshConfigDialog]; se
+     * consulta en `MainWindow.seedSshConfig` para autocompletar el dialog.
+     */
+    val savedConnections: List<SavedConnection> = emptyList(),
 ) {
     companion object {
         val DEFAULT_ACCELERATORS: Map<String, String> = linkedMapOf(

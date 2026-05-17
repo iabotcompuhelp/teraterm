@@ -301,6 +301,7 @@ class MainWindow(
             // Grupo 4: general.
             items += MenuItem(Strings["setup.general"]).apply { setOnAction { openGeneralSettings() } }
             items += MenuItem(Strings["setup.additional"]).apply { setOnAction { openAdditionalSettings() } }
+            items += MenuItem(Strings["setup.highlight"]).apply { setOnAction { openHighlightConfigDialog() } }
             items += SeparatorMenuItem()
             // Grupo 5: IA + privacidad.
             items += MenuItem(Strings["setup.aiAssistant"]).apply {
@@ -1412,6 +1413,26 @@ class MainWindow(
         if (updated != settings.savedConnections) {
             persist { it.copy(savedConnections = updated) }
             savedConnectionsListView.refresh()
+        }
+    }
+
+    /**
+     * Abre el dialog de configuración del resaltado. Al confirmar, persiste el nuevo
+     * `HighlightSettings` y dispara un repaint manual de todos los terminales (con
+     * `dirty=true`) para que los toggles cambien apenas se vea sin esperar nueva data.
+     */
+    private fun openHighlightConfigDialog() {
+        val dialog = com.opentermx.app.ui.dialog.HighlightConfigDialog(settings.highlight)
+        dialog.initOwner(stage)
+        val updated = dialog.showAndWait().orElse(null) ?: return
+        if (updated != settings.highlight) {
+            persist { it.copy(highlight = updated) }
+            // Forzar repaint en cada tab abierta (TerminalView lee `settings.highlight` vía
+            // su provider, pero el cache del engine es por-instancia: re-instalamos el
+            // provider que internamente invalida el cache y dispara `dirty=true`).
+            controllers.values.forEach { ctl ->
+                ctl.terminal.setHighlightSettingsProvider { settings.highlight }
+            }
         }
     }
 

@@ -28,8 +28,15 @@ data class SavedConnection(
     val secret: EncryptedValue? = null,     // password o passphrase (segun authKind)
     val keyPath: String? = null,            // para SSH_KEY
     val lastUsedAtMillis: Long = System.currentTimeMillis(),
+    /**
+     * Nombre amigable definido por el operador (ej. "Router Core", "Switch Piso 3"). Vacío
+     * por defecto. Cuando está presente, se usa como título del tab y en el listado del
+     * `SavedConnectionsDialog` en lugar de `user@host:port`. Editable inline.
+     */
+    val label: String = "",
 ) {
-    fun label(): String = "$username@$host:$port"
+    /** Texto descriptivo para UI: usa `label` si está, sino cae al user@host:port clásico. */
+    fun displayLabel(): String = if (label.isNotBlank()) label else "$username@$host:$port"
 }
 
 object SavedConnections {

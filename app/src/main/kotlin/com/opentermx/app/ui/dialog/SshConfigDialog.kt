@@ -30,6 +30,7 @@ import java.io.File
 class SshConfigDialog(
     initial: SshConfig? = null,
     rememberCredentialsDefault: Boolean = false,
+    initialLabel: String = "",
 ) : Dialog<SshConfig>() {
 
     private val hostField = TextField()
@@ -38,6 +39,13 @@ class SshConfigDialog(
         isEditable = true
     }
     private val userField = TextField()
+
+    /**
+     * Etiqueta amigable para el equipo (ej. "Router Core"). Se persiste en `SavedConnection.label`
+     * cuando "Recordar credenciales" está tildado y se usa como título del tab si no está vacía.
+     * Público para que `MainWindow` lo lea tras `showAndWait()`.
+     */
+    val labelField = TextField(initialLabel)
 
     private val authGroup = ToggleGroup()
     private val passwordRadio = RadioButton("Contraseña").apply { toggleGroup = authGroup; isSelected = true }
@@ -103,25 +111,27 @@ class SshConfigDialog(
             HBox.setHgrow(keyPathField, Priority.ALWAYS)
         }
 
-        listOf(hostField, userField, passwordField, keyPathField, passphraseField).forEach {
+        listOf(hostField, userField, passwordField, keyPathField, passphraseField, labelField).forEach {
             it.maxWidth = Double.MAX_VALUE
         }
+        labelField.promptText = "Etiqueta opcional (ej. Router Core)"
 
         val grid = GridPane().apply {
             hgap = 10.0
             vgap = 8.0
             padding = Insets(20.0)
-            add(Label("Host:"), 0, 0); add(hostField, 1, 0)
-            add(Label("Puerto:"), 0, 1); add(portSpinner, 1, 1)
-            add(Label("Usuario:"), 0, 2); add(userField, 1, 2)
-            add(Label("Autenticación:"), 0, 3); add(HBox(12.0, passwordRadio, pubkeyRadio), 1, 3)
-            add(Label("Contraseña:"), 0, 4); add(passwordField, 1, 4)
-            add(Label("Clave privada:"), 0, 5); add(keyPathRow, 1, 5)
-            add(Label("Passphrase:"), 0, 6); add(passphraseField, 1, 6)
-            add(Label("Keep-alive (s):"), 0, 7); add(keepAliveSpinner, 1, 7)
-            add(agentForwardingCheck, 1, 8)
-            add(forwardsButton, 1, 9)
-            add(rememberCredentialsCheck, 1, 10)
+            add(Label("Etiqueta:"), 0, 0); add(labelField, 1, 0)
+            add(Label("Host:"), 0, 1); add(hostField, 1, 1)
+            add(Label("Puerto:"), 0, 2); add(portSpinner, 1, 2)
+            add(Label("Usuario:"), 0, 3); add(userField, 1, 3)
+            add(Label("Autenticación:"), 0, 4); add(HBox(12.0, passwordRadio, pubkeyRadio), 1, 4)
+            add(Label("Contraseña:"), 0, 5); add(passwordField, 1, 5)
+            add(Label("Clave privada:"), 0, 6); add(keyPathRow, 1, 6)
+            add(Label("Passphrase:"), 0, 7); add(passphraseField, 1, 7)
+            add(Label("Keep-alive (s):"), 0, 8); add(keepAliveSpinner, 1, 8)
+            add(agentForwardingCheck, 1, 9)
+            add(forwardsButton, 1, 10)
+            add(rememberCredentialsCheck, 1, 11)
         }
         dialogPane.content = grid
 

@@ -152,4 +152,41 @@ class SavedConnectionsTest {
         val restored = mapper.readValue(json, AppSettings::class.java)
         assertTrue(restored.savedConnections.isEmpty())
     }
+
+    @Test
+    fun `displayLabel cae al user host port cuando label esta vacio`() {
+        val noLabel = entry()
+        assertEquals("admin@10.0.0.1:22", noLabel.displayLabel())
+    }
+
+    @Test
+    fun `displayLabel devuelve label cuando esta presente`() {
+        val withLabel = entry().copy(label = "Router Core")
+        assertEquals("Router Core", withLabel.displayLabel())
+    }
+
+    @Test
+    fun `roundtrip JSON preserva label custom`() {
+        val original = AppSettings(
+            savedConnections = listOf(entry().copy(label = "Switch Piso 3")),
+        )
+        val json = mapper.writeValueAsString(original)
+        val restored = mapper.readValue(json, AppSettings::class.java)
+        assertEquals("Switch Piso 3", restored.savedConnections.single().label)
+    }
+
+    @Test
+    fun `entries legacy sin label deserializan con string vacio`() {
+        // Simula settings.json viejos (pre-feature) que no tienen el campo `label`.
+        val legacy = """
+            {
+              "savedConnections": [
+                {"id":"x","protocol":"SSH","host":"h","port":22,"username":"u",
+                 "authKind":"NONE","lastUsedAtMillis":0}
+              ]
+            }
+        """.trimIndent()
+        val restored = mapper.readValue(legacy, AppSettings::class.java)
+        assertEquals("", restored.savedConnections.single().label)
+    }
 }

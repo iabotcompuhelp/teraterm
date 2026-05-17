@@ -12,9 +12,11 @@ import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.TableColumn
 import javafx.scene.control.TableView
+import javafx.scene.control.cell.TextFieldTableCell
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
+import javafx.util.converter.DefaultStringConverter
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -36,6 +38,7 @@ class SavedConnectionsDialog(initial: List<SavedConnection>) : Dialog<List<Saved
         headerText = "Credenciales SSH recordadas (passwords/passphrases cifradas localmente)"
 
         configureTable()
+        table.isEditable = true
         refresh()
 
         val deleteSelected = Button("Eliminar selección").apply {
@@ -57,13 +60,26 @@ class SavedConnectionsDialog(initial: List<SavedConnection>) : Dialog<List<Saved
     }
 
     private fun configureTable() {
+        val labelCol = TableColumn<SavedConnection, String>("Etiqueta").apply {
+            setCellValueFactory { SimpleStringProperty(it.value.label) }
+            // Doble-click sobre la celda permite editar inline; commit con Enter, cancel con Esc.
+            cellFactory = TextFieldTableCell.forTableColumn(DefaultStringConverter())
+            setOnEditCommit { e ->
+                val newLabel = (e.newValue ?: "").trim()
+                val updated = e.rowValue.copy(label = newLabel)
+                current = current.map { if (it.id == updated.id) updated else it }
+                refresh()
+            }
+            isEditable = true
+            prefWidth = 160.0
+        }
         val userCol = TableColumn<SavedConnection, String>("Usuario").apply {
             setCellValueFactory { SimpleStringProperty(it.value.username) }
-            prefWidth = 120.0
+            prefWidth = 110.0
         }
         val hostCol = TableColumn<SavedConnection, String>("Host").apply {
             setCellValueFactory { SimpleStringProperty(it.value.host) }
-            prefWidth = 200.0
+            prefWidth = 170.0
         }
         val portCol = TableColumn<SavedConnection, String>("Puerto").apply {
             setCellValueFactory { SimpleStringProperty(it.value.port.toString()) }
@@ -77,7 +93,7 @@ class SavedConnectionsDialog(initial: List<SavedConnection>) : Dialog<List<Saved
             setCellValueFactory { SimpleStringProperty(formatTimestamp(it.value.lastUsedAtMillis)) }
             prefWidth = 140.0
         }
-        table.columns.setAll(userCol, hostCol, portCol, authCol, lastUsedCol)
+        table.columns.setAll(labelCol, userCol, hostCol, portCol, authCol, lastUsedCol)
         table.placeholder = Label("No hay credenciales recordadas.")
     }
 

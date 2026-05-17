@@ -1264,10 +1264,16 @@ class MainWindow(
                     settings.savedConnections, protocol = "SSH", host = choice.host, port = choice.tcpPort,
                 )
                 val seed = seedSshConfig(choice.host, choice.tcpPort, saved)
-                val dialog = SshConfigDialog(seed, rememberCredentialsDefault = saved != null)
+                val dialog = SshConfigDialog(
+                    seed,
+                    rememberCredentialsDefault = saved != null,
+                    initialLabel = saved?.label.orEmpty(),
+                )
                 val cfg = dialog.showAndWait().orElse(null) ?: return
-                persistSavedConnectionDecision(cfg, dialog.rememberCredentialsCheck.isSelected)
-                openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
+                val label = dialog.labelField.text?.trim().orEmpty()
+                persistSavedConnectionDecision(cfg, dialog.rememberCredentialsCheck.isSelected, label)
+                val tabName = label.ifBlank { "${cfg.username}@${cfg.host}" }
+                openSession(cfg, tabName, SshConnection(cfg, hostKeyVerifier))
                 rememberHost(choice.host)
             }
             is NewConnectionChoice.Telnet -> {
@@ -1376,10 +1382,10 @@ class MainWindow(
      *  - `remember = false`: si había entradas para `(host, port)` las elimina (el usuario
      *    explícitamente destildó). Mantenemos la simetría: tildar/destildar = on/off.
      */
-    private fun persistSavedConnectionDecision(cfg: SshConfig, remember: Boolean) {
+    private fun persistSavedConnectionDecision(cfg: SshConfig, remember: Boolean, label: String) {
         val current = settings.savedConnections
         val updated = if (remember) {
-            val entry = buildSavedConnectionFrom(cfg)
+            val entry = buildSavedConnectionFrom(cfg, label)
             com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
         } else {
             com.opentermx.app.settings.SavedConnections.removeByHost(
@@ -1389,7 +1395,7 @@ class MainWindow(
         if (updated != current) persist { it.copy(savedConnections = updated) }
     }
 
-    private fun buildSavedConnectionFrom(cfg: SshConfig): com.opentermx.app.settings.SavedConnection {
+    private fun buildSavedConnectionFrom(cfg: SshConfig, label: String): com.opentermx.app.settings.SavedConnection {
         val (kind, secret, keyPath) = when (val a = cfg.auth) {
             is SshAuth.Password -> {
                 val pw = String(a.password)
@@ -1417,6 +1423,7 @@ class MainWindow(
             authKind = kind,
             secret = secret,
             keyPath = keyPath,
+            label = label,
         )
     }
 

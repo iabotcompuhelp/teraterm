@@ -169,13 +169,27 @@ class MainWindow(
     private val hostKeyVerifier = JavaFxHostKeyVerifier(stage)
 
     private lateinit var rootPane: BorderPane
+    private lateinit var savedConnectionsListView: SavedConnectionsListView
 
     fun show() {
+        savedConnectionsListView = SavedConnectionsListView(
+            savedProvider = { settings.savedConnections },
+            onQuickConnect = { quickConnectSaved(it) },
+            onDelete = { deleteSavedConnection(it) },
+        )
+        val leftPane = javafx.scene.control.SplitPane(
+            SessionListView(viewModel),
+            savedConnectionsListView,
+        ).apply {
+            orientation = javafx.geometry.Orientation.VERTICAL
+            setDividerPositions(0.5)
+            prefWidth = 240.0
+        }
         rootPane = BorderPane().apply {
             top = buildTopBar()
             center = buildCenterWithWatermark()
             bottom = buildStatusBar()
-            left = SessionListView(viewModel).also { it.prefWidth = 220.0 }
+            left = leftPane
         }
         val scene = Scene(rootPane, 1100.0, 720.0)
         theme.applyTo(scene)
@@ -1277,7 +1291,10 @@ class MainWindow(
                 rememberHost(choice.host)
             }
             is NewConnectionChoice.Telnet -> {
-                val cfg = TelnetConfig(
+                val saved = com.opentermx.app.settings.SavedConnections.findMostRecent(
+                    settings.savedConnections, protocol = "TELNET", host = choice.host, port = choice.tcpPort,
+                )
+                val seedCfg = TelnetConfig(
                     host = choice.host,
                     port = choice.tcpPort,
                     terminalType = settings.tcpIp.terminalType,
@@ -1286,8 +1303,26 @@ class MainWindow(
                     proxy = currentProxyConfig(),
                     dnsMode = settings.tcpIp.dnsMode,
                 )
-                val protocol = if (cfg.useTls) "telnets" else "telnet"
-                openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
+                val dialog = com.opentermx.app.ui.dialog.TelnetConfigDialog(
+                    initial = seedCfg,
+                    initialLabel = saved?.label.orEmpty(),
+                    initialUsername = saved?.username.orEmpty(),
+                    rememberDefault = saved != null,
+                )
+                val confirmed = dialog.showAndWait().orElse(null) ?: return
+                val cfg = seedCfg.copy(
+                    host = confirmed.host,
+                    port = confirmed.port,
+                    useTls = confirmed.useTls,
+                )
+                val label = dialog.labelField.text?.trim().orEmpty()
+                val refUser = dialog.usernameField.text?.trim().orEmpty()
+                persistSavedTelnet(cfg, dialog.rememberCheck.isSelected, label, refUser)
+                val tabName = label.ifBlank {
+                    val protocol = if (cfg.useTls) "telnets" else "telnet"
+                    "$protocol://${cfg.host}:${cfg.port}"
+                }
+                openSession(cfg, tabName, TelnetConnection(cfg))
                 rememberHost(choice.host)
             }
             is NewConnectionChoice.TcpRaw -> {
@@ -1364,7 +1399,59 @@ class MainWindow(
     private fun openSavedConnectionsDialog() {
         val dialog = com.opentermx.app.ui.dialog.SavedConnectionsDialog(settings.savedConnections)
         val updated = dialog.showAndWait().orElse(null) ?: return
-        if (updated != settings.savedConnections) persist { it.copy(savedConnections = updated) }
+        if (updated != settings.savedConnections) {
+            persist { it.copy(savedConnections = updated) }
+            savedConnectionsListView.refresh()
+        }
+    }
+
+    /** Borra una entrada guardada desde el panel lateral (clic-derecho → Eliminar o tecla DELETE). */
+    private fun deleteSavedConnection(saved: com.opentermx.app.settings.SavedConnection) {
+        val updated = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
+        if (updated != settings.savedConnections) {
+            persist { it.copy(savedConnections = updated) }
+            savedConnectionsListView.refresh()
+        }
+    }
+
+    /**
+     * Conecta directo desde el panel "Conexiones guardadas" (doble-click). Arma el config
+     * sin pasar por el dialog interactivo — todas las credenciales ya están en `saved`. Tras
+     * conectar, bumpea `lastUsedAtMillis` para que la entrada suba al tope del listado.
+     */
+    private fun quickConnectSaved(saved: com.opentermx.app.settings.SavedConnection) {
+        when (saved.protocol) {
+            "SSH" -> {
+                val seed = seedSshConfig(saved.host, saved.port, saved)
+                val tabName = saved.displayLabel()
+                openSession(seed, tabName, SshConnection(seed, hostKeyVerifier))
+            }
+            "TELNET" -> {
+                val cfg = TelnetConfig(
+                    host = saved.host,
+                    port = saved.port,
+                    terminalType = settings.tcpIp.terminalType,
+                    keepAlive = settings.tcpIp.keepAlive,
+                    recvBufferSize = settings.tcpIp.recvBufferSize,
+                    proxy = currentProxyConfig(),
+                    dnsMode = settings.tcpIp.dnsMode,
+                )
+                openSession(cfg, saved.displayLabel(), TelnetConnection(cfg))
+            }
+            else -> {
+                log.warn("quickConnect: protocolo no soportado '${saved.protocol}' para ${saved.host}")
+                return
+            }
+        }
+        // Bump del timestamp para que la entrada quede al tope del listado.
+        val refreshed = com.opentermx.app.settings.SavedConnections.upsert(
+            settings.savedConnections, saved, bumpLastUsed = true,
+        )
+        if (refreshed != settings.savedConnections) {
+            persist { it.copy(savedConnections = refreshed) }
+            savedConnectionsListView.refresh()
+        }
+        rememberHost(saved.host)
     }
 
     private fun rememberHost(host: String) {
@@ -1382,6 +1469,35 @@ class MainWindow(
      *  - `remember = false`: si había entradas para `(host, port)` las elimina (el usuario
      *    explícitamente destildó). Mantenemos la simetría: tildar/destildar = on/off.
      */
+    /**
+     * Persiste o elimina una entrada Telnet. Telnet no tiene auth en el protocolo, así que
+     * `authKind = NONE` y no hay secret ni keyPath. `username` se guarda como referencia para
+     * que el operador recuerde con qué login entra (no se transmite).
+     */
+    private fun persistSavedTelnet(cfg: TelnetConfig, remember: Boolean, label: String, username: String) {
+        val current = settings.savedConnections
+        val updated = if (remember) {
+            val entry = com.opentermx.app.settings.SavedConnection(
+                id = java.util.UUID.randomUUID().toString(),
+                protocol = "TELNET",
+                host = cfg.host,
+                port = cfg.port,
+                username = username,
+                authKind = com.opentermx.app.settings.SavedAuthKind.NONE,
+                label = label,
+            )
+            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
+        } else {
+            com.opentermx.app.settings.SavedConnections.removeByHost(
+                current, protocol = "TELNET", host = cfg.host, port = cfg.port,
+            )
+        }
+        if (updated != current) {
+            persist { it.copy(savedConnections = updated) }
+            savedConnectionsListView.refresh()
+        }
+    }
+
     private fun persistSavedConnectionDecision(cfg: SshConfig, remember: Boolean, label: String) {
         val current = settings.savedConnections
         val updated = if (remember) {
@@ -1392,7 +1508,10 @@ class MainWindow(
                 current, protocol = "SSH", host = cfg.host, port = cfg.port,
             )
         }
-        if (updated != current) persist { it.copy(savedConnections = updated) }
+        if (updated != current) {
+            persist { it.copy(savedConnections = updated) }
+            savedConnectionsListView.refresh()
+        }
     }
 
     private fun buildSavedConnectionFrom(cfg: SshConfig, label: String): com.opentermx.app.settings.SavedConnection {

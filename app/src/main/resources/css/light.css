@@ -53,3 +53,17 @@
 .session-list {
     -fx-background-color: transparent;
 }
+.saved-connections-pane {
+    -fx-background-color: #f0f0f0;
+    -fx-padding: 6;
+    -fx-border-color: #cfcfcf;
+    -fx-border-width: 1 1 0 0;
+}
+.saved-connections-pane .panel-header {
+    -fx-text-fill: #444;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 6 0;
+}
+.saved-connections-list {
+    -fx-background-color: transparent;
+}

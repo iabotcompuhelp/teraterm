@@ -11,7 +11,12 @@ import javafx.scene.control.SpinnerValueFactory
 import javafx.scene.control.TextField
 import javafx.scene.layout.GridPane
 
-class TelnetConfigDialog(initial: TelnetConfig? = null) : Dialog<TelnetConfig>() {
+class TelnetConfigDialog(
+    initial: TelnetConfig? = null,
+    initialLabel: String = "",
+    initialUsername: String = "",
+    rememberDefault: Boolean = false,
+) : Dialog<TelnetConfig>() {
 
     private val hostField = TextField(initial?.host.orEmpty())
     private val portSpinner = Spinner<Int>().apply {
@@ -26,19 +31,37 @@ class TelnetConfigDialog(initial: TelnetConfig? = null) : Dialog<TelnetConfig>()
         }
     }
 
+    /** Etiqueta amigable. Si no está vacía, MainWindow la usa como nombre de tab. */
+    val labelField = TextField(initialLabel).apply {
+        promptText = "Etiqueta opcional (ej. Switch Lab 13)"
+    }
+    /**
+     * Usuario solo informativo: Telnet no negocia credenciales en el protocolo. Sirve para
+     * recordar con qué login se entra al equipo (login interactivo o auto-login macro).
+     */
+    val usernameField = TextField(initialUsername).apply {
+        promptText = "Usuario para referencia (opcional, no se envía)"
+    }
+    val rememberCheck = CheckBox("Recordar (etiqueta + host) para reconexión rápida").apply {
+        isSelected = rememberDefault
+    }
+
     init {
         title = "Configuración Telnet"
         headerText = "Configurar conexión Telnet"
 
-        hostField.maxWidth = Double.MAX_VALUE
+        listOf(hostField, labelField, usernameField).forEach { it.maxWidth = Double.MAX_VALUE }
 
         val grid = GridPane().apply {
             hgap = 10.0
             vgap = 8.0
             padding = Insets(20.0)
-            add(Label("Host:"), 0, 0); add(hostField, 1, 0)
-            add(Label("Puerto:"), 0, 1); add(portSpinner, 1, 1)
-            add(Label("Seguridad:"), 0, 2); add(tlsCheck, 1, 2)
+            add(Label("Etiqueta:"), 0, 0); add(labelField, 1, 0)
+            add(Label("Host:"), 0, 1); add(hostField, 1, 1)
+            add(Label("Puerto:"), 0, 2); add(portSpinner, 1, 2)
+            add(Label("Usuario:"), 0, 3); add(usernameField, 1, 3)
+            add(Label("Seguridad:"), 0, 4); add(tlsCheck, 1, 4)
+            add(rememberCheck, 1, 5)
         }
         dialogPane.content = grid
 

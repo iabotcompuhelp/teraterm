@@ -106,6 +106,34 @@ class TerminalView(
     var onResize: (cols: Int, rows: Int) -> Unit = { _, _ -> }
 
     /**
+     * Engine de resaltado contextual. Construido lazy con un settings provider que devuelve
+     * `HighlightSettings()` por default (toggle ON). `MainWindow` puede sustituir el provider
+     * con `setHighlightSettingsProvider(...)` para enchufar la config persistida del usuario.
+     */
+    private var highlightSettingsProvider: () -> com.opentermx.app.ui.terminal.highlight.HighlightSettings =
+        { com.opentermx.app.ui.terminal.highlight.HighlightSettings() }
+    private val highlightEngine by lazy {
+        com.opentermx.app.ui.terminal.highlight.HighlightEngine(
+            settingsProvider = { highlightSettingsProvider() },
+        )
+    }
+    private val highlightOverlayProvider: (Int, List<TerminalCell>) -> com.opentermx.app.ui.terminal.highlight.LineOverlay =
+        { absRow, line ->
+            highlightEngine.overlayFor(
+                absRow = absRow,
+                line = line,
+                isCursorRow = absRow == buffer.cursorRow,
+                inAlternateScreen = buffer.alternateMode,
+            )
+        }
+
+    fun setHighlightSettingsProvider(provider: () -> com.opentermx.app.ui.terminal.highlight.HighlightSettings) {
+        this.highlightSettingsProvider = provider
+        highlightEngine.invalidateCache()
+        dirty = true
+    }
+
+    /**
      * Devuelve las últimas [count] líneas plano (sin atributos) del buffer. Usado por
      * el AI Assistant (contexto del terminal) y por el endpoint REST `GET /api/terminal/buffer`.
      */
@@ -674,7 +702,10 @@ class TerminalView(
                     dirty = true
                 }
                 if (dirty || buffer.version != lastPaintedVersion) {
-                    renderer.paint(canvas, buffer, viewportTop, selection, canvas.isFocused)
+                    renderer.paint(
+                        canvas, buffer, viewportTop, selection, canvas.isFocused,
+                        overlayProvider = highlightOverlayProvider,
+                    )
                     lastPaintedVersion = buffer.version
                     dirty = false
                 }

@@ -1,6 +1,7 @@
 package com.opentermx.app.settings
 
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.opentermx.app.ui.terminal.highlight.HighlightSettings
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class AppSettings(
@@ -31,6 +32,12 @@ data class AppSettings(
      * consulta en `MainWindow.seedSshConfig` para autocompletar el dialog.
      */
     val savedConnections: List<SavedConnection> = emptyList(),
+    /**
+     * Configuración del resaltado visual contextual del terminal (Fase 1: keywords +
+     * prompt detection con auto-skip en alternate screen buffer). Settings sub-objeto
+     * para que el JSON quede prolijo y permita agregar campos sin migrar.
+     */
+    val highlight: HighlightSettings = HighlightSettings(),
 ) {
     companion object {
         val DEFAULT_ACCELERATORS: Map<String, String> = linkedMapOf(

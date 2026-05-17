@@ -1194,6 +1194,9 @@ class MainWindow(
             deleteSendsBs = settings.keyboard.deleteSendsBs,
             metaSendsEscape = settings.keyboard.metaSendsEscape,
         )
+        // Resaltado contextual: el TerminalView consulta los settings via callback (lee
+        // siempre la versión actual de `settings.highlight` sin necesidad de re-aplicar).
+        terminal.setHighlightSettingsProvider { settings.highlight }
         terminal.applyAdditionalSettings(
             copyOnSelect = settings.additional.copyOnSelect,
             visualCursorBlink = settings.additional.visualCursorBlink,

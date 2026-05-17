@@ -71,6 +71,7 @@ class TerminalRenderer(
         viewportTop: Int,
         selection: Selection,
         focused: Boolean,
+        overlayProvider: ((absRow: Int, line: List<TerminalCell>) -> com.opentermx.app.ui.terminal.highlight.LineOverlay)? = null,
     ) {
         val gc = canvas.graphicsContext2D
         val width = canvas.width
@@ -84,7 +85,8 @@ class TerminalRenderer(
         for (rowOffset in 0 until visibleRows) {
             val absRow = viewportTop + rowOffset
             val line = buffer.lineAt(absRow) ?: continue
-            paintRow(gc, line, absRow, rowOffset, cols, selection)
+            val overlay = overlayProvider?.invoke(absRow, line)
+            paintRow(gc, line, absRow, rowOffset, cols, selection, overlay)
         }
 
         val cursorAbs = buffer.cursorRow
@@ -101,6 +103,7 @@ class TerminalRenderer(
         visRow: Int,
         cols: Int,
         selection: Selection,
+        overlay: com.opentermx.app.ui.terminal.highlight.LineOverlay?,
     ) {
         val y = visRow * cellHeight
         var col = 0
@@ -108,7 +111,9 @@ class TerminalRenderer(
             val cell = line.getOrNull(col) ?: TerminalCell.EMPTY
             val attrs = cell.attrs
             val selected = selection.contains(absRow, col)
-            val (fg, bg) = effectiveColors(attrs)
+            val (baseFg, baseBg) = effectiveColors(attrs)
+            val overlayRun = overlay?.colorAt(col)
+            val (fg, bg) = applyOverlay(baseFg, baseBg, attrs, overlayRun)
 
             gc.fill = bg
             gc.fillRect(col * cellWidth, y, cellWidth, cellHeight)
@@ -189,6 +194,31 @@ class TerminalRenderer(
         val fg = AnsiPalette.resolve(attrs.fg, defaultFg, defaultBg, isFg = true)
         val bg = AnsiPalette.resolve(attrs.bg, defaultFg, defaultBg, isFg = false)
         return if (attrs.inverse) bg to fg else fg to bg
+    }
+
+    /**
+     * Aplica el overlay del HighlightEngine respetando la merge policy. Si la celda ya tiene
+     * un fg explícito del servidor (no Default) y la policy es RESPECT_SERVER, el fg del
+     * server gana; si es OVERRIDE, el overlay siempre pisa. El bg del overlay aplica si está.
+     */
+    private fun applyOverlay(
+        baseFg: Color,
+        baseBg: Color,
+        attrs: CellAttributes,
+        run: com.opentermx.app.ui.terminal.highlight.OverlayRun?,
+    ): Pair<Color, Color> {
+        if (run == null) return baseFg to baseBg
+        val serverHasExplicitFg = attrs.fg != AnsiColor.Default
+        val applyFg = when (run.mergePolicy) {
+            com.opentermx.app.ui.terminal.highlight.MergePolicy.OVERRIDE -> true
+            com.opentermx.app.ui.terminal.highlight.MergePolicy.RESPECT_SERVER -> !serverHasExplicitFg
+            com.opentermx.app.ui.terminal.highlight.MergePolicy.MERGE -> false
+        }
+        val overlayFg = if (applyFg) AnsiPalette.resolve(run.fg, defaultFg, defaultBg, isFg = true) else baseFg
+        val overlayBg = if (run.bg != null) {
+            AnsiPalette.resolve(run.bg, defaultFg, defaultBg, isFg = false)
+        } else baseBg
+        return overlayFg to overlayBg
     }
 
     private fun pickFont(attrs: CellAttributes): Font = when {

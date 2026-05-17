@@ -86,8 +86,10 @@ public final class TelnetConnection implements Connection {
                 log.info("Telnet vía proxy {}:{}", config.getProxy().getHost(), config.getProxy().getPort());
             }
             int recvBuf = config.getRecvBufferSize();
+            // setReceiveBufferSize en SocketClient guarda el valor y lo aplica en connect();
+            // setKeepAlive, en cambio, hace `_socket_.setKeepAlive(...)` directo y tira NPE
+            // si se llama antes de connect(). Por eso recvBuf va acá y keepAlive abajo.
             if (recvBuf > 0) client.setReceiveBufferSize(recvBuf);
-            client.setKeepAlive(config.getKeepAlive());
 
             // Standard option handlers for an interactive shell-like session
             client.addOptionHandler(new TerminalTypeOptionHandler(terminalType, false, false, true, false));
@@ -97,6 +99,7 @@ public final class TelnetConnection implements Connection {
 
             java.net.InetAddress address = HostResolver.resolve(config.getHost(), config.getDnsMode());
             client.connect(address, config.getPort());
+            client.setKeepAlive(config.getKeepAlive());
             log.info("Telnet conectado a {}:{} (host={}, TLS={})",
                     address.getHostAddress(), config.getPort(), config.getHost(), config.getUseTls());
 

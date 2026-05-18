@@ -17,7 +17,13 @@
     {
       "id": "T2",
       "title": "Fix BUG-ssh-default-001: KEX defaults restrictivos",
-      "status": "pending"
+      "status": "done",
+      "notes": [
+        "AppSettings.SshGeneralSettings: kex expandido de 2→8 (curve25519 + ECDH NIST 256/384/521 + DH-GEX/group16/group14).",
+        "ciphers expandido de 5→8 (aes192-ctr + aes256/128-gcm sin sufijo openssh para servers que rechazan la variante con sufijo).",
+        "macs expandido de 2→5 (etm@openssh.com + hmac-sha2-256/512 plain + hmac-sha1 legacy).",
+        "SshGeneralDefaultsTest: 6 asserts, incluye un roundtrip JSON que confirma que la lista vieja del usuario sobrevive (Jackson no la sobreescribe con el default nuevo)."
+      ]
     },
     {
       "id": "T3",

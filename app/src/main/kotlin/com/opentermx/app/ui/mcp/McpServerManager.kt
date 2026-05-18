@@ -152,6 +152,11 @@ object McpServerManager {
         val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
             store = com.opentermx.mcp.operation.FsOperationStore(),
         )
+        // Phase 3 Fase 3: secret store HMAC para approval tokens. El secret se genera al
+        // primer arranque (0600 en POSIX). Lo cacheamos en una lambda para que el
+        // ProposeCommandsHandler pueda leer el valor actualizado si alguna vez rotamos.
+        val secretStore = com.opentermx.mcp.security.McpSecretStore()
+        val secretProvider: () -> ByteArray = { secretStore.loadOrCreate() }
         // Phase 3 Fase 2: el InventoryProvider consume `AppSettings.savedConnections`
         // (las entradas que tengan `alias` definido). Resolver lambda = lookup vivo, así
         // las tools de inventory reflejan cambios del Setup → Saved Connections sin
@@ -161,7 +166,11 @@ object McpServerManager {
             ListSessionsHandler(),
             InspectSessionHandler(redactor),
             SearchKnowledgeBaseHandler { KnowledgeBaseHolder.get(settingsProvider()) },
-            ProposeCommandsHandler(approvalGate, redactor = redactor),
+            ProposeCommandsHandler(
+                approvalGate, redactor = redactor,
+                operationRegistry = operationRegistry,
+                approvalSecretProvider = secretProvider,
+            ),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
             OpenSessionHandler(approvalGate, resolveSessionOpener(), inventoryProvider),
@@ -173,6 +182,10 @@ object McpServerManager {
             com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.InventoryListHandler(inventoryProvider),
             com.opentermx.mcp.handlers.InventoryDescribeHandler(inventoryProvider),
+            com.opentermx.mcp.handlers.ComplianceEvaluateHandler(
+                operationRegistry,
+                secretProvider,
+            ),
         )
         val tlsConfig: McpServer.TlsConfig? = if (settings.mcpServerTlsEnabled && !settings.mcpServerKeyStorePath.isNullOrBlank()) {
             val password = decodeToken(settings.mcpServerKeyStorePassword).orEmpty()

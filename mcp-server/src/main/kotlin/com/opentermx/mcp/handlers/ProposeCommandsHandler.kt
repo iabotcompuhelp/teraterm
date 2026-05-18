@@ -39,6 +39,13 @@ class ProposeCommandsHandler(
     private val auditLog: AiAuditLog = AiAuditLog(),
     private val injectDelayMillis: Long = DEFAULT_INJECT_DELAY_MILLIS,
     private val redactor: CredentialRedactor = CredentialRedactor(),
+    /**
+     * Phase 3 Fase 3: registry + secret para verificar `approvalToken` cuando la operation
+     * activa exige `require_compliance_approval`. Si ambos son null la verificación se
+     * skipea (back-compat con tests previos).
+     */
+    private val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
+    private val approvalSecretProvider: (() -> ByteArray)? = null,
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.PROPOSE_COMMANDS
@@ -47,6 +54,17 @@ class ProposeCommandsHandler(
         val sessionIdRaw = Args.requireString(args, "sessionId")
         val commands = Args.requireStringList(args, "commands")
         val rationale = Args.optionalString(args, "rationale").orEmpty()
+        val approvalToken = Args.optionalString(args, "approvalToken")
+        val deviceAlias = Args.optionalString(args, "deviceAlias")
+
+        // Phase 3 Fase 3: validar approval token contra la operation activa, si la hay y
+        // si pide require_compliance_approval. La verificación corre ANTES del approval
+        // gate humano — si el token no matchea, ni siquiera mostramos el diálogo.
+        if (operationRegistry != null && approvalSecretProvider != null) {
+            verifyComplianceTokenIfNeeded(
+                operationRegistry, approvalSecretProvider, approvalToken, deviceAlias, commands,
+            )
+        }
 
         val sessionId = SessionId(sessionIdRaw)
         val metadata = SessionRegistry.metadataOf(sessionId)
@@ -144,6 +162,65 @@ class ProposeCommandsHandler(
         "config" to risks.count { it == RiskLevel.CONFIG },
         "dangerous" to risks.count { it == RiskLevel.DANGEROUS },
     )
+
+    /**
+     * Phase 3 Fase 3: verifica el approvalToken cuando la operation activa lo exige.
+     * El registry NO sabe qué sessionKey llamó (eso vive en el dispatcher); por eso miramos
+     * `forOperationId` de cualquier op que el token reclame. La verificación matchea ese id
+     * contra el payload del token. Si el cliente no manda token y la op exige, rechazamos.
+     */
+    private fun verifyComplianceTokenIfNeeded(
+        registry: com.opentermx.mcp.operation.OperationRegistry,
+        secretProvider: () -> ByteArray,
+        token: String?,
+        deviceAlias: String?,
+        commands: List<String>,
+    ) {
+        // Sin token no podemos identificar la op desde el handler; pero si NINGUNA op
+        // activa exige approval, no hay nada que verificar. Como el handler no recibe
+        // sessionKey hoy, la heurística es: si hay token, lo verificamos; si no hay token
+        // y existe AL MENOS una op con require_compliance_approval, exigimos uno. El
+        // mensaje de error le indica al cliente cómo proceder.
+        if (token.isNullOrBlank()) {
+            // Sin token: rechazamos sólo si hay ops con require_compliance_approval. Esto
+            // mantiene back-compat con tests/clientes que no usan operations.
+            val needsApproval = registry.activeOperationsRequiringComplianceApproval()
+            if (needsApproval.isNotEmpty()) {
+                throw McpToolException(
+                    McpToolException.ErrorCode.INVALID_ARGUMENT,
+                    "Esta operation exige approval_token. Llamá `compliance_evaluate` " +
+                        "(con rol COMPLIANCE) y pasá el `approvalToken` retornado en este request.",
+                )
+            }
+            return
+        }
+
+        // Probamos verificar contra cada operation activa que exija approval. Tomamos la
+        // primera match porque el token lleva el operationId concreto.
+        val candidates = registry.activeOperationsRequiringComplianceApproval()
+        if (candidates.isEmpty()) {
+            // Cliente mandó token pero ninguna op lo pide. Lo ignoramos silenciosamente
+            // — el approval gate humano sigue siendo la barrera.
+            return
+        }
+        val results = candidates.map { rec ->
+            com.opentermx.mcp.security.ApprovalTokens.verify(
+                token = token,
+                expectedOperationId = rec.operationId,
+                expectedDeviceAlias = deviceAlias,
+                commands = commands,
+                secret = secretProvider(),
+            )
+        }
+        if (results.any { it is com.opentermx.mcp.security.Verification.Valid }) return
+
+        val firstInvalid = results.filterIsInstance<com.opentermx.mcp.security.Verification.Invalid>()
+            .firstOrNull()?.reason ?: "approval_token inválido"
+        throw McpToolException(
+            McpToolException.ErrorCode.INVALID_ARGUMENT,
+            firstInvalid,
+        )
+    }
 
     companion object {
         const val DEFAULT_INJECT_DELAY_MILLIS = 120L

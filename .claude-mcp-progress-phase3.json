@@ -53,7 +53,30 @@
         "Test estructural InventoryDevice_no_expone_secret_ni_keyPath garantiza que nuevos fields sensibles disparan compile-error."
       ]
     },
-    {"id": "F3", "title": "Multi-agent roles + approval token HMAC", "status": "pending"},
+    {
+      "id": "F3",
+      "title": "Multi-agent roles + approval token HMAC",
+      "status": "done",
+      "tasks": [
+        {"id": "F3.T1", "title": "Role enum + RoleAccessControl con whitelists hardcoded", "status": "done"},
+        {"id": "F3.T2", "title": "TransportContext.role + header X-OpenTermX-Role", "status": "done"},
+        {"id": "F3.T3", "title": "McpDispatcher filtra tools/call por rol", "status": "done"},
+        {"id": "F3.T4", "title": "McpSecretStore: key file 0600 en ~/.opentermx/mcp-secret.key", "status": "done"},
+        {"id": "F3.T5", "title": "ApprovalToken: HMAC-SHA256 + base64url + verify", "status": "done"},
+        {"id": "F3.T6", "title": "Tool compliance_evaluate (solo COMPLIANCE) + handler", "status": "done"},
+        {"id": "F3.T7", "title": "ProposeCommandsHandler verifica approvalToken", "status": "done"},
+        {"id": "F3.T8", "title": "Registro en McpServerManager + TestServerMain", "status": "done"},
+        {"id": "F3.T9", "title": "Tests unitarios: 20 asserts en 3 archivos (RoleAccessControl, ApprovalToken, dispatcher filter)", "status": "done"},
+        {"id": "F3.T10", "title": "Tests pytest: 7 nuevos (47 total) — flujo completo + rechazos por op/commands/sin-token", "status": "done"},
+        {"id": "F3.T11", "title": "docs/multi-agent.md con tradeoff single-LLM vs 3-procesos", "status": "done"}
+      ],
+      "notes": [
+        "Catálogo de tools total: 16 (LIST_SESSIONS..COMPLIANCE_EVALUATE).",
+        "Wire MCP extendido: header opcional X-OpenTermX-Role + params opcionales approvalToken/deviceAlias en propose_commands.",
+        "Approval gate humano sigue siendo el último filtro; el token es complementario.",
+        "Sin rotación automática del secret — documentado en limitaciones conocidas."
+      ]
+    },
     {"id": "F4", "title": "Snapshots pre/post + diff + rollback propose", "status": "pending"},
     {"id": "F5", "title": "Policy engine YAML determinístico", "status": "pending"}
   ]

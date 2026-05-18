@@ -146,6 +146,15 @@ class McpDispatcher(
             ?: return error(request.id, JsonRpcError.INVALID_PARAMS, "Falta `name` en params")
         val handler = handlersByName[toolName]
             ?: return error(request.id, JsonRpcError.METHOD_NOT_FOUND, "Tool desconocida: `$toolName`")
+        // Phase 3 Fase 3: enforcement de roles. La whitelist es hardcoded en
+        // RoleAccessControl; tools que no estén ahí quedan inaccesibles para todos.
+        if (!com.opentermx.mcp.security.RoleAccessControl.allows(transport.role, toolName)) {
+            return error(
+                request.id,
+                JsonRpcError.METHOD_NOT_FOUND,
+                "Tool `$toolName` no permitida para rol `${transport.role.name}`",
+            )
+        }
         // Short-circuit de read-only: las mutativas no llegan al handler.
         if (readOnly && handler.definition.mutating) {
             return error(
@@ -329,6 +338,12 @@ data class TransportContext(
     val sessionKey: String,
     val protocolVersionHeader: String?,
     val enforceVersionHeader: Boolean,
+    /**
+     * Phase 3 Fase 3: rol declarado por el cliente vía header HTTP `X-OpenTermX-Role`.
+     * Default [com.opentermx.mcp.security.Role.OPERATOR] cuando el header falta
+     * (back-compat con clientes pre-Fase 3).
+     */
+    val role: com.opentermx.mcp.security.Role = com.opentermx.mcp.security.Role.OPERATOR,
 ) {
     companion object {
         /** Contexto que se usa en tests unitarios que no ejercitan version negotiation. */

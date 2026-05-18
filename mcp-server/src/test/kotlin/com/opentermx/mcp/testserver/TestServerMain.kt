@@ -52,6 +52,11 @@ object TestServerMain {
         val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
             com.opentermx.mcp.operation.InMemoryOperationStore(),
         )
+        // Phase 3 Fase 3: secret fijo para tests (32 bytes determinísticos). Permite que el
+        // pytest emita un compliance_evaluate, capture el approvalToken, y lo reuse en un
+        // propose_commands subsecuente.
+        val testSecret = ByteArray(32) { (it + 1).toByte() }
+        val secretProvider: () -> ByteArray = { testSecret }
         // Phase 3 Fase 2: inventory in-memory con 2 devices mock alineados con las
         // sessions del seedSessions (router-cisco.lab + mk.lab).
         val inventory = StaticInventoryProvider(
@@ -74,7 +79,11 @@ object TestServerMain {
             ListSessionsHandler(),
             InspectSessionHandler(),
             SearchKnowledgeBaseHandler { null }, // KB null en tests — handler debe devolver []
-            ProposeCommandsHandler(gate, injectDelayMillis = 0L),
+            ProposeCommandsHandler(
+                gate, injectDelayMillis = 0L,
+                operationRegistry = operationRegistry,
+                approvalSecretProvider = secretProvider,
+            ),
             ListMacrosHandler(),
             RunMacroHandler(gate),
             OpenSessionHandler(gate, SessionOpener.NoOp, inventory),
@@ -86,6 +95,7 @@ object TestServerMain {
             com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.InventoryListHandler(inventory),
             com.opentermx.mcp.handlers.InventoryDescribeHandler(inventory),
+            com.opentermx.mcp.handlers.ComplianceEvaluateHandler(operationRegistry, secretProvider),
         )
         val server = McpServer(
             handlers,

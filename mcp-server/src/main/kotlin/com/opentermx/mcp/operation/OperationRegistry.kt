@@ -112,6 +112,13 @@ class OperationRegistry(
 
     fun forOperationId(operationId: String): OperationRecord? = byOperationId[operationId]
 
+    /**
+     * Phase 3 Fase 3 helper: ops activas que declaran `require_compliance_approval=true`.
+     * Lo usa `ProposeCommandsHandler` para saber si exigir un approval token o no.
+     */
+    fun activeOperationsRequiringComplianceApproval(): List<OperationRecord> =
+        byOperationId.values.filter { it.context.constraints.requireComplianceApproval }
+
     /** Solo para tests: limpia todo. NO toca el store. */
     internal fun clearForTests() {
         bySessionKey.clear()

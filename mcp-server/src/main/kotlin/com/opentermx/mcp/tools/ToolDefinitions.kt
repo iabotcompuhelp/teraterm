@@ -149,6 +149,15 @@ object ToolDefinitions {
                     "items" to obj("type" to "string"),
                 ),
                 "rationale" to obj("type" to "string"),
+                "approvalToken" to obj(
+                    "type" to listOf("string", "null"),
+                    "description" to "Phase 3 Fase 3: token HMAC emitido por `compliance_evaluate`. " +
+                        "Obligatorio cuando la operation activa declara `require_compliance_approval: true`.",
+                ),
+                "deviceAlias" to obj(
+                    "type" to listOf("string", "null"),
+                    "description" to "Alias del target. Si viene, se valida contra el scope del approval_token.",
+                ),
             ),
         ),
         outputSchema = obj(
@@ -534,6 +543,49 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    val COMPLIANCE_EVALUATE = ToolDef(
+        name = "compliance_evaluate",
+        description = "Evalúa una propuesta de comandos contra el operation context activo. " +
+            "Solo accesible para clientes con rol COMPLIANCE (header `X-OpenTermX-Role: COMPLIANCE`). " +
+            "Si `approved=true`, devuelve un `approvalToken` HMAC-SHA256 que el rol OPERATOR debe " +
+            "incluir en `propose_commands` cuando la operation declara `require_compliance_approval`. " +
+            "El token expira en `ttlMillis` (default 15 min, máx 60).",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("operationId", "proposedCommands"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "operationId" to obj("type" to "string", "minLength" to 1),
+                "proposedCommands" to obj(
+                    "type" to "array",
+                    "items" to obj("type" to "string"),
+                    "minItems" to 1,
+                ),
+                "deviceAlias" to obj("type" to listOf("string", "null"),
+                    "description" to "Si se especifica, el token solo es válido para este alias del Device Registry."),
+                "reasons" to obj("type" to listOf("array", "null"),
+                    "items" to obj("type" to "string"),
+                    "description" to "Razones del compliance LLM para aprobar/rechazar (auditadas)."),
+                "approved" to obj("type" to "boolean",
+                    "description" to "Decisión del compliance. Si es false, no se emite token."),
+                "ttlMillis" to obj("type" to listOf("integer", "null"),
+                    "minimum" to 1000, "maximum" to 3600000,
+                    "description" to "TTL del token en ms. Default 900000 (15 min). Clamp a [1s, 60min]."),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("approved"),
+            "properties" to obj(
+                "approved" to obj("type" to "boolean"),
+                "approvalToken" to obj("type" to listOf("string", "null")),
+                "reasons" to obj("type" to "array", "items" to obj("type" to "string")),
+                "auditLogId" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -550,6 +602,7 @@ object ToolDefinitions {
         CURRENT_OPERATION,
         INVENTORY_LIST,
         INVENTORY_DESCRIBE,
+        COMPLIANCE_EVALUATE,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

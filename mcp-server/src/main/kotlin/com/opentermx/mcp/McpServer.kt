@@ -258,6 +258,7 @@ class McpServer(
                 sessionKey = sessionKey,
                 protocolVersionHeader = ctx.header("MCP-Protocol-Version"),
                 enforceVersionHeader = true,
+                role = com.opentermx.mcp.security.Role.fromHeader(ctx.header("X-OpenTermX-Role")),
             )
             val response = dispatcher.handle(request, transport)
             if (response == null) {

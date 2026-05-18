@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory
 class McpDispatcher(
     handlers: List<ToolHandler>,
     private val serverName: String = "opentermx-mcp",
-    private val serverVersion: String = "0.1.0",
+    private val serverVersion: String = com.opentermx.mcp.BuildInfo.VERSION,
     private val supportedProtocolVersions: List<String> = SUPPORTED_VERSIONS,
     private val readOnly: Boolean = false,
     private val allowedSessionGlob: String? = null,

@@ -9,6 +9,40 @@ kotlin {
     }
 }
 
+// Manifest del JAR: `Package.getImplementationVersion()` consulta este attribute en
+// runtime, así que necesitamos exponerlo para que el endpoint /mcp/health y el
+// resultado de `initialize` reporten la versión real del build (no la hardcoded).
+tasks.jar {
+    manifest {
+        attributes(
+            "Implementation-Title" to "opentermx-mcp",
+            "Implementation-Version" to project.version.toString(),
+        )
+    }
+}
+
+// Resource generado como fallback: cuando las clases corren desde `build/classes/`
+// (tests, dev runs), el manifest del JAR no está disponible. Este .properties
+// vive en el classpath de runtime y BuildInfo.kt lo lee si el manifest falla.
+val generateBuildInfo by tasks.registering {
+    val outDir = layout.buildDirectory.dir("generated/resources/build-info")
+    val versionString = project.version.toString()
+    inputs.property("version", versionString)
+    outputs.dir(outDir)
+    doLast {
+        val dir = outDir.get().asFile.resolve("com/opentermx/mcp")
+        dir.mkdirs()
+        dir.resolve("build-info.properties").writeText(
+            "version=$versionString\n",
+            Charsets.UTF_8,
+        )
+    }
+}
+
+sourceSets.named("main") {
+    resources.srcDir(generateBuildInfo)
+}
+
 dependencies {
     api(project(":common"))
     implementation(project(":ai-assistant"))

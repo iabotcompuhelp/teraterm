@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicReference
 class McpServer(
     private val handlers: List<ToolHandler>,
     private val serverName: String = "opentermx-mcp",
-    private val serverVersion: String = "0.1.0",
+    private val serverVersion: String = BuildInfo.VERSION,
     private val verboseLog: Boolean = false,
     private val readOnly: Boolean = false,
     private val allowedSessionGlob: String? = null,

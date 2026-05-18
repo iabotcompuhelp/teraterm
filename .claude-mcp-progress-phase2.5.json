@@ -1,0 +1,52 @@
+{
+  "phase": "phase2.5",
+  "description": "Cleanup post-T1: cerrar hallazgos del pre-flight de T1 Stage A.",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Cerrar T18: versión real en el MCP server",
+      "status": "done",
+      "notes": [
+        "BuildInfo.kt: resolución dinámica con 3 fallbacks (manifest del JAR, resource generado, 'unknown').",
+        "mcp-server/build.gradle.kts: manifest del JAR incluye Implementation-Version + tarea generateBuildInfo emite resource en classpath.",
+        "McpServer.kt y McpDispatcher.kt: defaults '0.1.0' → BuildInfo.VERSION.",
+        "McpServerVersionTest: 4 asserts (semver, no 0.1.0, no unknown, propagación en initialize).",
+        "Verificado: el resource generado contiene version=1.0.0."
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "Fix BUG-ssh-default-001: KEX defaults restrictivos",
+      "status": "pending"
+    },
+    {
+      "id": "T3",
+      "title": "Validar y arreglar BUG-telnet-comm-001: EchoOptionHandler",
+      "status": "pending"
+    },
+    {
+      "id": "T4",
+      "title": "Mejorar UX del error dialog SSH",
+      "status": "pending"
+    },
+    {
+      "id": "T5",
+      "title": "Sección Troubleshooting en USER_GUIDE.md",
+      "status": "pending"
+    },
+    {
+      "id": "T6",
+      "title": "Tests de regresión",
+      "status": "partial",
+      "notes": [
+        "McpServerVersionTest agregado en T1.",
+        "Pendientes: AppSettingsSshDefaultsTest (T2), TelnetOptionHandlerTest (T3), test de error dialog (T4)."
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "Cierre: build verde + CHANGELOG + reporte",
+      "status": "pending"
+    }
+  ]
+}

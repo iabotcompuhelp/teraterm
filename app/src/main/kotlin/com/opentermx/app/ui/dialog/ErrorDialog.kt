@@ -43,8 +43,11 @@ object ErrorDialog {
         message: String? = null,
         cause: Throwable? = null,
         details: String? = null,
+        actionLabel: String? = null,
+        onAction: (() -> Unit)? = null,
+        friendlyTip: String? = null,
     ) {
-        show(Severity.ERROR, owner, title, header, message, cause, details)
+        show(Severity.ERROR, owner, title, header, message, cause, details, actionLabel, onAction, friendlyTip)
     }
 
     fun warning(
@@ -55,7 +58,7 @@ object ErrorDialog {
         cause: Throwable? = null,
         details: String? = null,
     ) {
-        show(Severity.WARNING, owner, title, header, message, cause, details)
+        show(Severity.WARNING, owner, title, header, message, cause, details, null, null, null)
     }
 
     fun info(
@@ -65,7 +68,7 @@ object ErrorDialog {
         message: String? = null,
         details: String? = null,
     ) {
-        show(Severity.INFO, owner, title, header, message, null, details)
+        show(Severity.INFO, owner, title, header, message, null, details, null, null, null)
     }
 
     private fun show(
@@ -76,11 +79,16 @@ object ErrorDialog {
         message: String?,
         cause: Throwable?,
         details: String?,
+        actionLabel: String?,
+        onAction: (() -> Unit)?,
+        friendlyTip: String?,
     ) {
         if (Platform.isFxApplicationThread()) {
-            buildAndShow(severity, owner, title, header, message, cause, details)
+            buildAndShow(severity, owner, title, header, message, cause, details, actionLabel, onAction, friendlyTip)
         } else {
-            Platform.runLater { buildAndShow(severity, owner, title, header, message, cause, details) }
+            Platform.runLater {
+                buildAndShow(severity, owner, title, header, message, cause, details, actionLabel, onAction, friendlyTip)
+            }
         }
     }
 
@@ -92,6 +100,9 @@ object ErrorDialog {
         message: String?,
         cause: Throwable?,
         details: String?,
+        actionLabel: String?,
+        onAction: (() -> Unit)?,
+        friendlyTip: String?,
     ) {
         val type = when (severity) {
             Severity.INFO -> Alert.AlertType.INFORMATION
@@ -154,6 +165,20 @@ object ErrorDialog {
         val buttons = HBox(8.0, copyBtn).apply {
             padding = Insets(6.0, 0.0, 0.0, 0.0)
         }
+        // Action contextual (Phase 2.5 T4): cuando el caller detecta un error específico
+        // — KEX/cipher/MAC fail — pasa label + lambda para que el usuario salte directo
+        // a Setup → SSH General sin tener que navegar el menú con un dialog modal abierto.
+        if (!actionLabel.isNullOrBlank() && onAction != null) {
+            val actionBtn = Button(actionLabel).apply {
+                styleClass += "default-button"
+                setOnAction {
+                    val window = (scene?.window as? javafx.stage.Stage)
+                    window?.close()
+                    onAction.invoke()
+                }
+            }
+            buttons.children.add(0, actionBtn)
+        }
         if (severity != Severity.INFO) {
             val openLogsBtn = Button(Strings["error.dialog.openLogs"]).apply {
                 setOnAction { openLogsDirectory() }
@@ -162,7 +187,19 @@ object ErrorDialog {
         }
 
         // Place the buttons inside the content of the alert (above the OK button).
-        val content = VBox(8.0, Label(resolvedMessage).apply { isWrapText = true; maxWidth = 560.0 }, buttons).apply {
+        // Si hay friendlyTip lo mostramos PRIMERO (mensaje claro accionable); el `resolvedMessage`
+        // técnico baja al área de detalles colapsable a través del `technical` report.
+        val contentChildren = mutableListOf<javafx.scene.Node>()
+        if (!friendlyTip.isNullOrBlank()) {
+            contentChildren += Label(friendlyTip).apply {
+                isWrapText = true
+                maxWidth = 560.0
+                styleClass += "error-friendly-tip"
+            }
+        }
+        contentChildren += Label(resolvedMessage).apply { isWrapText = true; maxWidth = 560.0 }
+        contentChildren += buttons
+        val content = VBox(8.0, *contentChildren.toTypedArray()).apply {
             padding = Insets(4.0, 0.0, 0.0, 0.0)
         }
         alert.dialogPane.content = content

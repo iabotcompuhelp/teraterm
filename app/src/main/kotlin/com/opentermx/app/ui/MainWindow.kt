@@ -571,6 +571,15 @@ class MainWindow(
             if (!isConnectFailure) return@subscribe
             val sessionName = controllers.values.firstOrNull { it.session.id.value == event.sessionId }
                 ?.session?.name ?: event.sessionId
+            // Phase 2.5 T4: para fallas de negociación SSH (KEX/cipher/MAC/hostkey) le damos
+            // al usuario un mensaje accionable + atajo a Setup → SSH General, en lugar de
+            // mostrarle solo el `jschProposal=…,serverProposal=…` técnico.
+            val tip = com.opentermx.app.ui.dialog.SshErrorTip.resolve(err.message, err)
+            val friendly = tip?.let { Strings["error.ssh.tip." + it.name.lowercase()] }
+            val actionLabel = if (tip?.opensSshGeneral == true) Strings["error.ssh.openSettings"] else null
+            val onAction: (() -> Unit)? = if (tip?.opensSshGeneral == true) {
+                { openSshGeneralConfig() }
+            } else null
             javafx.application.Platform.runLater {
                 ErrorDialog.error(
                     owner = stage,
@@ -578,6 +587,9 @@ class MainWindow(
                     header = Strings.format("error.connection.header", sessionName),
                     message = err.message ?: err.javaClass.simpleName,
                     cause = err,
+                    friendlyTip = friendly,
+                    actionLabel = actionLabel,
+                    onAction = onAction,
                 )
             }
         }

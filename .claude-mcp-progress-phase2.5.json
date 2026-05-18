@@ -42,7 +42,15 @@
     {
       "id": "T4",
       "title": "Mejorar UX del error dialog SSH",
-      "status": "pending"
+      "status": "done",
+      "notes": [
+        "SshErrorTip.kt: enum + resolver puro (5 cases: KEX/CIPHER/MAC/HOSTKEY_NEGOTIATION/HOSTKEY_UNKNOWN_OR_CHANGED) que inspecciona message + cause chain.",
+        "ErrorDialog.error: nuevos params opcionales actionLabel/onAction/friendlyTip; el tip aparece arriba del mensaje técnico, el botón cierra el dialog y dispara la acción.",
+        "MainWindow.subscribeConnectionErrorPopups: resuelve el tip y pasa label 'Abrir configuración SSH' + lambda openSshGeneralConfig cuando el tip lo permite (no para HOSTKEY_UNKNOWN_OR_CHANGED).",
+        "i18n es/en: 5 tips localizados + label del botón.",
+        "SshErrorTipTest: 10 asserts (cada tipo + null + cause chain + opensSshGeneral flags + fallback heurístico sin algorithmName).",
+        "TestFX UI test del dialog: no se agregó porque TestFX no está configurado en el módulo y la spec dice 'si está configurado'. Cobertura equivalente vía SshErrorTipTest + verificación manual."
+      ]
     },
     {
       "id": "T5",

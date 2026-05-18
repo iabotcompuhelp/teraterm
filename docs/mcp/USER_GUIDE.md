@@ -102,3 +102,100 @@ python tools/mcp/smoke_test.py --url http://127.0.0.1:8765 --token TU_TOKEN
 # Diff de schemas entre versiones (útil pre-release)
 python tools/mcp/schema_diff.py before.json after.json
 ```
+
+## Troubleshooting
+
+Hallazgos recurrentes del pre-flight de T1 (testing manual). Si tropezás con algo de esto, mirá acá antes de abrir un issue.
+
+### PowerShell muestra caracteres acentuados como `Ã³` o `Ã­`
+
+**Causa:** la consola no está en UTF-8 por default; PowerShell interpreta los bytes UTF-8 que devuelve el servidor como Latin-1, así que `ó` se ve `Ã³` y `í` como `Ã­`.
+
+**Fix puntual** (solo para esta sesión):
+
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+```
+
+**Fix persistente:** agregalo a tu `$PROFILE`:
+
+```powershell
+notepad $PROFILE
+# Pegá las dos líneas de arriba y guardá.
+```
+
+Reabrí PowerShell y debería resolverse para `curl`, `Invoke-RestMethod`, etc.
+
+### Curl en PowerShell no funciona con JSON: error de parseo
+
+**Causa:** PowerShell **no** interpreta `\"` como un escape — preserva el backslash literal. Así que `curl -d "{\"foo\":1}"` envía al server `{\"foo\":1}` con backslashes, y JSON parsing falla con `Unexpected character`.
+
+**Fix recomendado** — usar `Invoke-RestMethod` (nativo de PowerShell, maneja JSON limpio):
+
+```powershell
+$body = @{
+    jsonrpc = "2.0"
+    id      = 1
+    method  = "initialize"
+    params  = @{ protocolVersion = "2024-11-05" }
+} | ConvertTo-Json -Compress
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/mcp" `
+    -Method Post `
+    -Headers @{ "Authorization" = "Bearer TU_TOKEN" } `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+**Fix alternativo** si necesitás sí o sí `curl.exe`: usar el stop-parsing token `--%`:
+
+```powershell
+curl.exe --% -X POST http://127.0.0.1:8765/mcp -H "Authorization: Bearer TU_TOKEN" -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"
+```
+
+El `--%` le dice a PowerShell "no parseés nada de acá en adelante, mandalo literal".
+
+### Cliente MCP responde `-32600` "Cliente no inicializado"
+
+**Causa:** el spec MCP exige que el primer request sobre una sesión sea `initialize`. Clientes reales (Claude Desktop, Cursor, Cline) hacen esto solos; si estás probando manual con curl, lo tenés que hacer vos.
+
+**Fix** — la danza de dos pasos:
+
+```powershell
+# 1) Inicializar y guardar la version negociada
+$init = Invoke-RestMethod -Uri "http://127.0.0.1:8765/mcp" -Method Post `
+    -Headers @{ "Authorization" = "Bearer TU_TOKEN" } `
+    -ContentType "application/json" `
+    -Body (@{ jsonrpc="2.0"; id=1; method="initialize"; params=@{ protocolVersion="2024-11-05" } } | ConvertTo-Json -Compress)
+
+$version = $init.result.protocolVersion
+
+# 2) Llamar la tool con el header MCP-Protocol-Version
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/mcp" -Method Post `
+    -Headers @{ "Authorization" = "Bearer TU_TOKEN"; "MCP-Protocol-Version" = $version } `
+    -ContentType "application/json" `
+    -Body (@{ jsonrpc="2.0"; id=2; method="tools/list" } | ConvertTo-Json -Compress)
+```
+
+Si el segundo request va sin el header `MCP-Protocol-Version`, el server devuelve `-32600 Falta header MCP-Protocol-Version`.
+
+### Cliente MCP no aparece en Claude Desktop después de configurar
+
+**Causa más común:** Claude Desktop sigue corriendo en background después de cerrar la ventana — la nueva config no se carga hasta que matás el proceso entero.
+
+**Fix:**
+
+- **macOS:** `Cmd+Q` sobre la app (cerrar la ventana NO la cierra), o `killall "Claude"` en la terminal.
+- **Windows:** click derecho en el icono de la tray → "Quit", o `taskkill /F /IM Claude.exe`.
+
+Volvé a abrir y el servidor MCP debería aparecer en la lista.
+
+**Causa secundaria:** JSON inválido en `claude_desktop_config.json`. Validalo:
+
+```bash
+jq . ~/Library/Application\ Support/Claude/claude_desktop_config.json   # macOS
+jq . $env:APPDATA\Claude\claude_desktop_config.json                      # Windows (PowerShell)
+```
+
+Si `jq` falla, el JSON tiene un error — coma de más, comilla mal cerrada, etc. Arreglalo y reiniciá Claude Desktop.

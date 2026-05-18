@@ -55,7 +55,12 @@
     {
       "id": "T5",
       "title": "Sección Troubleshooting en USER_GUIDE.md",
-      "status": "pending"
+      "status": "done",
+      "notes": [
+        "USER_GUIDE.md (es) + USER_GUIDE.en.md: nueva sección ## Troubleshooting con 4 sub-secciones (encoding PowerShell, curl+JSON con `--%` y `Invoke-RestMethod`, danza initialize→tools/list, proceso Claude Desktop residual).",
+        "Cada sub-sección lleva snippet copy-paste listo para ejecutar.",
+        "Ambos idiomas mantenidos en paridad."
+      ]
     },
     {
       "id": "T6",

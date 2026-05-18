@@ -100,3 +100,100 @@ python tools/mcp/smoke_test.py --url http://127.0.0.1:8765 --token YOUR_TOKEN
 # Schema diff between versions (useful before release)
 python tools/mcp/schema_diff.py before.json after.json
 ```
+
+## Troubleshooting
+
+Recurring findings from the T1 pre-flight (manual testing). If you hit any of these, check here before opening an issue.
+
+### PowerShell shows accented characters as `Ã³` or `Ã­`
+
+**Cause:** the console isn't UTF-8 by default; PowerShell reads the UTF-8 bytes returned by the server as Latin-1, so `ó` appears as `Ã³` and `í` as `Ã­`.
+
+**One-shot fix** (current session only):
+
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+```
+
+**Persistent fix:** add it to your `$PROFILE`:
+
+```powershell
+notepad $PROFILE
+# Paste the two lines above and save.
+```
+
+Reopen PowerShell and it should be fixed for `curl`, `Invoke-RestMethod`, etc.
+
+### Curl in PowerShell fails with JSON parse errors
+
+**Cause:** PowerShell does **not** interpret `\"` as an escape — it preserves the backslash literally. So `curl -d "{\"foo\":1}"` actually sends `{\"foo\":1}` to the server, and JSON parsing fails with `Unexpected character`.
+
+**Recommended fix** — use `Invoke-RestMethod` (PowerShell-native, handles JSON cleanly):
+
+```powershell
+$body = @{
+    jsonrpc = "2.0"
+    id      = 1
+    method  = "initialize"
+    params  = @{ protocolVersion = "2024-11-05" }
+} | ConvertTo-Json -Compress
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/mcp" `
+    -Method Post `
+    -Headers @{ "Authorization" = "Bearer YOUR_TOKEN" } `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+**Alternative** if you really need `curl.exe`: use the stop-parsing token `--%`:
+
+```powershell
+curl.exe --% -X POST http://127.0.0.1:8765/mcp -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"
+```
+
+`--%` tells PowerShell "stop parsing, pass everything after this literally".
+
+### MCP client returns `-32600` "Client not initialized"
+
+**Cause:** the MCP spec requires `initialize` as the first request on a session. Real clients (Claude Desktop, Cursor, Cline) do this automatically; when testing manually with curl, you have to do it yourself.
+
+**Fix** — the two-step dance:
+
+```powershell
+# 1) Initialize and capture the negotiated version
+$init = Invoke-RestMethod -Uri "http://127.0.0.1:8765/mcp" -Method Post `
+    -Headers @{ "Authorization" = "Bearer YOUR_TOKEN" } `
+    -ContentType "application/json" `
+    -Body (@{ jsonrpc="2.0"; id=1; method="initialize"; params=@{ protocolVersion="2024-11-05" } } | ConvertTo-Json -Compress)
+
+$version = $init.result.protocolVersion
+
+# 2) Call the tool with the MCP-Protocol-Version header
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/mcp" -Method Post `
+    -Headers @{ "Authorization" = "Bearer YOUR_TOKEN"; "MCP-Protocol-Version" = $version } `
+    -ContentType "application/json" `
+    -Body (@{ jsonrpc="2.0"; id=2; method="tools/list" } | ConvertTo-Json -Compress)
+```
+
+If the second request omits the `MCP-Protocol-Version` header, the server returns `-32600 Missing MCP-Protocol-Version header`.
+
+### MCP client doesn't show up in Claude Desktop after configuring
+
+**Most common cause:** Claude Desktop is still running in the background after you closed the window — the new config isn't loaded until the process itself dies.
+
+**Fix:**
+
+- **macOS:** `Cmd+Q` on the app (closing the window doesn't quit it), or `killall "Claude"` in the terminal.
+- **Windows:** right-click the tray icon → "Quit", or `taskkill /F /IM Claude.exe`.
+
+Reopen and the MCP server should appear in the list.
+
+**Secondary cause:** invalid JSON in `claude_desktop_config.json`. Validate it:
+
+```bash
+jq . ~/Library/Application\ Support/Claude/claude_desktop_config.json   # macOS
+jq . $env:APPDATA\Claude\claude_desktop_config.json                      # Windows (PowerShell)
+```
+
+If `jq` fails, the JSON is broken — extra comma, unclosed quote, etc. Fix it and restart Claude Desktop.

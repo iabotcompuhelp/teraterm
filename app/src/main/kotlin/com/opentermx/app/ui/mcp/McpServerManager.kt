@@ -157,6 +157,8 @@ object McpServerManager {
         // ProposeCommandsHandler pueda leer el valor actualizado si alguna vez rotamos.
         val secretStore = com.opentermx.mcp.security.McpSecretStore()
         val secretProvider: () -> ByteArray = { secretStore.loadOrCreate() }
+        // Phase 3 Fase 4: snapshot store filesystem-backed.
+        val snapshotStore = com.opentermx.mcp.snapshots.FsSnapshotStore()
         // Phase 3 Fase 2: el InventoryProvider consume `AppSettings.savedConnections`
         // (las entradas que tengan `alias` definido). Resolver lambda = lookup vivo, así
         // las tools de inventory reflejan cambios del Setup → Saved Connections sin
@@ -170,6 +172,7 @@ object McpServerManager {
                 approvalGate, redactor = redactor,
                 operationRegistry = operationRegistry,
                 approvalSecretProvider = secretProvider,
+                snapshotStore = snapshotStore,
             ),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
@@ -186,6 +189,10 @@ object McpServerManager {
                 operationRegistry,
                 secretProvider,
             ),
+            com.opentermx.mcp.handlers.SnapshotCreateHandler(snapshotStore, operationRegistry),
+            com.opentermx.mcp.handlers.SnapshotDiffHandler(snapshotStore),
+            com.opentermx.mcp.handlers.SnapshotCompareToCriteriaHandler(snapshotStore, operationRegistry),
+            com.opentermx.mcp.handlers.RollbackProposeHandler(snapshotStore),
         )
         val tlsConfig: McpServer.TlsConfig? = if (settings.mcpServerTlsEnabled && !settings.mcpServerKeyStorePath.isNullOrBlank()) {
             val password = decodeToken(settings.mcpServerKeyStorePassword).orEmpty()

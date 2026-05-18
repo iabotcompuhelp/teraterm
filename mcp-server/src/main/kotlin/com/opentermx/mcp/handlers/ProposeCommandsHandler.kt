@@ -43,9 +43,13 @@ class ProposeCommandsHandler(
      * Phase 3 Fase 3: registry + secret para verificar `approvalToken` cuando la operation
      * activa exige `require_compliance_approval`. Si ambos son null la verificación se
      * skipea (back-compat con tests previos).
+     *
+     * Phase 3 Fase 4: cuando la op exige `require_snapshot`, el handler exige también
+     * que exista al menos un snapshot previo del sessionId/device antes de ejecutar.
      */
     private val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
     private val approvalSecretProvider: (() -> ByteArray)? = null,
+    private val snapshotStore: com.opentermx.mcp.snapshots.SnapshotStore? = null,
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.PROPOSE_COMMANDS
@@ -64,6 +68,11 @@ class ProposeCommandsHandler(
             verifyComplianceTokenIfNeeded(
                 operationRegistry, approvalSecretProvider, approvalToken, deviceAlias, commands,
             )
+        }
+
+        // Phase 3 Fase 4: verificar que haya snapshot pre-cambio si la op lo exige.
+        if (operationRegistry != null && snapshotStore != null) {
+            verifyRequireSnapshotIfNeeded(operationRegistry, snapshotStore, sessionIdRaw, deviceAlias)
         }
 
         val sessionId = SessionId(sessionIdRaw)
@@ -219,6 +228,35 @@ class ProposeCommandsHandler(
         throw McpToolException(
             McpToolException.ErrorCode.INVALID_ARGUMENT,
             firstInvalid,
+        )
+    }
+
+    /**
+     * Phase 3 Fase 4: si alguna op activa exige `require_snapshot`, el handler exige al
+     * menos un snapshot previo para el sessionId (o deviceAlias si se provee). El
+     * snapshot puede ser de cualquier tipo; lo importante es que exista — el cliente LLM
+     * debe haber capturado el "estado pre" antes del cambio.
+     */
+    private fun verifyRequireSnapshotIfNeeded(
+        registry: com.opentermx.mcp.operation.OperationRegistry,
+        store: com.opentermx.mcp.snapshots.SnapshotStore,
+        sessionId: String,
+        deviceAlias: String?,
+    ) {
+        val candidates = registry.activeOperationsRequiringSnapshot()
+        if (candidates.isEmpty()) return
+        for (rec in candidates) {
+            val existing = store.listForDevice(
+                operationId = rec.operationId,
+                deviceAlias = deviceAlias,
+                sessionId = sessionId,
+            )
+            if (existing.isNotEmpty()) return
+        }
+        throw McpToolException(
+            McpToolException.ErrorCode.INVALID_ARGUMENT,
+            "La operation activa exige `require_snapshot=true`: no hay snapshot previo " +
+                "para sessionId=`$sessionId`. Capturalo con `snapshot_create` antes de ejecutar.",
         )
     }
 

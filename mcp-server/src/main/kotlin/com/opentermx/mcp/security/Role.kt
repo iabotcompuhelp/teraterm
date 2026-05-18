@@ -66,6 +66,8 @@ object RoleAccessControl {
         "open_session", "close_session", "propose_commands", "run_macro",
         // Side-channel.
         "tail_session",
+        // Phase 3 Fase 4 — snapshots: el operator captura el "antes" antes de ejecutar.
+        "snapshot_create", "snapshot_diff",
     )
 
     private val complianceWhitelist: Set<String> = setOf(
@@ -74,14 +76,17 @@ object RoleAccessControl {
         "inventory_list", "inventory_describe", "read_audit_log",
         "current_operation",
         "compliance_evaluate",
+        // Phase 3 Fase 4: compliance puede leer diffs como parte de su decisión.
+        "snapshot_diff",
     )
 
     private val validatorWhitelist: Set<String> = setOf(
-        // Solo lectura. Las tools de snapshot/health_check llegan en Fase 4 y se agregan acá
-        // cuando existan.
+        // Solo lectura.
         "list_sessions", "inspect_session", "search_knowledge_base", "list_macros",
         "inventory_list", "inventory_describe", "read_audit_log",
         "current_operation",
+        // Phase 3 Fase 4: el validator es el rol que más usa snapshots.
+        "snapshot_create", "snapshot_diff", "snapshot_compare_to_criteria", "rollback_propose",
     )
 
     fun allows(role: Role, toolName: String): Boolean = when (role) {

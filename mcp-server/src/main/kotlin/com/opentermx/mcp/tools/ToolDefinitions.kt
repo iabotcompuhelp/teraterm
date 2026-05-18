@@ -586,6 +586,129 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    val SNAPSHOT_CREATE = ToolDef(
+        name = "snapshot_create",
+        description = "Captura el estado actual del buffer de una sesión como snapshot. " +
+            "El cliente LLM debe haber ejecutado antes los comandos canónicos (ej. " +
+            "`show running-config`) — esta tool NO los inyecta; solo congela el output. " +
+            "Phase 3 Fase 4. Persiste bajo `~/.opentermx/operations/<op-id>/snapshots/`.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId", "snapshotType"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+                "snapshotType" to obj(
+                    "type" to "string",
+                    "description" to "running_config / interfaces_status / routing_table / custom / buffer_tail. " +
+                        "Solo label semántico — el contenido es siempre las últimas N líneas del buffer.",
+                ),
+                "lastLines" to obj(
+                    "type" to "integer", "minimum" to 1, "maximum" to MAX_SNAPSHOT_LINES,
+                    "default" to DEFAULT_SNAPSHOT_LINES,
+                ),
+                "deviceAlias" to obj("type" to listOf("string", "null")),
+                "label" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("snapshotId", "contentHash", "lineCount"),
+            "properties" to obj(
+                "snapshotId" to obj("type" to "string"),
+                "contentHash" to obj("type" to "string"),
+                "lineCount" to obj("type" to "integer"),
+                "operationId" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val SNAPSHOT_DIFF = ToolDef(
+        name = "snapshot_diff",
+        description = "Calcula el diff line-based entre dos snapshots. Para Cisco IOS y " +
+            "vendors similares (hpe_comware, huawei_vrp) agrupa cambios por sección de config. " +
+            "Phase 3 Fase 4.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("snapshotIdBefore", "snapshotIdAfter"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "snapshotIdBefore" to obj("type" to "string", "minLength" to 1),
+                "snapshotIdAfter" to obj("type" to "string", "minLength" to 1),
+                "deviceType" to obj("type" to listOf("string", "null"),
+                    "description" to "Override del deviceType para selección de heurística de agrupación."),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("summary", "addedLines", "removedLines", "identicalLineCount", "sections"),
+            "properties" to obj(
+                "summary" to obj("type" to "string"),
+                "addedLines" to obj("type" to "array", "items" to obj("type" to "string")),
+                "removedLines" to obj("type" to "array", "items" to obj("type" to "string")),
+                "identicalLineCount" to obj("type" to "integer"),
+                "sections" to obj("type" to "array", "items" to obj("type" to "object")),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val SNAPSHOT_COMPARE_TO_CRITERIA = ToolDef(
+        name = "snapshot_compare_to_criteria",
+        description = "Evalúa los `success_criteria` declarados en la operation activa contra " +
+            "un snapshot post-cambio. Devuelve PASS / FAIL / WARN por criterio + overall. " +
+            "Phase 3 Fase 4.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("snapshotIdAfter"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "snapshotIdAfter" to obj("type" to "string", "minLength" to 1),
+                "operationId" to obj("type" to listOf("string", "null"),
+                    "description" to "Override del operationId — útil para validators que evalúan ops ya cerradas."),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("overall", "summary", "results"),
+            "properties" to obj(
+                "overall" to obj("type" to "string"),
+                "summary" to obj("type" to "string"),
+                "results" to obj("type" to "array", "items" to obj("type" to "object")),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val ROLLBACK_PROPOSE = ToolDef(
+        name = "rollback_propose",
+        description = "Genera una lista sugerida de comandos para revertir un device al estado " +
+            "del `snapshotIdBefore` desde el actual `snapshotIdAfter`. NO ejecuta nada — " +
+            "devuelve los comandos al operator/compliance loop. Phase 3 Fase 4.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("snapshotIdBefore", "snapshotIdAfter"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "snapshotIdBefore" to obj("type" to "string", "minLength" to 1),
+                "snapshotIdAfter" to obj("type" to "string", "minLength" to 1),
+                "deviceType" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("supported", "commands", "notes"),
+            "properties" to obj(
+                "supported" to obj("type" to "boolean"),
+                "commands" to obj("type" to "array", "items" to obj("type" to "string")),
+                "notes" to obj("type" to "array", "items" to obj("type" to "string")),
+                "deviceType" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -603,6 +726,10 @@ object ToolDefinitions {
         INVENTORY_LIST,
         INVENTORY_DESCRIBE,
         COMPLIANCE_EVALUATE,
+        SNAPSHOT_CREATE,
+        SNAPSHOT_DIFF,
+        SNAPSHOT_COMPARE_TO_CRITERIA,
+        ROLLBACK_PROPOSE,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }
@@ -613,6 +740,8 @@ object ToolDefinitions {
     const val MAX_TOP_K = 20
     const val DEFAULT_AUDIT_LIMIT = 50
     const val MAX_AUDIT_LIMIT = 200
+    const val DEFAULT_SNAPSHOT_LINES = 500
+    const val MAX_SNAPSHOT_LINES = 10_000
 
     private fun obj(vararg pairs: Pair<String, Any?>): Map<String, Any?> = linkedMapOf(*pairs)
 }

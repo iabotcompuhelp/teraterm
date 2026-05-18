@@ -119,6 +119,12 @@ class OperationRegistry(
     fun activeOperationsRequiringComplianceApproval(): List<OperationRecord> =
         byOperationId.values.filter { it.context.constraints.requireComplianceApproval }
 
+    /**
+     * Phase 3 Fase 4 helper: ops activas que exigen un snapshot previo antes de mutar.
+     */
+    fun activeOperationsRequiringSnapshot(): List<OperationRecord> =
+        byOperationId.values.filter { it.context.constraints.requireSnapshot }
+
     /** Solo para tests: limpia todo. NO toca el store. */
     internal fun clearForTests() {
         bySessionKey.clear()

@@ -57,6 +57,8 @@ object TestServerMain {
         // propose_commands subsecuente.
         val testSecret = ByteArray(32) { (it + 1).toByte() }
         val secretProvider: () -> ByteArray = { testSecret }
+        // Phase 3 Fase 4: snapshot store in-memory.
+        val snapshotStore = com.opentermx.mcp.snapshots.InMemorySnapshotStore()
         // Phase 3 Fase 2: inventory in-memory con 2 devices mock alineados con las
         // sessions del seedSessions (router-cisco.lab + mk.lab).
         val inventory = StaticInventoryProvider(
@@ -83,6 +85,7 @@ object TestServerMain {
                 gate, injectDelayMillis = 0L,
                 operationRegistry = operationRegistry,
                 approvalSecretProvider = secretProvider,
+                snapshotStore = snapshotStore,
             ),
             ListMacrosHandler(),
             RunMacroHandler(gate),
@@ -96,6 +99,10 @@ object TestServerMain {
             com.opentermx.mcp.handlers.InventoryListHandler(inventory),
             com.opentermx.mcp.handlers.InventoryDescribeHandler(inventory),
             com.opentermx.mcp.handlers.ComplianceEvaluateHandler(operationRegistry, secretProvider),
+            com.opentermx.mcp.handlers.SnapshotCreateHandler(snapshotStore, operationRegistry),
+            com.opentermx.mcp.handlers.SnapshotDiffHandler(snapshotStore),
+            com.opentermx.mcp.handlers.SnapshotCompareToCriteriaHandler(snapshotStore, operationRegistry),
+            com.opentermx.mcp.handlers.RollbackProposeHandler(snapshotStore),
         )
         val server = McpServer(
             handlers,

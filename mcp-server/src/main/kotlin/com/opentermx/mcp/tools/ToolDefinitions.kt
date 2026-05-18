@@ -709,6 +709,132 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    val POLICY_LOAD = ToolDef(
+        name = "policy_load",
+        description = "Carga una policy desde archivo YAML/JSON o inline. Phase 3 Fase 5. " +
+            "La policy queda registrada en memoria del server hasta el próximo restart. " +
+            "Si una policy con el mismo `name` ya estaba cargada, se reemplaza.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "oneOf" to listOf(
+                obj("required" to listOf("path")),
+                obj("required" to listOf("yaml")),
+            ),
+            "properties" to obj(
+                "path" to obj("type" to "string", "minLength" to 1,
+                    "description" to "Path absoluto a un .yaml/.yml/.json."),
+                "yaml" to obj("type" to "string", "minLength" to 1,
+                    "description" to "Policy inline como string YAML."),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("name", "version", "ruleCount"),
+            "properties" to obj(
+                "name" to obj("type" to "string"),
+                "version" to obj("type" to "string"),
+                "ruleCount" to obj("type" to "integer"),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val POLICY_LIST = ToolDef(
+        name = "policy_list",
+        description = "Lista las policies cargadas en memoria del server. Phase 3 Fase 5.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "properties" to emptyMap<String, Any?>(),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("policies"),
+            "properties" to obj(
+                "policies" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("name", "version", "ruleCount"),
+                        "properties" to obj(
+                            "name" to obj("type" to "string"),
+                            "version" to obj("type" to "string"),
+                            "ruleCount" to obj("type" to "integer"),
+                            "deviceTypes" to obj("type" to "array", "items" to obj("type" to "string")),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val POLICY_EVALUATE = ToolDef(
+        name = "policy_evaluate",
+        description = "Evalúa una policy registrada contra el snapshot más reciente del device. " +
+            "Resultado 100% determinístico — sin LLM. Phase 3 Fase 5.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("policyName"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "policyName" to obj("type" to "string", "minLength" to 1),
+                "deviceAlias" to obj("type" to listOf("string", "null"),
+                    "description" to "Alias del Device Registry. Si se omite, usar `snapshotId`."),
+                "snapshotId" to obj("type" to listOf("string", "null"),
+                    "description" to "Override: evaluar contra este snapshot específico."),
+                "markdown" to obj("type" to "boolean", "default" to false,
+                    "description" to "Si true, incluye un campo `markdown` listo para pegar en ticket."),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("policyName", "results"),
+            "properties" to obj(
+                "policyName" to obj("type" to "string"),
+                "policyVersion" to obj("type" to "string"),
+                "deviceAlias" to obj("type" to listOf("string", "null")),
+                "passCount" to obj("type" to "integer"),
+                "failCount" to obj("type" to "integer"),
+                "warnCount" to obj("type" to "integer"),
+                "results" to obj("type" to "array", "items" to obj("type" to "object")),
+                "markdown" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val POLICY_AUDIT = ToolDef(
+        name = "policy_audit",
+        description = "Corre una policy contra todos los devices del Device Registry que matchean " +
+            "filtros + `applies_to` de la policy. Reporte agregado JSON o Markdown. Phase 3 Fase 5.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("policyName"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "policyName" to obj("type" to "string", "minLength" to 1),
+                "tagsAny" to obj("type" to listOf("array", "null"),
+                    "items" to obj("type" to "string")),
+                "markdown" to obj("type" to "boolean", "default" to false),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("policyName", "deviceCount", "byDevice"),
+            "properties" to obj(
+                "policyName" to obj("type" to "string"),
+                "deviceCount" to obj("type" to "integer"),
+                "totalFail" to obj("type" to "integer"),
+                "totalWarn" to obj("type" to "integer"),
+                "byDevice" to obj("type" to "array", "items" to obj("type" to "object")),
+                "markdown" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -730,6 +856,10 @@ object ToolDefinitions {
         SNAPSHOT_DIFF,
         SNAPSHOT_COMPARE_TO_CRITERIA,
         ROLLBACK_PROPOSE,
+        POLICY_LOAD,
+        POLICY_LIST,
+        POLICY_EVALUATE,
+        POLICY_AUDIT,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

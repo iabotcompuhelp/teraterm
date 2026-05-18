@@ -13,4 +13,5 @@ include(
     ":ai-assistant",
     ":rest-api",
     ":mcp-server",
+    ":policy-engine",
 )

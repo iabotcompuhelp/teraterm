@@ -59,6 +59,8 @@ object TestServerMain {
         val secretProvider: () -> ByteArray = { testSecret }
         // Phase 3 Fase 4: snapshot store in-memory.
         val snapshotStore = com.opentermx.mcp.snapshots.InMemorySnapshotStore()
+        // Phase 3 Fase 5: policy registry in-memory.
+        val policyRegistry = com.opentermx.policy.PolicyRegistry()
         // Phase 3 Fase 2: inventory in-memory con 2 devices mock alineados con las
         // sessions del seedSessions (router-cisco.lab + mk.lab).
         val inventory = StaticInventoryProvider(
@@ -103,6 +105,10 @@ object TestServerMain {
             com.opentermx.mcp.handlers.SnapshotDiffHandler(snapshotStore),
             com.opentermx.mcp.handlers.SnapshotCompareToCriteriaHandler(snapshotStore, operationRegistry),
             com.opentermx.mcp.handlers.RollbackProposeHandler(snapshotStore),
+            com.opentermx.mcp.handlers.PolicyLoadHandler(policyRegistry),
+            com.opentermx.mcp.handlers.PolicyListHandler(policyRegistry),
+            com.opentermx.mcp.handlers.PolicyEvaluateHandler(policyRegistry, snapshotStore, inventory),
+            com.opentermx.mcp.handlers.PolicyAuditHandler(policyRegistry, snapshotStore, inventory),
         )
         val server = McpServer(
             handlers,

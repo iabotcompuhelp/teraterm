@@ -102,6 +102,31 @@
         "Heurística rollback solo cisco_ios/hpe_comware/huawei_vrp; otros vendors devuelven supported=false con notas."
       ]
     },
-    {"id": "F5", "title": "Policy engine YAML determinístico", "status": "pending"}
+    {
+      "id": "F5",
+      "title": "Policy engine YAML determinístico",
+      "status": "done",
+      "tasks": [
+        {"id": "F5.T1", "title": "Módulo Gradle :policy-engine con deps", "status": "done"},
+        {"id": "F5.T2", "title": "Policy + DeviceConfigParser + RuleEvaluator (3 tipos)", "status": "done"},
+        {"id": "F5.T3", "title": "PolicyLoader (YAML/JSON + everit schema)", "status": "done"},
+        {"id": "F5.T4", "title": "PolicyReportRenderer (JSON + Markdown)", "status": "done"},
+        {"id": "F5.T5", "title": "PolicyRegistry in-memory", "status": "done"},
+        {"id": "F5.T6", "title": "Schema + ejemplo YAML baseline-security-cisco-ios", "status": "done"},
+        {"id": "F5.T7", "title": "4 ToolDefs", "status": "done"},
+        {"id": "F5.T8", "title": "4 handlers", "status": "done"},
+        {"id": "F5.T9", "title": "Whitelists actualizadas", "status": "done"},
+        {"id": "F5.T10", "title": "Wireup en McpServerManager + TestServerMain", "status": "done"},
+        {"id": "F5.T11", "title": "Unit tests: 18 asserts en 3 archivos", "status": "done"},
+        {"id": "F5.T12", "title": "7 pytest nuevos (64 total)", "status": "done"},
+        {"id": "F5.T13", "title": "docs/policy-engine.md", "status": "done"}
+      ],
+      "notes": [
+        "Catálogo de tools total: 24.",
+        "Módulo :policy-engine es independiente del transporte MCP — usable también por CLI futura.",
+        "DeviceConfigParser hook registrable; default identidad. Sin parsers específicos en esta fase.",
+        "Sin persistencia de policies — restart del server limpia el registry."
+      ]
+    }
   ]
 }

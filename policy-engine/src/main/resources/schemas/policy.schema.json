@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opentermx.io/schemas/policy.schema.json",
+  "title": "OpenTermX Policy",
+  "description": "Conjunto declarativo de reglas evaluadas determinísticamente contra el snapshot de un device. Phase 3 Fase 5.",
+  "type": "object",
+  "required": ["policy", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "policy": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-zA-Z0-9._-]{3,80}$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "applies_to": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "device_types": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "tags_any": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "type", "pattern", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-zA-Z0-9._-]{1,80}$" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "type": {
+            "type": "string",
+            "enum": ["pattern_deny", "require", "recommend"]
+          },
+          "target": {
+            "type": "string",
+            "enum": ["running_config", "routing_table", "interfaces_status"],
+            "default": "running_config"
+          },
+          "pattern": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+# Ejemplo de policy de seguridad básica para Cisco IOS — Phase 3 Fase 5.
+# Cargá con `policy_load(path=…)` y evaluá con `policy_evaluate(policyName="baseline-security-cisco-ios", deviceAlias="…")`.
+
+policy:
+  name: "baseline-security-cisco-ios"
+  version: "1.0"
+  applies_to:
+    device_types: ["cisco_ios"]
+    tags_any: ["core", "edge"]
+
+rules:
+  - id: "no-telnet"
+    severity: "high"
+    type: "pattern_deny"
+    target: "running_config"
+    pattern: '^\s*transport\s+input\s+.*telnet'
+    message: "Telnet inbound prohibido en transports de VTY."
+
+  - id: "require-ssh-v2"
+    severity: "high"
+    type: "require"
+    target: "running_config"
+    pattern: '^\s*ip\s+ssh\s+version\s+2\b'
+    message: "Debe forzarse SSH v2 explícitamente (`ip ssh version 2`)."
+
+  - id: "no-default-snmp-community"
+    severity: "critical"
+    type: "pattern_deny"
+    target: "running_config"
+    pattern: '^\s*snmp-server\s+community\s+(public|private)\b'
+    message: "Communities SNMP default detectadas (public/private)."
+
+  - id: "require-enable-secret"
+    severity: "high"
+    type: "require"
+    target: "running_config"
+    pattern: '^\s*enable\s+secret\b'
+    message: "Debe configurarse `enable secret` (no `enable password`)."
+
+  - id: "recommend-logging-buffered"
+    severity: "low"
+    type: "recommend"
+    target: "running_config"
+    pattern: '^\s*logging\s+buffered\b'
+    message: "Conviene habilitar `logging buffered` para captura local de eventos."
+
+  - id: "no-cdp-everywhere"
+    severity: "medium"
+    type: "pattern_deny"
+    target: "running_config"
+    pattern: '^\s*cdp\s+run\b'
+    message: "CDP global habilitado — considerar deshabilitar en interfaces edge."

@@ -1,5 +1,96 @@
 # Changelog
 
+## 1.1.0 — 2026-05-18
+
+Phase 3 (Operación estructurada estilo clanet). Las 5 fases entregadas como milestone
+único — agregan capas opt-in sobre la API MCP estable. **Wire format de las 10 tools
+originales intocado**: todo lo nuevo es additive (params opcionales, header opcional
+`X-OpenTermX-Role`, tools nuevas).
+
+Catálogo MCP: **24 tools** (10 históricas + 14 nuevas).
+
+### Fase 1 — Operation Context (`4477285`)
+- 3 tools nuevas: `start_operation`, `end_operation`, `current_operation`.
+- El cliente LLM declara una intención estructurada (`devices`, `forbidden_commands`,
+  `success_criteria`, `constraints`). El server la inyecta como prefijo `[OPERATION
+  CONTEXT …]` en cada `tools/call` exitoso y la usa como filtro pre-ejecución para
+  comandos mutativos.
+- Persistencia: `~/.opentermx/operations/<op-id>/context.json` + `closed.json` al cerrar.
+  Recovery automático al arrancar.
+- Deps nuevas: `jackson-dataformat-yaml`, `com.github.erosb:everit-json-schema:1.14.4`.
+- Schema JSON Draft-07 + example en `examples/operation-context.example.yaml`.
+
+### Fase 2 — Device Registry (`257ff1b`)
+- 2 tools nuevas: `inventory_list` (filtros tags/groups/deviceType AND), `inventory_describe`.
+- `SavedConnection` extendido con 4 campos opcionales (`alias`, `tags`, `groups`,
+  `deviceType`) — back-compat 100%: Jackson respeta el JSON existente.
+- `open_session` acepta `deviceAlias` opcional que resuelve protocol/host/port/username/
+  credentialRef desde el registry. El modo `host+protocol` legacy sigue funcionando.
+- UI Setup → Saved Connections gana 4 columnas inline (alias valida unicidad).
+- **Invariante de seguridad**: `InventoryDevice` no tiene fields para credenciales — test
+  estructural rompe si alguien intenta agregarlos.
+
+### Fase 3 — Multi-agent roles + approval token HMAC (`b91ae1b`)
+- Header HTTP opcional `X-OpenTermX-Role: OPERATOR|COMPLIANCE|VALIDATOR` (default OPERATOR).
+- Whitelists hardcoded en `RoleAccessControl`. `tools/call` fuera del scope del rol →
+  `-32601 Method not found` con mensaje claro.
+- Tool nueva `compliance_evaluate` (solo COMPLIANCE) firma `approval_token` HMAC-SHA256.
+- Secret en `~/.opentermx/mcp-secret.key` (32 bytes random, auto-gen, `0600` en POSIX).
+- `propose_commands` gana params opcionales `approvalToken` + `deviceAlias`. Cuando la
+  operation activa exige `require_compliance_approval: true`, sin token → rechazo.
+- Auditoría: cada `compliance_evaluate` queda en `audit-ia.csv` con
+  `sessionId="compliance:<opId>"` para cruce con `propose_commands`.
+
+### Fase 4 — Snapshots pre/post + diff + rollback (`4a179b2`)
+- 4 tools nuevas: `snapshot_create`, `snapshot_diff`, `snapshot_compare_to_criteria`,
+  `rollback_propose`.
+- Storage FS bajo `~/.opentermx/operations/<op-id>/snapshots/` (orphan path para ops null).
+- Diff line-based; para `cisco_ios/hpe_comware/huawei_vrp` agrupa cambios por sección
+  de config (header en col 0 + hijas indentadas).
+- `SuccessCriteriaEvaluator`: 3 tipos (`command_output_contains` regex case-insensitive,
+  `no_interface_down` regex multi-vendor, `route_exists` literal).
+- `rollback_propose`: heurística "agregada → no <línea>, removida → reaplicar" para
+  Cisco IOS y similares. NUNCA ejecuta — devuelve al loop operator/compliance.
+- `propose_commands` exige snapshot previo si la op declara `require_snapshot: true`.
+
+### Fase 5 — Policy engine determinístico (este release)
+- **Módulo Gradle nuevo `:policy-engine`** — usable también por CLI futura, sin
+  dependencia del transporte MCP.
+- 4 tools nuevas: `policy_load` (path o YAML inline), `policy_list`, `policy_evaluate`
+  (contra snapshot del device), `policy_audit` (sobre la flota).
+- Reglas determinísticas: `pattern_deny`, `require`, `recommend`. Misma config + misma
+  policy → mismo resultado bit-a-bit, sin LLM.
+- Reporte JSON + Markdown copy-pasteable para tickets.
+- Schema Draft-07 + ejemplo realista `policies/baseline-security-cisco-ios.example.yaml`
+  con 6 reglas (no telnet, require SSH v2, no SNMP communities default, etc.).
+- Hook `DeviceConfigParser` registrable por `device_type` — vacío en esta phase, pensado
+  para parsers estructurados futuros sin tocar `RuleEvaluator`.
+- Whitelist: COMPLIANCE puede `policy_load/list/evaluate` (insumo de sus decisiones).
+  VALIDATOR adicionalmente puede `policy_audit` para auditorías masivas.
+
+### Tests
+- **24 unit test groups Kotlin** distribuidos entre `mcp-server` y `policy-engine`.
+- **64 pytest passing** en `mcp-server/src/test/python/` (de 22 al cerrar 1.0.0).
+- Build verde end-to-end con `./gradlew build` (66 tasks).
+
+### Bump runtime
+- `build.gradle.kts: version = "1.1.0"`. `BuildInfo.VERSION` propaga al `/mcp/health` y
+  al payload de `initialize` (cubierto por `McpServerVersionTest`).
+
+### Docs
+- `docs/operation-context.md` (Fase 1)
+- `docs/device-registry.md` (Fase 2)
+- `docs/multi-agent.md` (Fase 3) con tradeoff single-LLM vs 3 procesos
+- `docs/snapshots.md` (Fase 4)
+- `docs/policy-engine.md` (Fase 5)
+
+### Compatibilidad
+
+- Clientes pre-Phase-3 funcionan idénticamente: nuevos headers/params son opcionales con
+  defaults conservadores (sin op activa = sin inject, sin `X-OpenTermX-Role` = OPERATOR).
+- `SavedConnection` JSON pre-Phase-3 deserializa con los 4 campos nuevos en null/empty.
+- `mcp-secret.key` se autogenera al primer arranque del server post-upgrade.
+
 ## 1.0.1 — 2026-05-17
 
 Cleanup post-T1 pre-flight (Phase 2.5). Cierra hallazgos de la validación humana antes de

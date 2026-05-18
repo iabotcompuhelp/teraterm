@@ -78,6 +78,10 @@ object RoleAccessControl {
         "compliance_evaluate",
         // Phase 3 Fase 4: compliance puede leer diffs como parte de su decisión.
         "snapshot_diff",
+        // Phase 3 Fase 5: compliance carga y evalúa policies; el audit masivo queda
+        // para validator. policy_evaluate complementa la decisión LLM con hechos
+        // determinísticos.
+        "policy_load", "policy_list", "policy_evaluate",
     )
 
     private val validatorWhitelist: Set<String> = setOf(
@@ -87,6 +91,8 @@ object RoleAccessControl {
         "current_operation",
         // Phase 3 Fase 4: el validator es el rol que más usa snapshots.
         "snapshot_create", "snapshot_diff", "snapshot_compare_to_criteria", "rollback_propose",
+        // Phase 3 Fase 5: validator audita policies sobre flotas.
+        "policy_list", "policy_evaluate", "policy_audit",
     )
 
     fun allows(role: Role, toolName: String): Boolean = when (role) {

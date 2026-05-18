@@ -159,6 +159,9 @@ object McpServerManager {
         val secretProvider: () -> ByteArray = { secretStore.loadOrCreate() }
         // Phase 3 Fase 4: snapshot store filesystem-backed.
         val snapshotStore = com.opentermx.mcp.snapshots.FsSnapshotStore()
+        // Phase 3 Fase 5: registry de policies in-memory; el operador las carga vía
+        // policy_load y persisten mientras viva el server. Restart limpia.
+        val policyRegistry = com.opentermx.policy.PolicyRegistry()
         // Phase 3 Fase 2: el InventoryProvider consume `AppSettings.savedConnections`
         // (las entradas que tengan `alias` definido). Resolver lambda = lookup vivo, así
         // las tools de inventory reflejan cambios del Setup → Saved Connections sin
@@ -193,6 +196,10 @@ object McpServerManager {
             com.opentermx.mcp.handlers.SnapshotDiffHandler(snapshotStore),
             com.opentermx.mcp.handlers.SnapshotCompareToCriteriaHandler(snapshotStore, operationRegistry),
             com.opentermx.mcp.handlers.RollbackProposeHandler(snapshotStore),
+            com.opentermx.mcp.handlers.PolicyLoadHandler(policyRegistry),
+            com.opentermx.mcp.handlers.PolicyListHandler(policyRegistry),
+            com.opentermx.mcp.handlers.PolicyEvaluateHandler(policyRegistry, snapshotStore, inventoryProvider),
+            com.opentermx.mcp.handlers.PolicyAuditHandler(policyRegistry, snapshotStore, inventoryProvider),
         )
         val tlsConfig: McpServer.TlsConfig? = if (settings.mcpServerTlsEnabled && !settings.mcpServerKeyStorePath.isNullOrBlank()) {
             val password = decodeToken(settings.mcpServerKeyStorePassword).orEmpty()

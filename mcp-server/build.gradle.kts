@@ -45,6 +45,7 @@ sourceSets.named("main") {
 
 dependencies {
     api(project(":common"))
+    api(project(":policy-engine"))
     implementation(project(":ai-assistant"))
     implementation(project(":macro-engine"))
     implementation(libs.kotlin.stdlib)

@@ -192,7 +192,14 @@ class MainWindow(
             bottom = buildStatusBar()
             left = leftPane
         }
-        val scene = Scene(rootPane, 1100.0, 720.0)
+        // Capeamos el tamaño inicial a los visualBounds de la pantalla primaria para
+        // que la barra de título y la status bar nunca queden fuera de la pantalla en
+        // laptops 1366x768 o monitores con escalado DPI >100%. Reservamos ~40px para
+        // la taskbar/decoraciones del SO antes de calcular el preferido.
+        val visualBounds = javafx.stage.Screen.getPrimary().visualBounds
+        val sceneW = minOf(1100.0, visualBounds.width - 40.0).coerceAtLeast(720.0)
+        val sceneH = minOf(720.0, visualBounds.height - 60.0).coerceAtLeast(480.0)
+        val scene = Scene(rootPane, sceneW, sceneH)
         theme.applyTo(scene)
         refreshLabels()
 
@@ -209,6 +216,8 @@ class MainWindow(
         stage.title = settings.window.titlePrefix.ifBlank { "COMPUHELP" }
         stage.opacity = settings.window.transparency
         stage.scene = scene
+        stage.minWidth = 720.0
+        stage.minHeight = 480.0
         stage.setOnCloseRequest {
             stopAllControllers()
             TftpServerManager.stop()
@@ -232,6 +241,7 @@ class MainWindow(
         // antes) porque la system property es un side effect de UI lifecycle, no algo
         // que tenga sentido al construir el MainWindow para tests.
         System.setProperty("opentermx.telnet.verboseLog", settings.additional.telnetVerboseLog.toString())
+        stage.centerOnScreen()
         stage.show()
 
         openWelcomeTab()
@@ -1091,6 +1101,11 @@ class MainWindow(
                     StackPane.setAlignment(watermark, javafx.geometry.Pos.CENTER)
                     watermark.fitWidthProperty().bind(widthProperty().multiply(0.5))
                     watermark.fitHeightProperty().bind(heightProperty().multiply(0.5))
+                    // Permitir que el centro encoja sin pisar la barra de estado/menú del
+                    // BorderPane cuando la ventana es pequeña — sin esto la imagen del
+                    // watermark imponía un min-height que recortaba el bottom.
+                    minHeight = 0.0
+                    minWidth = 0.0
                 }
             }
         }
@@ -1177,8 +1192,11 @@ class MainWindow(
 
     private fun buildStatusBar(): Region {
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
-        return HBox(12.0, statusLabel, spacer, restApiLabel, mcpServerLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, Separator(), themeLabel).apply {
+        val separator = Separator(javafx.geometry.Orientation.VERTICAL)
+        return HBox(12.0, statusLabel, spacer, restApiLabel, mcpServerLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, separator, themeLabel).apply {
             styleClass += "status-bar"
+            alignment = Pos.CENTER_LEFT
+            minHeight = 26.0
         }
     }
 

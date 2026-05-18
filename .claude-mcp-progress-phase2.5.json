@@ -28,7 +28,16 @@
     {
       "id": "T3",
       "title": "Validar y arreglar BUG-telnet-comm-001: EchoOptionHandler",
-      "status": "pending"
+      "status": "done",
+      "notes": [
+        "AppSettings.AdditionalSettings.telnetVerboseLog: flag persistente que setea la system property `opentermx.telnet.verboseLog`.",
+        "TelnetConnection.connect(): si la property es 'true', registra spyStream(System.err) para loguear IAC.",
+        "AdditionalSettingsDialog: checkbox nuevo en pestaña Log, con hint i18n (es/en).",
+        "MainWindow: siembra la system property al show() y la actualiza en applyAdditionalSettingsToAll.",
+        "Validación con 3Com Baseline 2928 (lab 192.168.100.249): antes del fix `Username:aaddmmiinn` + password en plaintext (doble eco). Tras invertir EchoOptionHandler a (false,true,false,true): username/comandos sin duplicar, password oculto.",
+        "buildOptionHandlers extraído a método static package-private para test sin server real.",
+        "TelnetOptionHandlerTest: 2 asserts (flags exactos del EchoOptionHandler + 4 handlers en orden esperado)."
+      ]
     },
     {
       "id": "T4",

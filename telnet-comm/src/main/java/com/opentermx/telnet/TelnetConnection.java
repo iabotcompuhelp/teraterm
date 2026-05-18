@@ -9,6 +9,7 @@ import com.opentermx.common.connection.TelnetConfig;
 import org.apache.commons.net.telnet.EchoOptionHandler;
 import org.apache.commons.net.telnet.SuppressGAOptionHandler;
 import org.apache.commons.net.telnet.TelnetClient;
+import org.apache.commons.net.telnet.TelnetOptionHandler;
 import org.apache.commons.net.telnet.TerminalTypeOptionHandler;
 import org.apache.commons.net.telnet.WindowSizeOptionHandler;
 import org.slf4j.Logger;
@@ -73,6 +74,16 @@ public final class TelnetConnection implements Connection {
             client = new TelnetClient(terminalType);
             client.setConnectTimeout(CONNECT_TIMEOUT_MS);
 
+            // Phase 2.5 T3: diagnóstico de la negociación IAC. La app setea esta system
+            // property desde `AppSettings.additional.telnetVerboseLog` (toggle en Setup →
+            // Additional → Log). El spy stream loguea WILL/WONT/DO/DONT en ambas
+            // direcciones a stderr — útil para verificar si el server quiere hacer echo
+            // pero OpenTermX lo rechaza (síntoma: TCP conecta pero no aparece prompt).
+            if ("true".equalsIgnoreCase(System.getProperty("opentermx.telnet.verboseLog"))) {
+                client.registerSpyStream(System.err);
+                log.info("Telnet verbose log activo — la negociación IAC se loguea en stderr");
+            }
+
             if (config.getUseTls()) {
                 SSLContext ctx = SSLContext.getDefault();
                 client.setSocketFactory(ctx.getSocketFactory());
@@ -91,11 +102,9 @@ public final class TelnetConnection implements Connection {
             // si se llama antes de connect(). Por eso recvBuf va acá y keepAlive abajo.
             if (recvBuf > 0) client.setReceiveBufferSize(recvBuf);
 
-            // Standard option handlers for an interactive shell-like session
-            client.addOptionHandler(new TerminalTypeOptionHandler(terminalType, false, false, true, false));
-            client.addOptionHandler(new EchoOptionHandler(true, false, true, false));
-            client.addOptionHandler(new SuppressGAOptionHandler(true, true, true, true));
-            client.addOptionHandler(new WindowSizeOptionHandler(ptyCols, ptyRows, false, false, true, false));
+            for (TelnetOptionHandler h : buildOptionHandlers(terminalType, ptyCols, ptyRows)) {
+                client.addOptionHandler(h);
+            }
 
             java.net.InetAddress address = HostResolver.resolve(config.getHost(), config.getDnsMode());
             client.connect(address, config.getPort());
@@ -113,6 +122,25 @@ public final class TelnetConnection implements Connection {
             cleanup();
             throw e;
         }
+    }
+
+    /**
+     * Construye los option handlers que registra una sesión interactiva contra CLI de
+     * equipos de red. Extraído como package-private static para que el test pueda
+     * verificar la configuración sin necesitar un servidor Telnet real.
+     *
+     * <p>Phase 2.5 T3 invirtió el {@link EchoOptionHandler} de {@code (true,false,true,false)}
+     * a {@code (false,true,false,true)} tras observar doble eco contra 3Com Baseline 2928
+     * y equivalentes — el server siempre hace eco (necesario para password masking),
+     * así que el cliente debe pedirlo explícitamente y dejarlo manejar el echo.
+     */
+    static TelnetOptionHandler[] buildOptionHandlers(String terminalType, int ptyCols, int ptyRows) {
+        return new TelnetOptionHandler[] {
+            new TerminalTypeOptionHandler(terminalType, false, false, true, false),
+            new EchoOptionHandler(false, true, false, true),
+            new SuppressGAOptionHandler(true, true, true, true),
+            new WindowSizeOptionHandler(ptyCols, ptyRows, false, false, true, false),
+        };
     }
 
     private void startReader() {

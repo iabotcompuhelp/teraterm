@@ -190,4 +190,12 @@ data class AdditionalSettings(
      * `-Dopentermx.terminal.engine` sigue ganando si está fijada.
      */
     val terminalEngine: String = "KOTLIN",
+    /**
+     * Si está activo, el cliente Telnet registra un `spyStream` a `System.err` que
+     * loguea la negociación IAC (WILL/WONT/DO/DONT) en ambas direcciones. Usado para
+     * diagnosticar fallas tipo "TCP conecta pero la sesión nunca muestra prompt"
+     * (Phase 2.5 T3, validación de la hipótesis de `EchoOptionHandler`). Off por default
+     * porque ensucia logs en prod.
+     */
+    val telnetVerboseLog: Boolean = false,
 )

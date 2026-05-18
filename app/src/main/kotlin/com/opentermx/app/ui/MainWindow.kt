@@ -227,6 +227,11 @@ class MainWindow(
         bootRestApiIfEnabled()
         bootMcpServerIfEnabled()
         subscribeConnectionErrorPopups()
+        // Phase 2.5 T3: siembra el flag de verbose Telnet desde settings persistidos
+        // antes de que el usuario pueda abrir una sesión. Mantenemos el cambio acá (no
+        // antes) porque la system property es un side effect de UI lifecycle, no algo
+        // que tenga sentido al construir el MainWindow para tests.
+        System.setProperty("opentermx.telnet.verboseLog", settings.additional.telnetVerboseLog.toString())
         stage.show()
 
         openWelcomeTab()
@@ -676,6 +681,10 @@ class MainWindow(
         }
         controllers.values.forEach { apply(it.terminal) }
         forEachTerminal(apply)
+        // Phase 2.5 T3: el TelnetConnection lee esta system property en cada `connect()`
+        // para decidir si registra el spy stream de IAC. Sesiones ya abiertas no se ven
+        // afectadas — el flag aplica desde la próxima conexión.
+        System.setProperty("opentermx.telnet.verboseLog", a.telnetVerboseLog.toString())
     }
 
     private fun openProxyConfig() {

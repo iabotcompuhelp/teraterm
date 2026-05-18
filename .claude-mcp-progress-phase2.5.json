@@ -65,16 +65,23 @@
     {
       "id": "T6",
       "title": "Tests de regresión",
-      "status": "partial",
+      "status": "done",
       "notes": [
-        "McpServerVersionTest agregado en T1.",
-        "Pendientes: AppSettingsSshDefaultsTest (T2), TelnetOptionHandlerTest (T3), test de error dialog (T4)."
+        "McpServerVersionTest (4 asserts) — T1.",
+        "SshGeneralDefaultsTest (6 asserts) — T2.",
+        "TelnetOptionHandlerTest (2 asserts) — T3.",
+        "SshErrorTipTest (10 asserts) — T4. Test UI de TestFX no se agregó (TestFX no configurado; la spec lo dejaba condicional)."
       ]
     },
     {
       "id": "T7",
       "title": "Cierre: build verde + CHANGELOG + reporte",
-      "status": "pending"
+      "status": "done",
+      "notes": [
+        "`./gradlew build` end-to-end verde: 61 actionable tasks, 0 fallos.",
+        "22 pytest del mcp-server pasaron (test_auth, test_errors, test_protocol, test_tools).",
+        "CHANGELOG.md: sección 1.0.1 con fixes T1-T4, mejoras de diagnóstico T3, docs T5, tests T6 y el bonus de race-condition `aeb3639`."
+      ]
     }
   ]
 }

@@ -233,8 +233,11 @@ class MainWindow(
         updateTftpServerLabel()
         updateTftpClientLabel()
         updateAiStatusLabel()
-        bootRestApiIfEnabled()
-        bootMcpServerIfEnabled()
+        if (!settings.additional.terminalOnlyMode) {
+            bootRestApiIfEnabled()
+            bootMcpServerIfEnabled()
+        }
+        applyTerminalOnlyMode()
         subscribeConnectionErrorPopups()
         // Phase 2.5 T3: siembra el flag de verbose Telnet desde settings persistidos
         // antes de que el usuario pueda abrir una sesión. Mantenemos el cambio acá (no
@@ -318,14 +321,21 @@ class MainWindow(
             items += MenuItem(Strings["setup.additional"]).apply { setOnAction { openAdditionalSettings() } }
             items += MenuItem(Strings["setup.highlight"]).apply { setOnAction { openHighlightConfigDialog() } }
             items += SeparatorMenuItem()
-            // Grupo 5: IA + privacidad.
-            items += MenuItem(Strings["setup.aiAssistant"]).apply {
-                accelerator = accelerator("setup.aiAssistant")
-                setOnAction { openAiAssistantConfig() }
+            // Grupo 5: IA + privacidad. Cuando está activo `terminalOnlyMode`,
+            // los accesos a IA/MCP/REST se omiten del menú y sólo queda el toggle
+            // del modo terminal (con PIN) para volver a habilitarlos.
+            if (!settings.additional.terminalOnlyMode) {
+                items += MenuItem(Strings["setup.aiAssistant"]).apply {
+                    accelerator = accelerator("setup.aiAssistant")
+                    setOnAction { openAiAssistantConfig() }
+                }
+                items += MenuItem(Strings["setup.restApi"]).apply {
+                    accelerator = accelerator("setup.restApi")
+                    setOnAction { openRestApiConfig() }
+                }
             }
-            items += MenuItem(Strings["setup.restApi"]).apply {
-                accelerator = accelerator("setup.restApi")
-                setOnAction { openRestApiConfig() }
+            items += MenuItem(Strings["setup.terminalOnly"]).apply {
+                setOnAction { openTerminalOnlyModeConfig() }
             }
             items += SeparatorMenuItem()
             // Grupo 6: persistencia.
@@ -366,11 +376,13 @@ class MainWindow(
             }
             items += buildLanguageMenu()
             items += SeparatorMenuItem()
-            items += MenuItem(Strings["window.toggleAiChat"]).apply {
-                accelerator = accelerator("window.toggleAiChat")
-                setOnAction { toggleAiChatPanel() }
+            if (!settings.additional.terminalOnlyMode) {
+                items += MenuItem(Strings["window.toggleAiChat"]).apply {
+                    accelerator = accelerator("window.toggleAiChat")
+                    setOnAction { toggleAiChatPanel() }
+                }
+                items += SeparatorMenuItem()
             }
-            items += SeparatorMenuItem()
             items += MenuItem(Strings["window.closeTab"]).apply {
                 accelerator = accelerator("window.closeTab")
                 setOnAction { tabPane.selectionModel.selectedItem?.let { closeTab(it) } }
@@ -813,6 +825,7 @@ class MainWindow(
         }
     }
 
+    private var restApiListenerBound = false
     private fun bootRestApiIfEnabled() {
         RestApiManager.configure(
             RestApiHooksImpl(
@@ -823,7 +836,10 @@ class MainWindow(
                 aiBridge = com.opentermx.app.ui.ai.HeadlessMacroAiBridge { settings.aiAssistant },
             )
         )
-        RestApiManager.runningProperty.addListener { _, _, _ -> updateRestApiLabel() }
+        if (!restApiListenerBound) {
+            RestApiManager.runningProperty.addListener { _, _, _ -> updateRestApiLabel() }
+            restApiListenerBound = true
+        }
         if (settings.restApi.enabled) {
             RestApiManager.applySettings(settings.restApi).exceptionOrNull()?.let { e ->
                 statusLabel.text = Strings.format("status.restApi.error", e.message ?: e.javaClass.simpleName)
@@ -886,6 +902,81 @@ class MainWindow(
             Strings.format("status.ai.unverified", providerName)
         }
         aiStatusLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.ai.tooltip"])
+    }
+
+    /**
+     * Aplica el estado actual de `settings.additional.terminalOnlyMode` a la UI:
+     * oculta o muestra las etiquetas IA/MCP/REST en la status bar, cierra el panel
+     * de chat IA si quedó abierto, y detiene los servidores REST/MCP cuando se
+     * bloquea. No reinicia los servicios al desbloquear — eso lo gestionan los
+     * `bootXxxIfEnabled` que respetan los flags `enabled` de cada feature.
+     */
+    private fun applyTerminalOnlyMode() {
+        val locked = settings.additional.terminalOnlyMode
+        aiStatusLabel.isVisible = !locked
+        aiStatusLabel.isManaged = !locked
+        if (locked) {
+            mcpServerLabel.isVisible = false; mcpServerLabel.isManaged = false
+            restApiLabel.isVisible = false; restApiLabel.isManaged = false
+            if (::centerSplit.isInitialized) setAiChatPanelVisible(false)
+            com.opentermx.app.ui.mcp.McpServerManager.stop()
+            RestApiManager.stop()
+        } else {
+            updateMcpServerLabel()
+            updateRestApiLabel()
+        }
+    }
+
+    /**
+     * Flujo "Modo terminal": si está OFF pide un PIN nuevo y bloquea; si está ON
+     * pide el PIN actual y desbloquea. El PIN se guarda hasheado (PBKDF2) en
+     * `AdditionalSettings.terminalOnlyPinHash/Salt`. Reconstruye el menú al final
+     * para que los ítems de IA/MCP/REST aparezcan o desaparezcan según corresponda.
+     */
+    private fun openTerminalOnlyModeConfig() {
+        val current = settings.additional
+        if (!current.terminalOnlyMode) {
+            val hashed = com.opentermx.app.ui.dialog.TerminalOnlyModeDialog.askNewPin(stage) ?: return
+            persist {
+                it.copy(
+                    additional = it.additional.copy(
+                        terminalOnlyMode = true,
+                        terminalOnlyPinHash = hashed.hashBase64,
+                        terminalOnlyPinSalt = hashed.saltBase64,
+                    )
+                )
+            }
+            applyTerminalOnlyMode()
+            rebuildMenusAndLabels()
+            statusLabel.text = Strings["setup.terminalOnly.locked"]
+        } else {
+            val hash = current.terminalOnlyPinHash
+            val salt = current.terminalOnlyPinSalt
+            // Sin hash/salt persistidos (caso anómalo, p.ej. edición manual del JSON)
+            // permitimos desbloquear sin verificación — preferible a dejar al usuario
+            // bloqueado sin recuperación.
+            val ok = if (hash != null && salt != null) {
+                com.opentermx.app.ui.dialog.TerminalOnlyModeDialog.askExistingPin(stage, hash, salt)
+            } else true
+            if (!ok) return
+            persist {
+                it.copy(
+                    additional = it.additional.copy(
+                        terminalOnlyMode = false,
+                        terminalOnlyPinHash = null,
+                        terminalOnlyPinSalt = null,
+                    )
+                )
+            }
+            applyTerminalOnlyMode()
+            rebuildMenusAndLabels()
+            // Re-bootea los servicios deshabilitados por el lock anterior — sólo
+            // arrancan si su `enabled` propio está en true, así que en la práctica
+            // sólo despierta lo que el usuario ya quería corriendo.
+            bootRestApiIfEnabled()
+            bootMcpServerIfEnabled()
+            statusLabel.text = Strings["setup.terminalOnly.unlocked"]
+        }
     }
 
     private fun openSerialPortSetup() {

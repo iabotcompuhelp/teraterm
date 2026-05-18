@@ -198,4 +198,21 @@ data class AdditionalSettings(
      * porque ensucia logs en prod.
      */
     val telnetVerboseLog: Boolean = false,
+    /**
+     * "Modo terminal" — cuando es `true`, la UI oculta los accesos a IA/MCP/REST
+     * (menús, status bar, panel de chat) y se inhibe el auto-boot de esos
+     * servicios. Toggle desde Setup → Modo terminal…, protegido con PIN.
+     */
+    val terminalOnlyMode: Boolean = false,
+    /**
+     * Hash PBKDF2-WithHmacSHA256 (Base64) del PIN que protege el toggle de
+     * `terminalOnlyMode`. `null` cuando nunca se fijó un PIN. Junto con
+     * `terminalOnlyPinSalt` define la credencial de bloqueo/desbloqueo.
+     */
+    val terminalOnlyPinHash: String? = null,
+    /**
+     * Salt aleatorio (Base64, 16 bytes) usado para derivar `terminalOnlyPinHash`.
+     * Generado al fijar el PIN por primera vez.
+     */
+    val terminalOnlyPinSalt: String? = null,
 )

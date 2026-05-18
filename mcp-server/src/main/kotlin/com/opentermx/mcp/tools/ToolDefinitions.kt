@@ -373,6 +373,85 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val START_OPERATION = ToolDef(
+        name = "start_operation",
+        description = "Inicia una operación estructurada (Phase 3 Fase 1). Recibe el context como " +
+            "YAML/JSON inline o como path al archivo. Valida contra el schema y persiste. Mientras " +
+            "haya una op activa para esta sesión MCP, cada tool_result lleva un bloque " +
+            "[OPERATION CONTEXT ...] inyectado, y los comandos que violen scope.forbidden_commands / " +
+            "scope.allowed_commands_prefix son rechazados antes de tocar el device.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "oneOf" to listOf(
+                obj("required" to listOf("contextPath")),
+                obj("required" to listOf("contextInline")),
+                obj("required" to listOf("contextYaml")),
+            ),
+            "properties" to obj(
+                "contextPath" to obj("type" to "string", "minLength" to 1,
+                    "description" to "Path absoluto a un archivo .yaml/.yml/.json con el context."),
+                "contextInline" to obj("type" to "object",
+                    "description" to "Context inline como objeto JSON."),
+                "contextYaml" to obj("type" to "string", "minLength" to 1,
+                    "description" to "Context inline como string YAML."),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("operationId", "startedAtMillis"),
+            "properties" to obj(
+                "operationId" to obj("type" to "string"),
+                "startedAtMillis" to obj("type" to "integer"),
+                "description" to obj("type" to "string"),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val END_OPERATION = ToolDef(
+        name = "end_operation",
+        description = "Cierra la operación activa de esta sesión MCP. Devuelve summary (duración, descripción). " +
+            "Tras cerrar, las próximas tools de esta sesión ya no llevan el bloque de context inyectado.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("operationId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "operationId" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("operationId", "durationMillis"),
+            "properties" to obj(
+                "operationId" to obj("type" to "string"),
+                "durationMillis" to obj("type" to "integer"),
+                "description" to obj("type" to "string"),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val CURRENT_OPERATION = ToolDef(
+        name = "current_operation",
+        description = "Devuelve el context de la operación activa de esta sesión MCP, o null si no hay. " +
+            "Útil para que el cliente recupere el detalle si perdió el handle.",
+        inputSchema = obj(
+            "type" to "object",
+            "properties" to emptyMap<String, Any?>(),
+            "additionalProperties" to false,
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "properties" to obj(
+                "operationId" to obj("type" to listOf("string", "null")),
+                "context" to obj("type" to listOf("object", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -384,6 +463,9 @@ object ToolDefinitions {
         CLOSE_SESSION,
         READ_AUDIT_LOG,
         TAIL_SESSION,
+        START_OPERATION,
+        END_OPERATION,
+        CURRENT_OPERATION,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

@@ -53,6 +53,8 @@ dependencies {
     implementation(libs.javalin.ssl.plugin)
     implementation(libs.jackson.databind)
     implementation(libs.jackson.module.kotlin)
+    implementation(libs.jackson.dataformat.yaml)
+    implementation(libs.everit.json.schema)
     implementation(libs.slf4j.api)
     implementation(libs.mcp.kotlin.sdk)
 

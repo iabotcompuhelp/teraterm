@@ -25,6 +25,23 @@ interface ToolHandler {
 }
 
 /**
+ * Sub-contrato para handlers que necesitan saber a qué `sessionKey` MCP pertenece la
+ * llamada. Phase 3 Fase 1 lo introduce para los handlers de Operation Context
+ * (`start_operation` / `end_operation` / `current_operation`): la op activa se indexa
+ * por sessionKey, no por argumento del cliente.
+ *
+ * El dispatcher detecta esta interface antes de invocar y pasa el sessionKey real;
+ * para tests, la sobrecarga sin sessionKey ofrece un fallback con `"test"`.
+ */
+interface OperationAwareToolHandler : ToolHandler {
+
+    suspend fun invoke(args: Map<String, Any?>, sessionKey: String): Map<String, Any?>
+
+    override suspend fun invoke(args: Map<String, Any?>): Map<String, Any?> =
+        invoke(args, sessionKey = "test")
+}
+
+/**
  * Error con mensaje listo para devolver al cliente. Lo usan los handlers para señalar
  * argumentos inválidos, sesiones inexistentes, KB sin índice, etc.
  */

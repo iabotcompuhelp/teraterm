@@ -143,6 +143,11 @@ object McpServerManager {
         val approvalGate: ApprovalGate = JavaFxApprovalGate(ownerProvider)
         val redactor = com.opentermx.mcp.security.RedactorFactory.fromCustomRules(settings.mcpServerCustomRedactionRules)
         val tailManager = TailManager()
+        // Phase 3 Fase 1: registry de operations persistido en `~/.opentermx/operations/`.
+        // Se construye una vez por server start; recovery automático al cargar.
+        val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
+            store = com.opentermx.mcp.operation.FsOperationStore(),
+        )
         val handlers = listOf(
             ListSessionsHandler(),
             InspectSessionHandler(redactor),
@@ -154,6 +159,9 @@ object McpServerManager {
             CloseSessionHandler(approvalGate),
             ReadAuditLogHandler(redactor = redactor),
             TailSessionHandler(tailManager),
+            com.opentermx.mcp.handlers.StartOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.EndOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
         )
         val tlsConfig: McpServer.TlsConfig? = if (settings.mcpServerTlsEnabled && !settings.mcpServerKeyStorePath.isNullOrBlank()) {
             val password = decodeToken(settings.mcpServerKeyStorePassword).orEmpty()
@@ -176,6 +184,7 @@ object McpServerManager {
             redactor = redactor,
             tailManager = tailManager,
             resourceProvider = com.opentermx.mcp.OpenTermXResources(redactor = redactor),
+            operationRegistry = operationRegistry,
         )
     }
 

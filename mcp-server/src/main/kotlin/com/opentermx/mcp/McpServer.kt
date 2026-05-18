@@ -73,6 +73,13 @@ class McpServer(
     val tailManager: TailManager = TailManager(),
     private val resourceProvider: ResourceProvider = ResourceProvider.Empty,
     private val promptProvider: PromptProvider = PromptProvider.Default,
+    /**
+     * Registro de operations activas (Phase 3 Fase 1). Cuando se provee, el dispatcher
+     * inyecta el bloque de context en respuestas exitosas y valida `commands` contra el
+     * scope antes de invocar handlers. Off por default para mantener back-compat con
+     * tests que construyen McpServer sin pasar este parámetro.
+     */
+    val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
 ) {
 
     /**
@@ -97,6 +104,7 @@ class McpServer(
         allowedSessionGlob = allowedSessionGlob,
         resourceProvider = resourceProvider,
         promptProvider = promptProvider,
+        operationRegistry = operationRegistry,
     )
 
     private val statusState = MutableStateFlow(Status.STOPPED)

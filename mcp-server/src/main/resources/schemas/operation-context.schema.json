@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opentermx.io/schemas/operation-context.schema.json",
+  "title": "OpenTermX Operation Context",
+  "description": "Intención estructurada que un cliente LLM declara al iniciar una operación. El servidor la inyecta en cada tool_result subsecuente y la usa como filtro pre-ejecución para comandos mutativos.",
+  "type": "object",
+  "required": ["operation", "scope"],
+  "additionalProperties": false,
+  "properties": {
+    "operation": {
+      "type": "object",
+      "required": ["description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]{3,80}$",
+          "description": "ID único de la operación. Si se omite, el servidor genera uno."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "initiated_by": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Aliases del device registry (Fase 2) o sessionIds activos."
+        },
+        "allowed_commands_prefix": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Si está presente y NO vacío, los comandos a ejecutar deben empezar con alguno de estos prefijos. Vacío o ausente = sin restricción."
+        },
+        "forbidden_commands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Substrings que NO pueden aparecer en ningún comando a ejecutar. Match case-insensitive."
+        }
+      }
+    },
+    "success_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["command_output_contains", "no_interface_down", "route_exists"]
+          },
+          "command": { "type": "string" },
+          "pattern": { "type": "string" },
+          "interface_name": { "type": "string" },
+          "destination": { "type": "string" }
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_duration_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "require_compliance_approval": {
+          "type": "boolean",
+          "default": false
+        },
+        "require_snapshot": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

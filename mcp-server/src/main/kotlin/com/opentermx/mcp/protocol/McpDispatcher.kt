@@ -5,6 +5,9 @@ import com.opentermx.mcp.handlers.ToolHandler
 import com.opentermx.mcp.tools.ToolDef
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.runBlocking
+import com.opentermx.mcp.operation.CommandValidation
+import com.opentermx.mcp.operation.OperationContextInjector
+import com.opentermx.mcp.operation.validateCommand
 import org.slf4j.LoggerFactory
 
 /**
@@ -30,6 +33,14 @@ class McpDispatcher(
     private val allowedSessionGlob: String? = null,
     private val resourceProvider: ResourceProvider = ResourceProvider.Empty,
     private val promptProvider: PromptProvider = PromptProvider.Default,
+    /**
+     * Si no es null, el dispatcher (a) pasa el `sessionKey` real a los handlers
+     * que implementen [com.opentermx.mcp.handlers.OperationAwareToolHandler], (b) valida
+     * `args["commands"]` contra `scope.forbidden_commands` / `allowed_commands_prefix` antes
+     * de invocar el handler, y (c) prefija el bloque [OPERATION CONTEXT ...] al
+     * `content[0].text` de cada respuesta exitosa cuando hay op activa para esa sessionKey.
+     */
+    private val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -66,7 +77,7 @@ class McpDispatcher(
         return runCatching {
             when (request.method) {
                 "tools/list" -> ok(request.id, toolsListResult())
-                "tools/call" -> handleToolsCall(request)
+                "tools/call" -> handleToolsCall(request, transport)
                 "resources/list" -> ok(request.id, resourcesListResult())
                 "resources/read" -> handleResourcesRead(request)
                 "prompts/list" -> ok(request.id, promptsListResult())
@@ -128,7 +139,7 @@ class McpDispatcher(
     private fun exemptFromVersionCheck(method: String): Boolean =
         method == "ping" || method.startsWith("notifications/")
 
-    private fun handleToolsCall(request: JsonRpcRequest): JsonRpcResponse {
+    private fun handleToolsCall(request: JsonRpcRequest, transport: TransportContext): JsonRpcResponse {
         val params = request.params as? Map<*, *>
             ?: return error(request.id, JsonRpcError.INVALID_PARAMS, "`tools/call` requiere params={name, arguments}")
         val toolName = params["name"] as? String
@@ -156,9 +167,39 @@ class McpDispatcher(
             )
         }
 
+        // Phase 3 Fase 1: si hay op activa, validar commands contra el scope antes de
+        // tocar el device. Cubre `propose_commands` y cualquier futura tool con `commands`.
+        val activeOp = operationRegistry?.forSessionKey(transport.sessionKey)
+        if (activeOp != null) {
+            val commands = arguments["commands"] as? List<*>
+            if (commands != null) {
+                val violations = commands
+                    .mapNotNull { it as? String }
+                    .mapNotNull { cmd ->
+                        val res = activeOp.context.scope.validateCommand(cmd)
+                        (res as? CommandValidation.Rejected)?.reason
+                    }
+                if (violations.isNotEmpty()) {
+                    log.info("Operation `{}` bloqueó {} comando(s) en `{}`", activeOp.operationId, violations.size, toolName)
+                    return ok(request.id, toolCallError(violations.joinToString("\n")))
+                }
+            }
+        }
+
         return try {
-            val payload = runBlocking { handler.invoke(arguments) }
-            ok(request.id, toolCallSuccess(payload))
+            val payload = runBlocking {
+                if (handler is com.opentermx.mcp.handlers.OperationAwareToolHandler) {
+                    handler.invoke(arguments, transport.sessionKey)
+                } else {
+                    handler.invoke(arguments)
+                }
+            }
+            val raw = toolCallSuccess(payload)
+            val withContext = operationRegistry
+                ?.forSessionKey(transport.sessionKey)
+                ?.let { OperationContextInjector.injectIntoToolResult(raw, it) }
+                ?: raw
+            ok(request.id, withContext)
         } catch (e: McpToolException) {
             log.debug("Tool `{}` rechazó input: {}", toolName, e.message)
             ok(request.id, toolCallError(e.message ?: "Error de invocación"))

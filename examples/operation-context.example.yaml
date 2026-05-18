@@ -1,0 +1,40 @@
+# Ejemplo de Operation Context — Phase 3 Fase 1.
+# Un cliente LLM lo pasa a `start_operation` (como path o inline) para acotar el alcance
+# de una operación. El servidor inyecta un resumen en cada tool_result y rechaza
+# comandos que violen `scope.forbidden_commands` / `scope.allowed_commands_prefix`.
+
+operation:
+  # id es opcional; si se omite el servidor genera uno con timestamp + uuid corto.
+  id: "op-2026-05-17-ospf-area0"
+  description: "Activar OSPF area 0 en core-router-1 y core-router-2"
+  initiated_by: "operator@example.com"
+
+scope:
+  # Aliases del device registry (Fase 2). Mientras Fase 2 no esté, pueden ser sessionIds
+  # devueltos por list_sessions.
+  devices:
+    - "core-router-1"
+    - "core-router-2"
+  allowed_commands_prefix:
+    - "show"
+    - "configure terminal"
+    - "router ospf"
+    - "network "
+    - "exit"
+    - "end"
+  forbidden_commands:
+    - "reload"
+    - "erase"
+    - "write erase"
+    - "factory-reset"
+
+success_criteria:
+  - type: "command_output_contains"
+    command: "show ip ospf neighbor"
+    pattern: "FULL"
+  - type: "no_interface_down"
+
+constraints:
+  max_duration_minutes: 15
+  require_compliance_approval: true
+  require_snapshot: true

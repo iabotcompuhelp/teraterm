@@ -48,6 +48,10 @@ object TestServerMain {
         seedSessions()
 
         val gate = TestApprovalGate(approvePolicy)
+        // Phase 3 Fase 1: registry de operations in-memory (sin tocar disco real desde tests).
+        val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
+            com.opentermx.mcp.operation.InMemoryOperationStore(),
+        )
         val handlers = listOf(
             ListSessionsHandler(),
             InspectSessionHandler(),
@@ -59,8 +63,19 @@ object TestServerMain {
             CloseSessionHandler(gate),
             ReadAuditLogHandler(),
             TailSessionHandler(TailManager()),
+            com.opentermx.mcp.handlers.StartOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.EndOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
         )
-        val server = McpServer(handlers, serverName = "opentermx-mcp-test")
+        val server = McpServer(
+            handlers,
+            serverName = "opentermx-mcp-test",
+            operationRegistry = operationRegistry,
+            // Tests integration corren ráfagas concentradas — el rate limit del prod
+            // (60 req/min, burst 20) los agota cuando crece el set de tools. Off acá
+            // es seguro: cada server vive un solo run de pytest.
+            rateLimitEnabled = false,
+        )
         server.start(port, bind, token)
 
         // Señal a pytest. flush por si el padre buffea.

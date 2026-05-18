@@ -746,6 +746,7 @@ class MainWindow(
             settings = { settings.aiAssistant },
             sessionLauncher = { launcher },
             credentialStore = { com.opentermx.app.settings.SettingsCredentialStore { settings.aiAssistant } },
+            appSettings = { settings },
         )
         com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
         updateMcpServerLabel()

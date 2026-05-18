@@ -51,8 +51,8 @@ class SavedConnectionsDialog(initial: List<SavedConnection>) : Dialog<List<Saved
         val content = VBox(8.0, table, toolbar).apply {
             padding = Insets(12.0)
             VBox.setVgrow(table, Priority.ALWAYS)
-            prefWidth = 620.0
-            prefHeight = 320.0
+            prefWidth = 980.0
+            prefHeight = 360.0
         }
         dialogPane.content = content
         dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
@@ -93,9 +93,70 @@ class SavedConnectionsDialog(initial: List<SavedConnection>) : Dialog<List<Saved
             setCellValueFactory { SimpleStringProperty(formatTimestamp(it.value.lastUsedAtMillis)) }
             prefWidth = 140.0
         }
-        table.columns.setAll(labelCol, userCol, hostCol, portCol, authCol, lastUsedCol)
+        // Phase 3 Fase 2 — Device Registry: 4 columnas opcionales editables inline.
+        // tags/groups se editan como CSV; deviceType y alias son strings simples. El alias
+        // valida unicidad antes de aceptar el commit.
+        val aliasCol = TableColumn<SavedConnection, String>("Alias").apply {
+            setCellValueFactory { SimpleStringProperty(it.value.alias ?: "") }
+            cellFactory = TextFieldTableCell.forTableColumn(DefaultStringConverter())
+            setOnEditCommit { e ->
+                val newAlias = (e.newValue ?: "").trim().takeIf { it.isNotBlank() }
+                if (newAlias != null && current.any { it.id != e.rowValue.id && it.alias == newAlias }) {
+                    // Colisión: no aceptamos. Refrescamos para revertir la edición visual.
+                    refresh()
+                    return@setOnEditCommit
+                }
+                val updated = e.rowValue.copy(alias = newAlias)
+                current = current.map { if (it.id == updated.id) updated else it }
+                refresh()
+            }
+            isEditable = true
+            prefWidth = 120.0
+        }
+        val deviceTypeCol = TableColumn<SavedConnection, String>("Tipo").apply {
+            setCellValueFactory { SimpleStringProperty(it.value.deviceType ?: "") }
+            cellFactory = TextFieldTableCell.forTableColumn(DefaultStringConverter())
+            setOnEditCommit { e ->
+                val newType = (e.newValue ?: "").trim().takeIf { it.isNotBlank() }
+                val updated = e.rowValue.copy(deviceType = newType)
+                current = current.map { if (it.id == updated.id) updated else it }
+                refresh()
+            }
+            isEditable = true
+            prefWidth = 110.0
+        }
+        val tagsCol = TableColumn<SavedConnection, String>("Tags (csv)").apply {
+            setCellValueFactory { SimpleStringProperty(it.value.tags.joinToString(", ")) }
+            cellFactory = TextFieldTableCell.forTableColumn(DefaultStringConverter())
+            setOnEditCommit { e ->
+                val newTags = parseCsv(e.newValue)
+                val updated = e.rowValue.copy(tags = newTags)
+                current = current.map { if (it.id == updated.id) updated else it }
+                refresh()
+            }
+            isEditable = true
+            prefWidth = 160.0
+        }
+        val groupsCol = TableColumn<SavedConnection, String>("Grupos (csv)").apply {
+            setCellValueFactory { SimpleStringProperty(it.value.groups.joinToString(", ")) }
+            cellFactory = TextFieldTableCell.forTableColumn(DefaultStringConverter())
+            setOnEditCommit { e ->
+                val newGroups = parseCsv(e.newValue)
+                val updated = e.rowValue.copy(groups = newGroups)
+                current = current.map { if (it.id == updated.id) updated else it }
+                refresh()
+            }
+            isEditable = true
+            prefWidth = 140.0
+        }
+        table.columns.setAll(labelCol, aliasCol, userCol, hostCol, portCol, authCol, deviceTypeCol, tagsCol, groupsCol, lastUsedCol)
         table.placeholder = Label("No hay credenciales recordadas.")
     }
+
+    private fun parseCsv(raw: String?): List<String> =
+        raw.orEmpty().split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 
     private fun authLabel(c: SavedConnection): String = when (c.authKind) {
         SavedAuthKind.PASSWORD -> if (c.secret != null) "password (saved)" else "password (no secret)"

@@ -3,6 +3,9 @@ package com.opentermx.mcp.handlers
 import com.opentermx.ai.context.Vendor
 import com.opentermx.ai.safety.ClassifiedCommand
 import com.opentermx.ai.safety.RiskLevel
+import com.opentermx.mcp.handlers.McpToolException.ErrorCode.INVALID_ARGUMENT
+import com.opentermx.mcp.handlers.McpToolException.ErrorCode.NOT_FOUND
+import com.opentermx.mcp.inventory.InventoryProvider
 import com.opentermx.mcp.security.ApprovalDecision
 import com.opentermx.mcp.security.ApprovalGate
 import com.opentermx.mcp.security.OpenRequest
@@ -23,17 +26,30 @@ import com.opentermx.mcp.tools.ToolDefinitions
 class OpenSessionHandler(
     private val approvalGate: ApprovalGate,
     private val opener: SessionOpener,
+    private val inventory: InventoryProvider = InventoryProvider.Empty,
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.OPEN_SESSION
 
     override suspend fun invoke(args: Map<String, Any?>): Map<String, Any?> {
-        val protocol = Args.requireString(args, "protocol")
-        val host = Args.optionalString(args, "host")
-        val port = (args["port"] as? Number)?.toInt()
-        val username = Args.optionalString(args, "username")
-        val credentialRef = Args.optionalString(args, "credentialRef")
+        // Phase 3 Fase 2: deviceAlias resuelve protocol/host/port/username/credentialRef
+        // del Device Registry. Si viene, gana sobre los valores que pase el cliente —
+        // documentado en la description del tool.
+        val deviceAlias = Args.optionalString(args, "deviceAlias")
+        val resolved = deviceAlias?.let { alias ->
+            inventory.byAlias(alias)
+                ?: throw McpToolException(NOT_FOUND, "deviceAlias `$alias` no existe en el inventario")
+        }
+
+        val protocol = resolved?.protocol
+            ?: Args.optionalString(args, "protocol")
+            ?: throw McpToolException(INVALID_ARGUMENT, "Falta `protocol` (o pasar `deviceAlias`)")
+        val host = resolved?.host ?: Args.optionalString(args, "host")
+        val port = resolved?.port ?: (args["port"] as? Number)?.toInt()
+        val username = resolved?.username ?: Args.optionalString(args, "username")
+        val credentialRef = resolved?.savedConnectionId ?: Args.optionalString(args, "credentialRef")
         val label = Args.optionalString(args, "label")
+            ?: resolved?.displayLabel
             ?: "${protocol.lowercase()}://${host ?: ""}${port?.let { ":$it" } ?: ""}"
 
         // Mostramos al operador una descripción humana del destino — cada línea es una

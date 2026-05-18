@@ -32,7 +32,27 @@
         "Wire MCP extendido: content[0].text lleva prefijo `[OPERATION CONTEXT …]` + `---` cuando hay op activa."
       ]
     },
-    {"id": "F2", "title": "Device Registry — extender SavedConnections", "status": "pending"},
+    {
+      "id": "F2",
+      "title": "Device Registry — extender SavedConnections",
+      "status": "done",
+      "tasks": [
+        {"id": "F2.T1", "title": "SavedConnection: 4 campos opcionales (alias, tags, groups, deviceType)", "status": "done"},
+        {"id": "F2.T2", "title": "InventoryProvider interface + InventoryDevice DTO en mcp-server", "status": "done"},
+        {"id": "F2.T3", "title": "SettingsInventoryProvider impl en :app", "status": "done"},
+        {"id": "F2.T4", "title": "ToolDef inventory_list + inventory_describe + handlers", "status": "done"},
+        {"id": "F2.T5", "title": "OpenSession acepta deviceAlias opcional", "status": "done"},
+        {"id": "F2.T6", "title": "UI SavedConnectionsDialog: 4 columnas inline (alias con unicidad)", "status": "done"},
+        {"id": "F2.T7", "title": "SavedConnectionInventoryTest: 8 asserts (roundtrip, filters, no-leak creds)", "status": "done"},
+        {"id": "F2.T8", "title": "test_inventory.py: 11 pytest pasando (filters, leak check, deviceAlias resolution)", "status": "done"},
+        {"id": "F2.T9", "title": "docs/device-registry.md", "status": "done"}
+      ],
+      "notes": [
+        "McpServerManager ganó `appSettingsProvider` (default fallback construye AppSettings inline) para que el SettingsInventoryProvider lea savedConnections completo.",
+        "Wire MCP intocado: nuevos params son opcionales con back-compat (open_session con/sin deviceAlias).",
+        "Test estructural InventoryDevice_no_expone_secret_ni_keyPath garantiza que nuevos fields sensibles disparan compile-error."
+      ]
+    },
     {"id": "F3", "title": "Multi-agent roles + approval token HMAC", "status": "pending"},
     {"id": "F4", "title": "Snapshots pre/post + diff + rollback propose", "status": "pending"},
     {"id": "F5", "title": "Policy engine YAML determinístico", "status": "pending"}

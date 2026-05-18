@@ -52,6 +52,24 @@ object TestServerMain {
         val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
             com.opentermx.mcp.operation.InMemoryOperationStore(),
         )
+        // Phase 3 Fase 2: inventory in-memory con 2 devices mock alineados con las
+        // sessions del seedSessions (router-cisco.lab + mk.lab).
+        val inventory = StaticInventoryProvider(
+            listOf(
+                com.opentermx.mcp.inventory.InventoryDevice(
+                    alias = "core-router-1", protocol = "SSH", host = "router-cisco.lab", port = 22,
+                    username = "admin", deviceType = "cisco_ios",
+                    tags = listOf("core", "lab"), groups = listOf("cores"),
+                    savedConnectionId = "saved-cisco", displayLabel = "Router Cisco lab",
+                ),
+                com.opentermx.mcp.inventory.InventoryDevice(
+                    alias = "edge-mk-1", protocol = "Telnet", host = "mk.lab", port = 23,
+                    username = "admin", deviceType = "mikrotik_routeros",
+                    tags = listOf("edge"), groups = listOf("edges"),
+                    savedConnectionId = "saved-mk", displayLabel = "Mikrotik Edge",
+                ),
+            ),
+        )
         val handlers = listOf(
             ListSessionsHandler(),
             InspectSessionHandler(),
@@ -59,13 +77,15 @@ object TestServerMain {
             ProposeCommandsHandler(gate, injectDelayMillis = 0L),
             ListMacrosHandler(),
             RunMacroHandler(gate),
-            OpenSessionHandler(gate, SessionOpener.NoOp),
+            OpenSessionHandler(gate, SessionOpener.NoOp, inventory),
             CloseSessionHandler(gate),
             ReadAuditLogHandler(),
             TailSessionHandler(TailManager()),
             com.opentermx.mcp.handlers.StartOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.EndOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.InventoryListHandler(inventory),
+            com.opentermx.mcp.handlers.InventoryDescribeHandler(inventory),
         )
         val server = McpServer(
             handlers,
@@ -141,6 +161,22 @@ object TestServerMain {
             sink,
         )
     }
+}
+
+private class StaticInventoryProvider(
+    private val devices: List<com.opentermx.mcp.inventory.InventoryDevice>,
+) : com.opentermx.mcp.inventory.InventoryProvider {
+    override fun list(
+        tagsAny: List<String>?,
+        groupsAny: List<String>?,
+        deviceType: String?,
+    ): List<com.opentermx.mcp.inventory.InventoryDevice> = devices
+        .filter { tagsAny.isNullOrEmpty() || it.tags.any { t -> t in tagsAny } }
+        .filter { groupsAny.isNullOrEmpty() || it.groups.any { g -> g in groupsAny } }
+        .filter { deviceType.isNullOrBlank() || it.deviceType.equals(deviceType, ignoreCase = true) }
+
+    override fun byAlias(alias: String): com.opentermx.mcp.inventory.InventoryDevice? =
+        devices.firstOrNull { it.alias == alias }
 }
 
 private class TestApprovalGate(private val policy: String) : ApprovalGate {

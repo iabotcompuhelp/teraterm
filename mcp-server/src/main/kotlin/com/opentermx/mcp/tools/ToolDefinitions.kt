@@ -319,21 +319,31 @@ object ToolDefinitions {
         name = "open_session",
         description = "Abre una sesión nueva al destino indicado. Tool MUTATIVA: el operador " +
             "ve y aprueba el destino antes de conectar. `credentialRef` apunta al keychain " +
-            "interno de OpenTermX; passwords en plaintext nunca cruzan MCP.",
+            "interno de OpenTermX; passwords en plaintext nunca cruzan MCP. " +
+            "Phase 3 Fase 2: como alternativa al par `host`+`port` se puede pasar `deviceAlias` " +
+            "y el servidor resuelve el destino (protocol/host/port/username/credentials) desde " +
+            "el Device Registry. `protocol` queda opcional cuando viene `deviceAlias`.",
         inputSchema = obj(
             "type" to "object",
-            "required" to listOf("protocol"),
             "additionalProperties" to false,
+            "anyOf" to listOf(
+                obj("required" to listOf("protocol")),
+                obj("required" to listOf("deviceAlias")),
+            ),
             "properties" to obj(
                 "protocol" to obj(
-                    "type" to "string",
-                    "enum" to listOf("SSH", "TELNET", "SERIAL", "RAWTCP"),
+                    "type" to listOf("string", "null"),
+                    "enum" to listOf("SSH", "TELNET", "SERIAL", "RAWTCP", null),
                 ),
                 "host" to obj("type" to listOf("string", "null")),
                 "port" to obj("type" to listOf("integer", "null")),
                 "username" to obj("type" to listOf("string", "null")),
                 "credentialRef" to obj("type" to listOf("string", "null")),
                 "label" to obj("type" to listOf("string", "null")),
+                "deviceAlias" to obj(
+                    "type" to listOf("string", "null"),
+                    "description" to "Alias del Device Registry. Si viene, sobrescribe protocol/host/port/username con los del inventario.",
+                ),
             ),
         ),
         outputSchema = obj(
@@ -452,6 +462,78 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    val INVENTORY_LIST = ToolDef(
+        name = "inventory_list",
+        description = "Lista devices del inventario (entradas de Saved Connections con `alias` definido). " +
+            "Filtra por tags, groups o deviceType (AND entre filtros, ANY-of dentro). Nunca devuelve " +
+            "credenciales — los `secret` y `keyPath` se quedan en el server.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "properties" to obj(
+                "tags" to obj(
+                    "type" to listOf("array", "null"),
+                    "items" to obj("type" to "string"),
+                    "description" to "Una entrada matchea si tiene al menos uno de estos tags.",
+                ),
+                "groups" to obj(
+                    "type" to listOf("array", "null"),
+                    "items" to obj("type" to "string"),
+                ),
+                "deviceType" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("devices"),
+            "properties" to obj(
+                "devices" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("alias", "protocol", "host", "port", "username"),
+                        "properties" to obj(
+                            "alias" to obj("type" to "string"),
+                            "protocol" to obj("type" to "string"),
+                            "host" to obj("type" to "string"),
+                            "port" to obj("type" to "integer"),
+                            "username" to obj("type" to "string"),
+                            "deviceType" to obj("type" to listOf("string", "null")),
+                            "tags" to obj("type" to "array", "items" to obj("type" to "string")),
+                            "groups" to obj("type" to "array", "items" to obj("type" to "string")),
+                            "displayLabel" to obj("type" to "string"),
+                            "hasActiveSession" to obj("type" to "boolean"),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val INVENTORY_DESCRIBE = ToolDef(
+        name = "inventory_describe",
+        description = "Devuelve la metadata completa de un device del inventario por alias. " +
+            "Incluye `hasActiveSession` cuando hay una sesión abierta hacia ese host:port. " +
+            "Nunca devuelve credenciales.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("alias"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "alias" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "properties" to obj(
+                "device" to obj("type" to listOf("object", "null")),
+                "activeSessionId" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = false,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -466,6 +548,8 @@ object ToolDefinitions {
         START_OPERATION,
         END_OPERATION,
         CURRENT_OPERATION,
+        INVENTORY_LIST,
+        INVENTORY_DESCRIBE,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

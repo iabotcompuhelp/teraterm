@@ -1,6 +1,7 @@
 package com.opentermx.app.ui.mcp
 
 import com.opentermx.app.settings.AiAssistantSettings
+import com.opentermx.app.settings.AppSettings
 import com.opentermx.app.settings.SettingsCredentialStore
 import com.opentermx.app.ui.ai.JavaFxApprovalGate
 import com.opentermx.app.ui.ai.KnowledgeBaseHolder
@@ -39,6 +40,7 @@ object McpServerManager {
     @Volatile private var server: McpServer? = null
     @Volatile private var ownerProvider: (() -> Window?) = { null }
     @Volatile private var settingsProvider: (() -> AiAssistantSettings) = { AiAssistantSettings() }
+    @Volatile private var appSettingsProvider: (() -> AppSettings) = { AppSettings() }
     @Volatile private var sessionLauncherProvider: (() -> SessionLauncher?) = { null }
     @Volatile private var credentialStoreProvider: (() -> CredentialStore) = { CredentialStore.Empty }
 
@@ -55,11 +57,13 @@ object McpServerManager {
         settings: () -> AiAssistantSettings,
         sessionLauncher: () -> SessionLauncher? = { null },
         credentialStore: () -> CredentialStore = { SettingsCredentialStore(settings) },
+        appSettings: () -> AppSettings = { AppSettings(aiAssistant = settings()) },
     ) {
         this.ownerProvider = owner
         this.settingsProvider = settings
         this.sessionLauncherProvider = sessionLauncher
         this.credentialStoreProvider = credentialStore
+        this.appSettingsProvider = appSettings
     }
 
     /**
@@ -148,6 +152,11 @@ object McpServerManager {
         val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
             store = com.opentermx.mcp.operation.FsOperationStore(),
         )
+        // Phase 3 Fase 2: el InventoryProvider consume `AppSettings.savedConnections`
+        // (las entradas que tengan `alias` definido). Resolver lambda = lookup vivo, así
+        // las tools de inventory reflejan cambios del Setup → Saved Connections sin
+        // necesidad de reiniciar el server.
+        val inventoryProvider = SettingsInventoryProvider(appSettingsProvider)
         val handlers = listOf(
             ListSessionsHandler(),
             InspectSessionHandler(redactor),
@@ -155,13 +164,15 @@ object McpServerManager {
             ProposeCommandsHandler(approvalGate, redactor = redactor),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
-            OpenSessionHandler(approvalGate, resolveSessionOpener()),
+            OpenSessionHandler(approvalGate, resolveSessionOpener(), inventoryProvider),
             CloseSessionHandler(approvalGate),
             ReadAuditLogHandler(redactor = redactor),
             TailSessionHandler(tailManager),
             com.opentermx.mcp.handlers.StartOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.EndOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.InventoryListHandler(inventoryProvider),
+            com.opentermx.mcp.handlers.InventoryDescribeHandler(inventoryProvider),
         )
         val tlsConfig: McpServer.TlsConfig? = if (settings.mcpServerTlsEnabled && !settings.mcpServerKeyStorePath.isNullOrBlank()) {
             val password = decodeToken(settings.mcpServerKeyStorePassword).orEmpty()

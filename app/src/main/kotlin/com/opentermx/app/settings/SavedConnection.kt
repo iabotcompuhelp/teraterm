@@ -34,6 +34,28 @@ data class SavedConnection(
      * `SavedConnectionsDialog` en lugar de `user@host:port`. Editable inline.
      */
     val label: String = "",
+    /**
+     * Phase 3 Fase 2 — Device Registry. Cuatro campos opcionales que convierten una
+     * SavedConnection en una entrada de inventario consumible por las tools MCP
+     * `inventory_list` / `inventory_describe` y por `open_session` cuando recibe
+     * `deviceAlias`. Settings persistidos antes de Fase 2 quedan con todos null/empty;
+     * Jackson respeta lo que ya hay en `~/.opentermx/settings.json`.
+     *
+     * - [alias]: nombre lógico único (ej. `core-router-1`). El LLM lo usa para referirse
+     *   al device sin pasar host/port/credentials. Único globalmente; resolución O(1)
+     *   vía [SavedConnections.aliasIndex].
+     * - [tags]: etiquetas free-form para filtrar (`["core", "lab", "site-a"]`).
+     * - [groups]: agrupaciones (`["cores", "ospf-area-0"]`). Mismo contrato que tags,
+     *   separados para que la UI pueda mostrarlos distinto si conviene.
+     * - [deviceType]: valor recomendado (`cisco_ios`, `huawei_vrp`, `hpe_comware`,
+     *   `fortinet`, `linux_shell`, etc.) usado por Fase 5 para matchear policies. Se
+     *   mantiene como `String` libre — no enum — para no forzar migraciones cuando
+     *   aparezcan vendors nuevos.
+     */
+    val alias: String? = null,
+    val tags: List<String> = emptyList(),
+    val groups: List<String> = emptyList(),
+    val deviceType: String? = null,
 ) {
     /** Texto descriptivo para UI: usa `label` si está, sino cae al user@host:port clásico. */
     fun displayLabel(): String = if (label.isNotBlank()) label else "$username@$host:$port"
@@ -89,4 +111,43 @@ object SavedConnections {
         entries.filterNot {
             it.protocol == protocol && it.host.equals(host, ignoreCase = true) && it.port == port
         }
+
+    /**
+     * Phase 3 Fase 2 — Device Registry helpers.
+     *
+     * Resolución O(1) por alias. Devuelve null si el alias no existe o si más de una
+     * entrada lo tiene (caso patológico que indicaría un bug de validación al guardar).
+     */
+    fun findByAlias(entries: List<SavedConnection>, alias: String): SavedConnection? {
+        if (alias.isBlank()) return null
+        val matches = entries.filter { it.alias == alias }
+        return matches.singleOrNull()
+    }
+
+    /**
+     * Filtra `entries` para `inventory_list`. Cada filtro es AND con los otros; dentro
+     * de tags/groups el match es ANY (con que tenga uno de los listados alcanza).
+     * Solo devuelve entries que tengan alias definido — sin alias no son inventory.
+     */
+    fun filterForInventory(
+        entries: List<SavedConnection>,
+        tagsAny: List<String>? = null,
+        groupsAny: List<String>? = null,
+        deviceType: String? = null,
+    ): List<SavedConnection> = entries
+        .filter { !it.alias.isNullOrBlank() }
+        .filter { tagsAny.isNullOrEmpty() || it.tags.any { t -> t in tagsAny } }
+        .filter { groupsAny.isNullOrEmpty() || it.groups.any { g -> g in groupsAny } }
+        .filter { deviceType.isNullOrBlank() || it.deviceType.equals(deviceType, ignoreCase = true) }
+
+    /**
+     * Detecta colisiones de alias antes de persistir. La UI lo usa para impedir guardar
+     * dos entries con el mismo alias.
+     */
+    fun aliasCollisions(entries: List<SavedConnection>): Set<String> {
+        val counts = entries.mapNotNull { it.alias?.takeIf { a -> a.isNotBlank() } }
+            .groupingBy { it }
+            .eachCount()
+        return counts.filterValues { it > 1 }.keys
+    }
 }

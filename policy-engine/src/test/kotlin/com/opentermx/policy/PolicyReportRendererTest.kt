@@ -44,7 +44,7 @@ class PolicyReportRendererTest {
 
     @Test
     fun `audit Markdown agrega header de fleet`() {
-        val md = PolicyReportRenderer.toMarkdownAudit(listOf(eval, eval.copy(deviceAlias = "edge-1")))
+        val md = PolicyReportRenderer.toMarkdownAudit("baseline", listOf(eval, eval.copy(deviceAlias = "edge-1")))
         assertTrue(md.startsWith("# Audit — policy `baseline`"))
         assertTrue(md.contains("Devices: 2"))
         assertTrue(md.contains("core-router-1"))
@@ -52,8 +52,15 @@ class PolicyReportRendererTest {
     }
 
     @Test
-    fun `audit con lista vacía produce placeholder`() {
-        val md = PolicyReportRenderer.toMarkdownAudit(emptyList())
+    fun `audit con lista vacía conserva policyName en Markdown y JSON`() {
+        val md = PolicyReportRenderer.toMarkdownAudit("baseline", emptyList())
+        assertTrue(md.contains("# Audit — policy `baseline`"))
         assertTrue(md.contains("Sin devices"))
+
+        val json = PolicyReportRenderer.toJsonAudit("baseline", emptyList())
+        assertEquals("baseline", json["policyName"])
+        assertEquals(0, json["deviceCount"])
+        assertEquals(0, json["totalFail"])
+        assertEquals(0, json["totalWarn"])
     }
 }

@@ -28,8 +28,8 @@ object PolicyReportRenderer {
         },
     )
 
-    fun toJsonAudit(evaluations: List<PolicyEvaluation>): Map<String, Any?> = linkedMapOf(
-        "policyName" to (evaluations.firstOrNull()?.policyName ?: ""),
+    fun toJsonAudit(policyName: String, evaluations: List<PolicyEvaluation>): Map<String, Any?> = linkedMapOf(
+        "policyName" to policyName,
         "deviceCount" to evaluations.size,
         "totalFail" to evaluations.sumOf { it.failCount },
         "totalWarn" to evaluations.sumOf { it.warnCount },
@@ -72,10 +72,11 @@ object PolicyReportRenderer {
         return sb.toString()
     }
 
-    fun toMarkdownAudit(evaluations: List<PolicyEvaluation>): String {
-        if (evaluations.isEmpty()) return "## Audit\n\nSin devices para evaluar.\n"
+    fun toMarkdownAudit(policyName: String, evaluations: List<PolicyEvaluation>): String {
+        if (evaluations.isEmpty()) {
+            return "# Audit — policy `$policyName`\n\nSin devices para evaluar.\n"
+        }
         val sb = StringBuilder()
-        val policyName = evaluations.first().policyName
         sb.append("# Audit — policy `").append(policyName).append("`\n\n")
         sb.append("Devices: ").append(evaluations.size)
             .append(" | Total FAIL: ").append(evaluations.sumOf { it.failCount })

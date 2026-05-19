@@ -154,8 +154,8 @@ class PolicyAuditHandler(
                 RuleEvaluator.evaluate(policy, latest.content, device.alias, parser)
             }
         }
-        val out = LinkedHashMap(PolicyReportRenderer.toJsonAudit(evaluations))
-        if (withMarkdown) out["markdown"] = PolicyReportRenderer.toMarkdownAudit(evaluations)
+        val out = LinkedHashMap(PolicyReportRenderer.toJsonAudit(policy.policy.name, evaluations))
+        if (withMarkdown) out["markdown"] = PolicyReportRenderer.toMarkdownAudit(policy.policy.name, evaluations)
         return out
     }
 

@@ -156,6 +156,22 @@ def test_audit_sobre_la_flota(client, compliance_client, validator_client):
     assert by_device[0]["passCount"] == 2
 
 
+def test_audit_sin_devices_matcheando_conserva_policyName(compliance_client, validator_client):
+    # applies_to.device_types=["cisco_ios"] pero filtramos por tag que ningún device tiene
+    # → fleet vacía. El payload debe seguir echando el policyName (no string vacío).
+    call_tool(compliance_client, "policy_load", arguments={"yaml": SAMPLE_POLICY_YAML})
+    resp = call_tool(validator_client, "policy_audit", arguments={
+        "policyName": "test-policy",
+        "tagsAny": ["__no-existe__"],
+        "markdown": True,
+    })
+    payload = resp["result"]["structuredContent"]
+    assert payload["policyName"] == "test-policy", payload
+    assert payload["deviceCount"] == 0
+    assert payload["byDevice"] == []
+    assert "# Audit — policy `test-policy`" in payload["markdown"]
+
+
 def test_policy_evaluate_no_existente_NOT_FOUND(validator_client):
     resp = call_tool(validator_client, "policy_evaluate", arguments={
         "policyName": "no-existe",

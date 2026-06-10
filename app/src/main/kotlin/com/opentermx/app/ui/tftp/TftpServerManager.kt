@@ -26,10 +26,21 @@ object TftpServerManager {
     private val log = LoggerFactory.getLogger(javaClass)
     private const val HISTORY_MAX = 1000
 
-    @Volatile private var server: TftpServer? = null
-    @Volatile private var csvLogger: TftpCsvLogger? = null
-    @Volatile private var currentConfig: TftpServerConfig? = null
-    @Volatile private var currentCsvPath: String = ""
+    /**
+     * Estado compuesto del server corriendo, inmutable y publicado vía UN solo campo
+     * `@Volatile`. Antes eran 4 volátiles independientes: los escritores estaban bajo
+     * lock pero un lector podía observar mezcla de estados a mitad de un start/stop
+     * (p.ej. `server` nuevo con `csvPath` viejo). Con el holder, cada lectura ve un
+     * conjunto coherente; para leer varias propiedades juntas usar [snapshot].
+     */
+    private data class RunningState(
+        val server: TftpServer,
+        val csvLogger: TftpCsvLogger?,
+        val config: TftpServerConfig,
+        val csvPath: String,
+    )
+
+    @Volatile private var state: RunningState? = null
 
     private val historyBuf: ArrayDeque<TftpServerEvent> = ArrayDeque()
     private val externalListeners = CopyOnWriteArrayList<TftpServerListener>()
@@ -40,10 +51,28 @@ object TftpServerManager {
     val runningProperty: ReadOnlyBooleanProperty get() = runningWrapper.readOnlyProperty
     val portProperty: ReadOnlyIntegerProperty get() = portWrapper.readOnlyProperty
 
-    val isRunning: Boolean get() = server?.isRunning == true
-    val actualPort: Int get() = server?.actualPort() ?: -1
-    val config: TftpServerConfig? get() = currentConfig
-    val csvPath: String get() = currentCsvPath
+    val isRunning: Boolean get() = state?.server?.isRunning == true
+    val actualPort: Int get() = state?.server?.actualPort() ?: -1
+    val config: TftpServerConfig? get() = state?.config
+    val csvPath: String get() = state?.csvPath ?: ""
+
+    /** Vista atómica del estado para consumidores que leen varias propiedades juntas. */
+    data class Snapshot(
+        val running: Boolean,
+        val port: Int,
+        val config: TftpServerConfig?,
+        val csvPath: String,
+    )
+
+    fun snapshot(): Snapshot {
+        val st = state ?: return Snapshot(running = false, port = -1, config = null, csvPath = "")
+        return Snapshot(
+            running = st.server.isRunning,
+            port = st.server.actualPort(),
+            config = st.config,
+            csvPath = st.csvPath,
+        )
+    }
 
     @Synchronized
     fun start(config: TftpServerConfig, csvPath: String): Result<Int> {
@@ -67,10 +96,7 @@ object TftpServerManager {
 
         return runCatching {
             srv.start()
-            server = srv
-            csvLogger = csv
-            currentConfig = config
-            currentCsvPath = csvPath
+            state = RunningState(server = srv, csvLogger = csv, config = config, csvPath = csvPath)
             val port = srv.actualPort()
             updateProps(running = true, port = port)
             port
@@ -81,13 +107,10 @@ object TftpServerManager {
 
     @Synchronized
     fun stop() {
-        val srv = server ?: return
-        srv.stop()
-        server = null
-        csvLogger?.let { runCatching { it.close() } }
-        csvLogger = null
-        currentConfig = null
-        currentCsvPath = ""
+        val st = state ?: return
+        st.server.stop()
+        state = null
+        st.csvLogger?.let { runCatching { it.close() } }
         synchronized(historyBuf) { historyBuf.clear() }
         updateProps(running = false, port = -1)
     }

@@ -133,11 +133,13 @@ class RestApiHooksImpl(
     }
 
     override fun tftpStatus(): TftpStatusResponse {
-        val running = TftpServerManager.isRunning
+        // snapshot() para que running/port/rootDir salgan del mismo estado y no de
+        // tres lecturas que un stop() concurrente puede partir al medio.
+        val snap = TftpServerManager.snapshot()
         return TftpStatusResponse(
-            running = running,
-            port = if (running) TftpServerManager.actualPort else null,
-            rootDir = TftpServerManager.config?.rootDirectory()?.toString(),
+            running = snap.running,
+            port = if (snap.running) snap.port else null,
+            rootDir = snap.config?.rootDirectory()?.toString(),
         )
     }
 

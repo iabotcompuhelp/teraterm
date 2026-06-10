@@ -51,7 +51,12 @@ object McpServerManager {
      * `sessionLauncher` y `credentialStore` son opcionales para no romper tests que solo levantan
      * el manager sin GUI; si no se configuran, la tool `open_session` devolverá `Failure` con un
      * mensaje claro indicando que la integración no está cableada.
+     *
+     * `@Synchronized` (mismo lock que `applySettings`/`stop`) para que los 5 providers
+     * se intercambien de forma atómica: sin esto, un `applySettings` concurrente podía
+     * construir el server con mezcla de providers viejos y nuevos.
      */
+    @Synchronized
     fun configure(
         owner: () -> Window?,
         settings: () -> AiAssistantSettings,

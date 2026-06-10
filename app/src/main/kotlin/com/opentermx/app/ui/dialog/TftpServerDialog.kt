@@ -148,15 +148,18 @@ class TftpServerDialog(
     }
 
     private fun syncFromManager() {
-        val running = TftpServerManager.isRunning
+        // snapshot() para que running/config/port salgan del mismo estado y no de
+        // lecturas separadas que un stop() concurrente puede partir al medio.
+        val snap = TftpServerManager.snapshot()
+        val running = snap.running
         if (running) {
-            TftpServerManager.config?.let { cfg ->
+            snap.config?.let { cfg ->
                 portSpinner.valueFactory.value = cfg.port()
                 rootField.text = cfg.rootDirectory().toString()
                 allowGetCheck.isSelected = cfg.allowGet()
                 allowPutCheck.isSelected = cfg.allowPut()
             }
-            statusLabel.text = Strings.format("tftp.serverRunning", TftpServerManager.actualPort)
+            statusLabel.text = Strings.format("tftp.serverRunning", snap.port)
             logArea.clear()
             TftpServerManager.history().forEach { onEvent(it) }
         } else {

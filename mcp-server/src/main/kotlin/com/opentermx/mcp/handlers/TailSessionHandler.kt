@@ -27,7 +27,9 @@ class TailSessionHandler(
         tailManager.start(sessionIdRaw)
         return linkedMapOf(
             "started" to true,
-            "expiresAtMillis" to (System.currentTimeMillis() + TailManager.DEFAULT_TTL_MILLIS),
+            // TTL real del manager, no el default: si el server se construyó con otro
+            // TTL, el expiresAtMillis reportado tiene que matchear el auto-stop efectivo.
+            "expiresAtMillis" to (System.currentTimeMillis() + tailManager.ttlMillis),
             "error" to null,
         )
     }

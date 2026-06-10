@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
  * expiry timestamp para enforcear el auto-stop a los 30 minutos.
  */
 class TailManager(
-    private val ttlMillis: Long = DEFAULT_TTL_MILLIS,
+    val ttlMillis: Long = DEFAULT_TTL_MILLIS,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
 

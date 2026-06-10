@@ -60,6 +60,15 @@ public final class SerialConnection implements SerialPortConnection {
 
     @Override
     public void connect() throws Exception {
+        // Reconexión: si quedó abierto un puerto de un connect() anterior, liberarlo
+        // antes de pisarlo — si no, el handle viejo queda ocupando el COM port.
+        if (port != null || readerThread != null) {
+            log.warn("connect() con puerto serial previo — liberando antes de reconectar");
+            // DISCONNECTING sin notificar: el reader viejo va a morir con una excepción
+            // de puerto cerrado y no debe reportarla como ERROR de la conexión nueva.
+            state.set(ConnectionState.DISCONNECTING);
+            teardown();
+        }
         transition(ConnectionState.CONNECTING, null);
         try {
             port = SerialPort.getCommPort(config.getPortName());
@@ -99,7 +108,9 @@ public final class SerialConnection implements SerialPortConnection {
                     DataHandler h = dataHandler;
                     if (h != null) {
                         try {
-                            h.onData(buf, n);
+                            // Copia defensiva: buf se reusa en la próxima iteración y el
+                            // contrato de DataHandler promete un array que es del receptor.
+                            h.onData(java.util.Arrays.copyOf(buf, n), n);
                         } catch (Throwable t) {
                             log.warn("DataHandler threw", t);
                         }
@@ -148,12 +159,29 @@ public final class SerialConnection implements SerialPortConnection {
             return;
         }
         notifyState(ConnectionState.DISCONNECTING, old, null);
-        Thread t = readerThread;
-        if (t != null) t.interrupt();
-        cleanupPort();
-        readerThread = null;
+        teardown();
         state.set(ConnectionState.DISCONNECTED);
         notifyState(ConnectionState.DISCONNECTED, ConnectionState.DISCONNECTING, null);
+    }
+
+    /**
+     * Cierra el puerto y espera a que el reader thread termine (el read semi-blocking
+     * de 100ms garantiza que vea el interrupt enseguida). El join con timeout hace
+     * la terminación observable.
+     */
+    private void teardown() {
+        Thread t = readerThread;
+        cleanupPort();
+        if (t != null && t != Thread.currentThread()) {
+            t.interrupt();
+            try {
+                t.join(2_000);
+                if (t.isAlive()) log.warn("El reader serial no terminó tras 2s");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        readerThread = null;
     }
 
     @Override

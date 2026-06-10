@@ -54,8 +54,10 @@ public final class SshConnection implements Connection {
     private JSch jsch;
     private Session session;
     private ChannelShell channel;
-    private InputStream remoteIn;
-    private OutputStream remoteOut;
+    // Volátiles: los escribe el thread que conecta/desconecta y los lee el reader
+    // thread (remoteIn) y cualquier thread que envíe (remoteOut).
+    private volatile InputStream remoteIn;
+    private volatile OutputStream remoteOut;
     private Thread readerThread;
 
     private volatile DataHandler dataHandler;
@@ -91,6 +93,16 @@ public final class SshConnection implements Connection {
 
     @Override
     public void connect() throws Exception {
+        // Reconexión: si quedó viva una sesión de un connect() anterior, liberarla
+        // antes de pisar session/channel — si no, la vieja queda conectada para
+        // siempre con sus port forwards ocupando puertos locales.
+        if (session != null || channel != null || readerThread != null) {
+            log.warn("connect() con sesión SSH previa — liberando antes de reconectar");
+            // DISCONNECTING sin notificar: el reader viejo va a morir con una excepción
+            // de socket cerrado y no debe reportarla como ERROR de la conexión nueva.
+            state.set(ConnectionState.DISCONNECTING);
+            teardown();
+        }
         transition(ConnectionState.CONNECTING, null);
         try {
             jsch = new JSch();
@@ -270,14 +282,17 @@ public final class SshConnection implements Connection {
     private void readLoop() {
         byte[] buf = new byte[READ_BUFFER_SIZE];
         try {
-            while (remoteIn != null) {
-                int n = remoteIn.read(buf);
+            InputStream in;
+            while (!Thread.currentThread().isInterrupted() && (in = remoteIn) != null) {
+                int n = in.read(buf);
                 if (n < 0) break;
                 if (n == 0) continue;
                 DataHandler h = dataHandler;
                 if (h != null) {
                     try {
-                        h.onData(buf, n);
+                        // Copia defensiva: buf se reusa en la próxima iteración y el
+                        // contrato de DataHandler promete un array que es del receptor.
+                        h.onData(java.util.Arrays.copyOf(buf, n), n);
                     } catch (Throwable t) {
                         log.warn("SSH DataHandler threw", t);
                     }
@@ -314,12 +329,30 @@ public final class SshConnection implements Connection {
             return;
         }
         notifyState(ConnectionState.DISCONNECTING, old, null);
-        Thread t = readerThread;
-        if (t != null) t.interrupt();
-        cleanup();
-        readerThread = null;
+        teardown();
         state.set(ConnectionState.DISCONNECTED);
         notifyState(ConnectionState.DISCONNECTED, ConnectionState.DISCONNECTING, null);
+    }
+
+    /**
+     * Cierra canal/sesión y espera a que el reader thread termine. El orden importa:
+     * un read() bloqueado en I/O no responde a interrupt() — sólo al cierre del
+     * stream subyacente — así que cleanup() va primero y el interrupt cubre los
+     * estados no bloqueados. El join con timeout hace la terminación observable.
+     */
+    private void teardown() {
+        Thread t = readerThread;
+        cleanup();
+        if (t != null && t != Thread.currentThread()) {
+            t.interrupt();
+            try {
+                t.join(2_000);
+                if (t.isAlive()) log.warn("El reader SSH no terminó tras 2s");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        readerThread = null;
     }
 
     @Override
@@ -470,6 +503,8 @@ public final class SshConnection implements Connection {
             log.warn("Error cerrando canal SSH", e);
         }
         try {
+            // Session.disconnect() también libera los PortWatcher de los forwards
+            // locales/remotos registrados en esta sesión (JSch los trackea por session).
             if (session != null && session.isConnected()) session.disconnect();
         } catch (Exception e) {
             log.warn("Error cerrando sesión SSH", e);

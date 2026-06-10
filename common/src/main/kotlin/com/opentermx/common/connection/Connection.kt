@@ -24,6 +24,17 @@ interface Connection : AutoCloseable {
     fun getStateHandler(): StateHandler? = null
 }
 
+/**
+ * Callback de datos entrantes de una conexión.
+ *
+ * Contrato de ownership: `data` pertenece al receptor. Cada invocación entrega un
+ * array fresco que la conexión no vuelve a tocar, así que es seguro diferirlo a otro
+ * thread (FX/EDT, colas, etc.) sin copiar. Sólo los primeros [length] bytes son
+ * válidos — usar siempre `length`, no `data.size`.
+ *
+ * El callback corre en el thread de lectura de la conexión: no bloquear acá, o la
+ * sesión deja de drenar el socket.
+ */
 fun interface DataHandler {
     fun onData(data: ByteArray, length: Int)
 }

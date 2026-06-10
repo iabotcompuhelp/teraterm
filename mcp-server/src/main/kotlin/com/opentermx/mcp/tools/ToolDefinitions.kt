@@ -409,7 +409,8 @@ object ToolDefinitions {
             ),
             "properties" to obj(
                 "contextPath" to obj("type" to "string", "minLength" to 1,
-                    "description" to "Path absoluto a un archivo .yaml/.yml/.json con el context."),
+                    "description" to "Path absoluto a un archivo .yaml/.yml/.json con el context. " +
+                        "Debe estar dentro de `~/.opentermx/`; para archivos fuera de ese directorio usar contextInline/contextYaml."),
                 "contextInline" to obj("type" to "object",
                     "description" to "Context inline como objeto JSON."),
                 "contextYaml" to obj("type" to "string", "minLength" to 1,

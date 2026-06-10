@@ -16,9 +16,14 @@ import java.nio.file.Path
  * Handler de `start_operation`. Acepta el context en uno de tres formatos mutuamente
  * exclusivos (el JSON Schema lo enforce con `oneOf`): `contextPath`, `contextInline`, `contextYaml`.
  * Valida → registra en [OperationRegistry] → devuelve `operationId + startedAtMillis`.
+ *
+ * `contextPath` viene del cliente MCP, así que se confina a [allowedContextRoot]
+ * (default `~/.opentermx/`): sin esto un cliente autenticado podría leer cualquier
+ * YAML/JSON legible por el proceso vía `contextPath: "../../lo-que-sea.yaml"`.
  */
 class StartOperationHandler(
     private val registry: OperationRegistry,
+    private val allowedContextRoot: Path = Path.of(System.getProperty("user.home"), ".opentermx"),
 ) : OperationAwareToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.START_OPERATION
@@ -54,7 +59,7 @@ class StartOperationHandler(
         }
         return try {
             when {
-                path != null && path.isNotBlank() -> OperationContextLoader.fromPath(Path.of(path))
+                path != null && path.isNotBlank() -> OperationContextLoader.fromPath(resolveSafePath(path))
                 yaml != null && yaml.isNotBlank() -> OperationContextLoader.fromYamlString(yaml)
                 inline is Map<*, *> -> {
                     @Suppress("UNCHECKED_CAST")
@@ -65,6 +70,30 @@ class StartOperationHandler(
         } catch (e: OperationContextException) {
             throw McpToolException(INVALID_ARGUMENT, e.message ?: "context inválido")
         }
+    }
+
+    /**
+     * Normaliza [raw] y verifica que caiga bajo [allowedContextRoot]. Resuelve symlinks
+     * (`toRealPath`) cuando el archivo existe, para que un link dentro del root no pueda
+     * apuntar afuera. El mensaje de error no ecoa el path resuelto — sólo el root permitido —
+     * para no convertir el rechazo en un oráculo de qué existe en el filesystem.
+     */
+    private fun resolveSafePath(raw: String): Path {
+        val candidate = try {
+            Path.of(raw).toAbsolutePath().normalize()
+        } catch (e: java.nio.file.InvalidPathException) {
+            throw McpToolException(INVALID_ARGUMENT, "contextPath no es un path válido")
+        }
+        val root = runCatching { allowedContextRoot.toRealPath() }
+            .getOrDefault(allowedContextRoot.toAbsolutePath().normalize())
+        val resolved = runCatching { candidate.toRealPath() }.getOrDefault(candidate)
+        if (!resolved.startsWith(root)) {
+            throw McpToolException(
+                INVALID_ARGUMENT,
+                "contextPath debe estar dentro de `$root`; usá contextInline/contextYaml para contexts fuera de ese directorio",
+            )
+        }
+        return resolved
     }
 }
 

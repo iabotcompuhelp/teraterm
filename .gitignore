@@ -16,6 +16,8 @@ out/
 !.idea/teraterm.md
 # La spec del módulo mcp-server vive en .idea/opentermx-mcp.md — preservarla.
 !.idea/opentermx-mcp.md
+# `.idea/*` sólo cubre la raíz; native/ se abre como proyecto CLion aparte.
+native/.idea/
 
 ### Eclipse ###
 .apt_generated
@@ -44,6 +46,8 @@ bin/
 
 ### Claude Code ###
 .claude/
+# Config local de MCP por máquina — no versionar.
+.mcp.json
 
 ### Python (tests de integración mcp-server + tools/mcp) ###
 __pycache__/

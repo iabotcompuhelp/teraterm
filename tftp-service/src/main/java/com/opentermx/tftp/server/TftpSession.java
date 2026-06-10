@@ -1,7 +1,6 @@
 package com.opentermx.tftp.server;
 
 import com.opentermx.tftp.common.ErrorCode;
-import com.opentermx.tftp.common.Opcode;
 import com.opentermx.tftp.common.Packets;
 import com.opentermx.tftp.common.TftpException;
 import com.opentermx.tftp.common.TftpPacket;
@@ -266,7 +265,4 @@ final class TftpSession implements AutoCloseable {
     }
 
     private record Negotiated(int blockSize, boolean replyOack, Map<String, String> ackOptions) {}
-
-    @SuppressWarnings("unused")
-    private static String opcodeName(Opcode op) { return op.name(); }
 }

@@ -22,7 +22,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -334,8 +333,5 @@ public final class TftpClient {
         public String toString() {
             return "HandshakeResult(blockSize=" + blockSize + ", tsize=" + tsize + ")";
         }
-
-        @SuppressWarnings("unused")
-        private static String key(String s) { return s == null ? "" : s.toLowerCase(Locale.ROOT); }
     }
 }

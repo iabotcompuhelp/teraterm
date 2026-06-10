@@ -42,7 +42,9 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Seguridad — invariante del módulo:
  *  - Bind por defecto a `127.0.0.1`. Bind a `0.0.0.0` es legal (un operador puede
- *    saber lo que hace) pero el caller — la UI de Setup — muestra warning.
+ *    saber lo que hace) pero exige auth configurada: sin token ni verifier, [start]
+ *    sólo acepta direcciones loopback y falla con `IllegalStateException` en cualquier
+ *    otra — un server anónimo jamás queda expuesto a la red por mala configuración.
  *  - Si el constructor recibe `token != null`, todo request debe traer
  *    `Authorization: Bearer <token>`. Sin token → 401.
  *  - Las tools mutativas pasan por su `ApprovalGate`; esto vive dentro del handler,
@@ -144,6 +146,18 @@ class McpServer(
         }
         require(port in 1..65535) { "Puerto fuera de rango: $port" }
         require(bindAddress.isNotBlank()) { "Bind address vacío" }
+        val anonymous = tokenVerifier == null && token.isNullOrBlank()
+        if (anonymous) {
+            if (!isLoopback(bindAddress)) {
+                val msg = "MCP server sin autenticación (token null y sin tokenVerifier) sólo puede " +
+                    "bindear a loopback; configurá un token antes de exponer $bindAddress"
+                lastErrorRef.set(msg)
+                statusState.value = Status.FAILED
+                log.error(msg)
+                throw IllegalStateException(msg)
+            }
+            log.warn("MCP server arrancando SIN autenticación en {}:{} — aceptable sólo porque es loopback", bindAddress, port)
+        }
 
         statusState.value = Status.STARTING
         lastErrorRef.set(null)
@@ -172,12 +186,12 @@ class McpServer(
                 app.start(bindAddress, port)
             }
             javalinRef.set(app)
-            bindingRef.set(Binding(bindAddress, port, hasAuth = !token.isNullOrBlank()))
+            bindingRef.set(Binding(bindAddress, port, hasAuth = !anonymous))
             subscribeNotifications()
             statusState.value = Status.RUNNING
             log.info(
                 "MCP server arriba en {}:{} con auth={} y {} tools",
-                bindAddress, port, !token.isNullOrBlank(), handlers.size,
+                bindAddress, port, !anonymous, handlers.size,
             )
         } catch (e: Throwable) {
             log.error("MCP server no pudo arrancar en {}:{}: {}", bindAddress, port, e.message, e)
@@ -396,6 +410,16 @@ class McpServer(
         val auth = ctx.header("Authorization").orEmpty()
         val tokenHint = auth.removePrefix("Bearer ").take(8).ifBlank { "anon" }
         return "$ip:$tokenHint"
+    }
+
+    /**
+     * `true` si [addr] es una dirección loopback. Resuelve literales comunes sin tocar
+     * red; para hostnames raros cae a [java.net.InetAddress] y ante error asume NO
+     * loopback (fail-closed: en duda, exigimos auth).
+     */
+    private fun isLoopback(addr: String): Boolean = when (addr.lowercase()) {
+        "127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1", "[::1]" -> true
+        else -> runCatching { java.net.InetAddress.getByName(addr).isLoopbackAddress }.getOrDefault(false)
     }
 
     private fun enforceAuth(ctx: Context, token: String?) {

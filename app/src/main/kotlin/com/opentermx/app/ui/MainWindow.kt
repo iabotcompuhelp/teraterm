@@ -6,36 +6,23 @@ import com.opentermx.app.settings.SettingsStore
 import com.opentermx.app.rest.RestApiHooksImpl
 import com.opentermx.app.rest.RestApiManager
 import com.opentermx.app.ui.ai.AiChatPanel
-import com.opentermx.app.ui.dialog.AdditionalSettingsDialog
 import com.opentermx.app.ui.dialog.AiAssistantDialog
 import com.opentermx.app.ui.dialog.RestApiDialog
 import com.opentermx.app.ui.dialog.ErrorDialog
-import com.opentermx.app.ui.dialog.FontConfigDialog
-import com.opentermx.app.ui.dialog.GeneralSettingsDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
-import com.opentermx.app.ui.dialog.KeyboardDialog
-import com.opentermx.app.ui.dialog.KeybindingsDialog
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.NewConnectionChoice
 import com.opentermx.app.ui.dialog.NewConnectionDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
-import com.opentermx.app.ui.dialog.ProxyConfigDialog
 import com.opentermx.app.ui.dialog.QuickGuideDialog
 import com.opentermx.app.ui.dialog.ShortcutsViewerDialog
-import com.opentermx.app.ui.dialog.SshAuthDialog
-import com.opentermx.app.ui.dialog.SshGeneralDialog
-import com.opentermx.app.ui.dialog.SshKeyGeneratorDialog
+import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.SshVersion
-import com.opentermx.app.ui.dialog.ScrollbackDialog
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SerialSignalsDialog
-import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.SystemInfoDialog
-import com.opentermx.app.ui.dialog.TcpIpConfigDialog
-import com.opentermx.app.ui.dialog.TerminalConfigDialog
 import com.opentermx.app.ui.dialog.TftpClientDialog
 import com.opentermx.app.ui.dialog.TftpServerDialog
-import com.opentermx.app.ui.dialog.WindowConfigDialog
 import com.opentermx.app.ui.macro.MacroUiBridgeImpl
 import com.opentermx.app.ui.macro.MacroWindow
 import com.opentermx.app.ui.sftp.SftpPanel
@@ -53,9 +40,7 @@ import com.opentermx.app.viewmodel.TransferProtocol
 import com.opentermx.common.connection.Connection
 import com.opentermx.common.connection.ConnectionConfig
 import com.opentermx.common.connection.ConnectionState
-import com.opentermx.common.connection.ProxyConfig
 import com.opentermx.common.connection.SerialConfig
-import com.opentermx.common.connection.SshAuth
 import com.opentermx.common.connection.SshConfig
 import com.opentermx.common.connection.TcpRawConfig
 import com.opentermx.common.connection.TelnetConfig
@@ -65,21 +50,19 @@ import com.opentermx.logger.LogManager
 import com.opentermx.serial.SerialConnectionFactory
 import com.opentermx.serial.SerialPortConnection
 import com.opentermx.ssh.SshConnection
- import com.opentermx.telnet.RawTcpConnection
+import com.opentermx.telnet.RawTcpConnection
 import com.opentermx.telnet.TelnetConnection
 import com.opentermx.transfer.TransferDirection
 import javafx.beans.binding.Bindings
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Scene
-import javafx.scene.control.Alert
 import javafx.scene.control.CheckMenuItem
 import javafx.scene.control.Label
 import javafx.scene.control.Menu
 import javafx.scene.control.MenuBar
 import javafx.scene.control.MenuItem
 import javafx.scene.control.RadioMenuItem
-import javafx.scene.control.Separator
 import javafx.scene.control.SeparatorMenuItem
 import javafx.scene.control.Tab
 import javafx.scene.control.TabPane
@@ -92,7 +75,6 @@ import javafx.scene.layout.BorderPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
-import javafx.stage.DirectoryChooser
 import javafx.stage.FileChooser
 import javafx.stage.Stage
 import kotlinx.coroutines.CoroutineScope
@@ -101,6 +83,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
+/**
+ * Ventana principal. Tras el split 2026-06 esta clase queda como dueña del ciclo de
+ * vida (stage, tabs, sesiones, menús) y delega los dominios pesados en colaboradores:
+ *  - [StatusBarView]: labels de la barra de estado y sus reglas de visibilidad.
+ *  - [TerminalSettingsApplier]: fan-out de settings a los terminales vivos.
+ *  - [SetupDialogActions]: diálogos del menú Setup + save/restore de snapshots.
+ *  - [SavedConnectionsCoordinator]: persistencia/edición/quick-connect de conexiones guardadas.
+ *
+ * `settings` (la única fuente de verdad) sigue viviendo acá; los colaboradores la
+ * leen vía lambda y la mutan únicamente a través de [persist].
+ */
 class MainWindow(
     private val stage: Stage,
     private val viewModel: AppViewModel,
@@ -118,40 +111,7 @@ class MainWindow(
         // llegan al filter de TerminalView. (Reproducido con [focus-diag]).
         isFocusTraversable = false
     }
-    private val statusLabel = Label()
-    private val protocolLabel = Label()
-    private val themeLabel = Label()
-    private val tftpServerLabel = Label().apply {
-        cursor = javafx.scene.Cursor.HAND
-        styleClass += "status-tftp"
-        setOnMouseClicked { openTftpServerDialog() }
-        isVisible = false
-        isManaged = false
-    }
-    private val tftpClientLabel = Label().apply {
-        cursor = javafx.scene.Cursor.HAND
-        styleClass += "status-tftp"
-        setOnMouseClicked { openTftpTransfersPanel() }
-        isVisible = false
-        isManaged = false
-    }
-    private val aiStatusLabel = Label().apply {
-        cursor = javafx.scene.Cursor.HAND
-        styleClass += "status-ai"
-        setOnMouseClicked { openAiAssistantConfig() }
-    }
-    private val restApiLabel = Label().apply {
-        cursor = javafx.scene.Cursor.HAND
-        styleClass += "status-rest"
-        setOnMouseClicked { openRestApiConfig() }
-        isVisible = false; isManaged = false
-    }
-    private val mcpServerLabel = Label().apply {
-        cursor = javafx.scene.Cursor.HAND
-        styleClass += "status-mcp"
-        setOnMouseClicked { openAiAssistantConfig() }
-        isVisible = false; isManaged = false
-    }
+
     private var tftpServerDialogRef: TftpServerDialog? = null
     private var tftpTransfersPanelRef: TftpTransfersPanel? = null
 
@@ -168,15 +128,57 @@ class MainWindow(
     }
     private val hostKeyVerifier = JavaFxHostKeyVerifier(stage)
 
+    private val statusBar = StatusBarView(
+        settings = { settings },
+        ioScope = ioScope,
+        onOpenTftpServerDialog = { openTftpServerDialog() },
+        onOpenTftpTransfersPanel = { openTftpTransfersPanel() },
+        onOpenAiAssistantConfig = { openAiAssistantConfig() },
+        onOpenRestApiConfig = { openRestApiConfig() },
+    )
+    private val statusLabel: Label get() = statusBar.statusLabel
+
+    private val applier = TerminalSettingsApplier(
+        settings = { settings },
+        theme = theme,
+        allTerminals = { allTerminals() },
+    )
+
+    private val savedConnections = SavedConnectionsCoordinator(
+        stage = stage,
+        settings = { settings },
+        persist = { persist(it) },
+        hostKeyVerifier = hostKeyVerifier,
+        refreshList = { savedConnectionsListView.refresh() },
+        setStatus = { statusLabel.text = it },
+        openSession = { cfg, name, conn -> openSession(cfg, name, conn) },
+        openWebSession = { url, label, user, pass, autofill -> openWebSession(url, label, user, pass, autofill) },
+        launchRdpSession = { host, port, user, pass -> launchRdpSession(host, port, user, pass) },
+        resolveSerialBackend = { resolveSerialBackend() },
+    )
+
+    private val setup = SetupDialogActions(
+        stage = stage,
+        theme = theme,
+        settings = { settings },
+        persist = { persist(it) },
+        applier = applier,
+        setStatus = { statusLabel.text = it },
+        rebuildMenusAndLabels = { rebuildMenusAndLabels() },
+        currentSessionConfig = { currentController()?.session?.config },
+        openSavedSession = { savedConnections.openSavedSession(it) },
+        allTerminals = { allTerminals() },
+    )
+
     private lateinit var rootPane: BorderPane
     private lateinit var savedConnectionsListView: SavedConnectionsListView
 
     fun show() {
         savedConnectionsListView = SavedConnectionsListView(
             savedProvider = { settings.savedConnections },
-            onQuickConnect = { quickConnectSaved(it) },
-            onEdit = { editSavedConnection(it) },
-            onDelete = { deleteSavedConnection(it) },
+            onQuickConnect = { savedConnections.quickConnectSaved(it) },
+            onEdit = { savedConnections.editSavedConnection(it) },
+            onDelete = { savedConnections.deleteSavedConnection(it) },
         )
         val leftPane = javafx.scene.control.SplitPane(
             SessionListView(viewModel),
@@ -189,7 +191,7 @@ class MainWindow(
         rootPane = BorderPane().apply {
             top = buildTopBar()
             center = buildCenterWithWatermark()
-            bottom = buildStatusBar()
+            bottom = statusBar.build()
             left = leftPane
         }
         // Capeamos el tamaño inicial a los visualBounds de la pantalla primaria para
@@ -226,13 +228,13 @@ class MainWindow(
             com.opentermx.app.ui.mcp.McpServerManager.stop()
             com.opentermx.app.ui.ai.KnowledgeBaseHolder.shutdown()
         }
-        TftpServerManager.runningProperty.addListener { _, _, _ -> updateTftpServerLabel() }
-        TftpServerManager.portProperty.addListener { _, _, _ -> updateTftpServerLabel() }
-        TftpTransferManager.runningCountProperty.addListener { _, _, _ -> updateTftpClientLabel() }
-        TftpTransferManager.transfers.addListener(javafx.beans.InvalidationListener { updateTftpClientLabel() })
-        updateTftpServerLabel()
-        updateTftpClientLabel()
-        updateAiStatusLabel()
+        TftpServerManager.runningProperty.addListener { _, _, _ -> statusBar.updateTftpServerLabel() }
+        TftpServerManager.portProperty.addListener { _, _, _ -> statusBar.updateTftpServerLabel() }
+        TftpTransferManager.runningCountProperty.addListener { _, _, _ -> statusBar.updateTftpClientLabel() }
+        TftpTransferManager.transfers.addListener(javafx.beans.InvalidationListener { statusBar.updateTftpClientLabel() })
+        statusBar.updateTftpServerLabel()
+        statusBar.updateTftpClientLabel()
+        statusBar.updateAiStatusLabel()
         if (!settings.additional.terminalOnlyMode) {
             bootRestApiIfEnabled()
             bootMcpServerIfEnabled()
@@ -296,30 +298,30 @@ class MainWindow(
                 setOnAction { currentTerminal()?.clear() }
             }
         }
-        val setup = Menu(Strings["menu.setup"]).apply {
+        val setupMenu = Menu(Strings["menu.setup"]).apply {
             // Grupo 1: terminal y apariencia.
-            items += MenuItem(Strings["setup.terminal"]).apply { setOnAction { openTerminalConfig() } }
-            items += MenuItem(Strings["setup.window"]).apply { setOnAction { openWindowConfig() } }
+            items += MenuItem(Strings["setup.terminal"]).apply { setOnAction { setup.openTerminalConfig() } }
+            items += MenuItem(Strings["setup.window"]).apply { setOnAction { setup.openWindowConfig() } }
             items += buildFontMenu()
-            items += MenuItem(Strings["setup.keyboard"]).apply { setOnAction { openKeyboardConfig() } }
-            items += MenuItem(Strings["setup.shortcuts"]).apply { setOnAction { openKeybindingsDialog() } }
+            items += MenuItem(Strings["setup.keyboard"]).apply { setOnAction { setup.openKeyboardConfig() } }
+            items += MenuItem(Strings["setup.shortcuts"]).apply { setOnAction { setup.openKeybindingsDialog() } }
             items += SeparatorMenuItem()
             // Grupo 2: conexiones.
             items += MenuItem(Strings["setup.serialPort"]).apply { setOnAction { openSerialPortSetup() } }
-            items += MenuItem(Strings["setup.proxy"]).apply { setOnAction { openProxyConfig() } }
-            items += MenuItem(Strings["setup.sshGen"]).apply { setOnAction { openSshGeneralConfig() } }
-            items += MenuItem(Strings["setup.sshAuth"]).apply { setOnAction { openSshAuthConfig() } }
+            items += MenuItem(Strings["setup.proxy"]).apply { setOnAction { setup.openProxyConfig() } }
+            items += MenuItem(Strings["setup.sshGen"]).apply { setOnAction { setup.openSshGeneralConfig() } }
+            items += MenuItem(Strings["setup.sshAuth"]).apply { setOnAction { setup.openSshAuthConfig() } }
             items += MenuItem(Strings["setup.sshForwarding"]).apply { setOnAction { openPortForwardDialog() } }
-            items += MenuItem(Strings["setup.sshKeygen"]).apply { setOnAction { openSshKeyGenerator() } }
-            items += MenuItem(Strings["setup.savedConnections"]).apply { setOnAction { openSavedConnectionsDialog() } }
+            items += MenuItem(Strings["setup.sshKeygen"]).apply { setOnAction { setup.openSshKeyGenerator() } }
+            items += MenuItem(Strings["setup.savedConnections"]).apply { setOnAction { savedConnections.openSavedConnectionsDialog() } }
             items += SeparatorMenuItem()
             // Grupo 3: red.
-            items += MenuItem(Strings["setup.tcpip"]).apply { setOnAction { openTcpIpConfig() } }
+            items += MenuItem(Strings["setup.tcpip"]).apply { setOnAction { setup.openTcpIpConfig() } }
             items += SeparatorMenuItem()
             // Grupo 4: general.
-            items += MenuItem(Strings["setup.general"]).apply { setOnAction { openGeneralSettings() } }
-            items += MenuItem(Strings["setup.additional"]).apply { setOnAction { openAdditionalSettings() } }
-            items += MenuItem(Strings["setup.highlight"]).apply { setOnAction { openHighlightConfigDialog() } }
+            items += MenuItem(Strings["setup.general"]).apply { setOnAction { setup.openGeneralSettings() } }
+            items += MenuItem(Strings["setup.additional"]).apply { setOnAction { setup.openAdditionalSettings() } }
+            items += MenuItem(Strings["setup.highlight"]).apply { setOnAction { setup.openHighlightConfigDialog() } }
             items += SeparatorMenuItem()
             // Grupo 5: IA + privacidad. Cuando está activo `terminalOnlyMode`,
             // los accesos a IA/MCP/REST se omiten del menú y sólo queda el toggle
@@ -339,11 +341,11 @@ class MainWindow(
             }
             items += SeparatorMenuItem()
             // Grupo 6: persistencia.
-            items += MenuItem(Strings["setup.saveSetup"]).apply { setOnAction { saveSetup() } }
-            items += MenuItem(Strings["setup.restoreSetup"]).apply { setOnAction { restoreSetup() } }
-            items += MenuItem(Strings["setup.setupDir"]).apply { setOnAction { showSetupDirectory() } }
+            items += MenuItem(Strings["setup.saveSetup"]).apply { setOnAction { setup.saveSetup() } }
+            items += MenuItem(Strings["setup.restoreSetup"]).apply { setOnAction { setup.restoreSetup() } }
+            items += MenuItem(Strings["setup.setupDir"]).apply { setOnAction { setup.showSetupDirectory() } }
             items += SeparatorMenuItem()
-            items += MenuItem(Strings["setup.loadKeymap"]).apply { setOnAction { loadKeyMap() } }
+            items += MenuItem(Strings["setup.loadKeymap"]).apply { setOnAction { setup.loadKeyMap() } }
         }
         val control = Menu(Strings["menu.control"]).apply {
             items += MenuItem(Strings["control.connect"]).apply { setOnAction { currentController()?.connect() } }
@@ -369,7 +371,7 @@ class MainWindow(
                     theme.toggle()
                     rootPane.scene?.let { theme.applyTo(it) }
                     isSelected = theme.isDark
-                    applyThemeToTerminals()
+                    applier.applyTheme()
                     persist { it.copy(theme = theme.mode.name) }
                     refreshLabels()
                 }
@@ -389,7 +391,7 @@ class MainWindow(
             }
         }
         val help = buildHelpMenu()
-        return MenuBar(file, edit, setup, control, windowMenu, help)
+        return MenuBar(file, edit, setupMenu, control, windowMenu, help)
     }
 
     private fun buildHelpMenu(): Menu = Menu(Strings["menu.help"]).apply {
@@ -504,8 +506,8 @@ class MainWindow(
     }
 
     private fun buildFontMenu(): Menu = Menu(Strings["setup.fontMenu"]).apply {
-        items += MenuItem(Strings["setup.font"]).apply { setOnAction { openFontDialog() } }
-        items += MenuItem(Strings["setup.scrollback"]).apply { setOnAction { openScrollbackDialog() } }
+        items += MenuItem(Strings["setup.font"]).apply { setOnAction { setup.openFontDialog() } }
+        items += MenuItem(Strings["setup.scrollback"]).apply { setOnAction { setup.openScrollbackDialog() } }
     }
 
     private fun buildTransferMenu(): Menu = Menu(Strings["file.transfer"]).apply {
@@ -556,27 +558,6 @@ class MainWindow(
         dialog.show()
     }
 
-    private fun updateTftpServerLabel() {
-        val running = TftpServerManager.isRunning
-        tftpServerLabel.isVisible = running
-        tftpServerLabel.isManaged = running
-        if (running) {
-            tftpServerLabel.text = Strings.format("status.tftpServerBadge", TftpServerManager.actualPort)
-            tftpServerLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.tftpServerBadgeTooltip"])
-        }
-    }
-
-    private fun updateTftpClientLabel() {
-        val running = TftpTransferManager.runningCount
-        val visible = running > 0
-        tftpClientLabel.isVisible = visible
-        tftpClientLabel.isManaged = visible
-        if (visible) {
-            tftpClientLabel.text = Strings.format("status.tftpClientBadge", running)
-            tftpClientLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.tftpClientBadgeTooltip"])
-        }
-    }
-
     /**
      * Subscribe to connection-state events and show an [ErrorDialog] for failed connection attempts.
      * Mid-session errors (CONNECTED → ERROR) and disconnects keep flowing to the terminal as
@@ -600,7 +581,7 @@ class MainWindow(
             val friendly = tip?.let { Strings["error.ssh.tip." + it.name.lowercase()] }
             val actionLabel = if (tip?.opensSshGeneral == true) Strings["error.ssh.openSettings"] else null
             val onAction: (() -> Unit)? = if (tip?.opensSshGeneral == true) {
-                { openSshGeneralConfig() }
+                { setup.openSshGeneralConfig() }
             } else null
             javafx.application.Platform.runLater {
                 ErrorDialog.error(
@@ -654,113 +635,6 @@ class MainWindow(
         refreshLabels()
     }
 
-    private fun openFontDialog() {
-        val dialog = FontConfigDialog(settings.terminalFontFamily, settings.terminalFontSize)
-        val choice = dialog.showAndWait().orElse(null) ?: return
-        persist { it.copy(terminalFontFamily = choice.family, terminalFontSize = choice.size) }
-        applyFontToTerminals()
-    }
-
-    private fun openKeybindingsDialog() {
-        val updated = KeybindingsDialog(settings.accelerators).showAndWait().orElse(null) ?: return
-        persist { it.copy(accelerators = updated) }
-        rebuildMenusAndLabels()
-    }
-
-    private fun openKeyboardConfig() {
-        val updated = KeyboardDialog(settings.keyboard).showAndWait().orElse(null) ?: return
-        persist { it.copy(keyboard = updated) }
-        applyKeyboardSettingsToAll(updated)
-    }
-
-    private fun openScrollbackDialog() {
-        val newLimit = ScrollbackDialog(settings.terminalScrollbackLimit).showAndWait().orElse(null) ?: return
-        persist { it.copy(terminalScrollbackLimit = newLimit) }
-        applyScrollbackToTerminals(newLimit)
-    }
-
-    private fun openTerminalConfig() {
-        val updated = TerminalConfigDialog(settings.terminal).showAndWait().orElse(null) ?: return
-        persist { it.copy(terminal = updated) }
-        applyTerminalSettingsToAll(updated)
-    }
-
-    private fun openWindowConfig() {
-        val previous = settings.window
-        val tc = theme.terminalColors
-        val updated = WindowConfigDialog(settings.window, tc.foreground, tc.background)
-            .showAndWait().orElse(null) ?: return
-        persist { it.copy(window = updated) }
-        stage.opacity = updated.transparency
-        stage.title = updated.titlePrefix.ifBlank { "COMPUHELP" }
-        applyMouseCursorToAll(updated.mouseCursorMode)
-        applyThemeToTerminals()
-        if (updated.hideTitleBar != previous.hideTitleBar) {
-            statusLabel.text = Strings["status.windowDecorationRestart"]
-        }
-    }
-
-    private fun applyMouseCursorToAll(mode: String) {
-        controllers.values.forEach { it.terminal.applyMouseCursor(mode) }
-        forEachTerminal { it.applyMouseCursor(mode) }
-    }
-
-    private fun applyAdditionalSettingsToAll(a: com.opentermx.app.settings.AdditionalSettings) {
-        val apply: (TerminalView) -> Unit = {
-            it.applyAdditionalSettings(
-                copyOnSelect = a.copyOnSelect,
-                visualCursorBlink = a.visualCursorBlink,
-                blinkText = a.blinkText,
-            )
-        }
-        controllers.values.forEach { apply(it.terminal) }
-        forEachTerminal(apply)
-        // Phase 2.5 T3: el TelnetConnection lee esta system property en cada `connect()`
-        // para decidir si registra el spy stream de IAC. Sesiones ya abiertas no se ven
-        // afectadas — el flag aplica desde la próxima conexión.
-        System.setProperty("opentermx.telnet.verboseLog", a.telnetVerboseLog.toString())
-    }
-
-    private fun openProxyConfig() {
-        val updated = ProxyConfigDialog(settings.proxy).showAndWait().orElse(null) ?: return
-        persist { it.copy(proxy = updated) }
-    }
-
-    private fun openSshGeneralConfig() {
-        val updated = SshGeneralDialog(settings.sshGeneral).showAndWait().orElse(null) ?: return
-        persist { it.copy(sshGeneral = updated) }
-    }
-
-    private fun openSshAuthConfig() {
-        val updated = SshAuthDialog(settings.sshAuth).showAndWait().orElse(null) ?: return
-        persist { it.copy(sshAuth = updated) }
-    }
-
-    private fun openSshKeyGenerator() {
-        SshKeyGeneratorDialog(stage).show()
-    }
-
-    private fun openTcpIpConfig() {
-        val updated = TcpIpConfigDialog(settings.tcpIp).showAndWait().orElse(null) ?: return
-        persist { it.copy(tcpIp = updated) }
-    }
-
-    private fun openGeneralSettings() {
-        val result = GeneralSettingsDialog(settings.locale, settings.general).showAndWait().orElse(null) ?: return
-        val localeChanged = result.locale != settings.locale
-        persist { it.copy(locale = result.locale, general = result.general) }
-        if (localeChanged) {
-            Strings.setLocale(result.locale)
-            rebuildMenusAndLabels()
-        }
-    }
-
-    private fun openAdditionalSettings() {
-        val updated = AdditionalSettingsDialog(settings.additional).showAndWait().orElse(null) ?: return
-        persist { it.copy(additional = updated) }
-        applyAdditionalSettingsToAll(updated)
-    }
-
     private fun bootMcpServerIfEnabled() {
         val launcher = com.opentermx.app.ui.mcp.MainWindowSessionLauncher(this)
         com.opentermx.app.ui.mcp.McpServerManager.configure(
@@ -770,59 +644,15 @@ class MainWindow(
             credentialStore = { com.opentermx.app.settings.SettingsCredentialStore { settings.aiAssistant } },
             appSettings = { settings },
         )
-        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
-        updateMcpServerLabel()
+        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { statusBar.observeMcpStatus(it) }
+        statusBar.updateMcpServerLabel()
         if (!settings.aiAssistant.mcpServerEnabled) return
         com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
             statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)
         }
         // El StateFlow se crea al primer start, así que reintentamos el subscribe aquí.
-        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
-        updateMcpServerLabel()
-    }
-
-    private var mcpStatusBinding: kotlinx.coroutines.Job? = null
-    private fun observeMcpStatus(state: kotlinx.coroutines.flow.StateFlow<com.opentermx.mcp.McpServer.Status>) {
-        mcpStatusBinding?.cancel()
-        mcpStatusBinding = ioScope.launch {
-            state.collect {
-                javafx.application.Platform.runLater { updateMcpServerLabel() }
-            }
-        }
-    }
-
-    private fun updateMcpServerLabel() {
-        val mgr = com.opentermx.app.ui.mcp.McpServerManager
-        val current = mgr.status()?.value
-        when (current) {
-            null, com.opentermx.mcp.McpServer.Status.STOPPED -> {
-                val show = settings.aiAssistant.mcpServerEnabled && current != null
-                mcpServerLabel.isVisible = show
-                mcpServerLabel.isManaged = show
-                if (show) mcpServerLabel.text = Strings["status.mcp.off"]
-            }
-            com.opentermx.mcp.McpServer.Status.STARTING,
-            com.opentermx.mcp.McpServer.Status.STOPPING -> {
-                mcpServerLabel.isVisible = true; mcpServerLabel.isManaged = true
-                mcpServerLabel.text = "MCP: " + current.name.lowercase()
-                mcpServerLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.mcp.tooltip"])
-            }
-            com.opentermx.mcp.McpServer.Status.RUNNING -> {
-                mcpServerLabel.isVisible = true; mcpServerLabel.isManaged = true
-                val binding = mgr.binding()
-                val where = binding?.let { "${it.host}:${it.port}" } ?: "?"
-                mcpServerLabel.text = Strings.format("status.mcp.running", where)
-                mcpServerLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.mcp.tooltip"])
-            }
-            com.opentermx.mcp.McpServer.Status.FAILED -> {
-                mcpServerLabel.isVisible = true; mcpServerLabel.isManaged = true
-                mcpServerLabel.text = Strings["status.mcp.failed"]
-                val msg = mgr.lastError().orEmpty()
-                mcpServerLabel.tooltip = javafx.scene.control.Tooltip(
-                    Strings.format("status.mcp.tooltipFailed", msg)
-                )
-            }
-        }
+        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { statusBar.observeMcpStatus(it) }
+        statusBar.updateMcpServerLabel()
     }
 
     private var restApiListenerBound = false
@@ -837,7 +667,7 @@ class MainWindow(
             )
         )
         if (!restApiListenerBound) {
-            RestApiManager.runningProperty.addListener { _, _, _ -> updateRestApiLabel() }
+            RestApiManager.runningProperty.addListener { _, _, _ -> statusBar.updateRestApiLabel() }
             restApiListenerBound = true
         }
         if (settings.restApi.enabled) {
@@ -845,7 +675,7 @@ class MainWindow(
                 statusLabel.text = Strings.format("status.restApi.error", e.message ?: e.javaClass.simpleName)
             }
         }
-        updateRestApiLabel()
+        statusBar.updateRestApiLabel()
     }
 
     private fun openRestApiConfig() {
@@ -857,17 +687,7 @@ class MainWindow(
         applied.exceptionOrNull()?.let { e ->
             statusLabel.text = Strings.format("status.restApi.error", e.message ?: e.javaClass.simpleName)
         }
-        updateRestApiLabel()
-    }
-
-    private fun updateRestApiLabel() {
-        val running = RestApiManager.isRunning
-        restApiLabel.isVisible = running
-        restApiLabel.isManaged = running
-        if (running) {
-            restApiLabel.text = Strings.format("status.restApi.running", RestApiManager.activePort)
-            restApiLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.restApi.tooltip"])
-        }
+        statusBar.updateRestApiLabel()
     }
 
     private fun openAiAssistantConfig() {
@@ -875,7 +695,7 @@ class MainWindow(
             .also { it.initOwner(stage) }
             .showAndWait().orElse(null) ?: return
         persist { it.copy(aiAssistant = updated) }
-        updateAiStatusLabel()
+        statusBar.updateAiStatusLabel()
         if (::centerSplit.isInitialized && aiChatPanel in centerSplit.items) {
             aiChatPanel.refreshProviderLabel()
         }
@@ -883,25 +703,8 @@ class MainWindow(
         com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
             statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)
         }
-        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { observeMcpStatus(it) }
-        updateMcpServerLabel()
-    }
-
-    private fun updateAiStatusLabel() {
-        val ai = settings.aiAssistant
-        if (!ai.isConfigured()) {
-            aiStatusLabel.text = Strings["status.ai.notConfigured"]
-            aiStatusLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.ai.notConfiguredTooltip"])
-            return
-        }
-        val providerName = ai.providerKind().name
-        val model = ai.lastVerifiedModel ?: ai.modelFor(ai.providerKind()).orEmpty()
-        aiStatusLabel.text = if (ai.isVerified()) {
-            Strings.format("status.ai.connected", providerName, model)
-        } else {
-            Strings.format("status.ai.unverified", providerName)
-        }
-        aiStatusLabel.tooltip = javafx.scene.control.Tooltip(Strings["status.ai.tooltip"])
+        com.opentermx.app.ui.mcp.McpServerManager.status()?.let { statusBar.observeMcpStatus(it) }
+        statusBar.updateMcpServerLabel()
     }
 
     /**
@@ -913,17 +716,11 @@ class MainWindow(
      */
     private fun applyTerminalOnlyMode() {
         val locked = settings.additional.terminalOnlyMode
-        aiStatusLabel.isVisible = !locked
-        aiStatusLabel.isManaged = !locked
+        statusBar.applyTerminalOnlyVisibility(locked)
         if (locked) {
-            mcpServerLabel.isVisible = false; mcpServerLabel.isManaged = false
-            restApiLabel.isVisible = false; restApiLabel.isManaged = false
             if (::centerSplit.isInitialized) setAiChatPanelVisible(false)
             com.opentermx.app.ui.mcp.McpServerManager.stop()
             RestApiManager.stop()
-        } else {
-            updateMcpServerLabel()
-            updateRestApiLabel()
         }
     }
 
@@ -1013,160 +810,10 @@ class MainWindow(
         }
     }
 
-    private fun saveSetup() {
-        val file = FileChooser().apply {
-            title = Strings["setup.saveSetup"]
-            initialFileName = "opentermx-setup.json"
-            extensionFilters.add(FileChooser.ExtensionFilter("JSON", "*.json"))
-            initialDirectory = SettingsStore.configDir.toFile().takeIf { it.isDirectory }
-        }.showSaveDialog(stage) ?: return
-        val activeConfig = currentController()?.session?.config
-        val snapshot = com.opentermx.app.settings.SnapshotConverters.build(settings, activeConfig)
-        runCatching { SettingsStore.exportSnapshot(snapshot, file) }
-            .onSuccess {
-                val msg = if (snapshot.savedSession != null)
-                    Strings.format("status.setupSavedWithSession",
-                        file.absolutePath, snapshot.savedSession.displayName)
-                else
-                    Strings.format("status.setupSaved", file.absolutePath)
-                statusLabel.text = msg
-            }
-            .onFailure { statusLabel.text = Strings.format("status.setupError", it.message ?: "") }
-    }
-
-    private fun restoreSetup() {
-        val file = FileChooser().apply {
-            title = Strings["setup.restoreSetup"]
-            extensionFilters.add(FileChooser.ExtensionFilter("JSON", "*.json"))
-            initialDirectory = SettingsStore.configDir.toFile().takeIf { it.isDirectory }
-        }.showOpenDialog(stage) ?: return
-        val snapshot = runCatching { SettingsStore.importSnapshot(file) }
-            .onFailure {
-                log.warn("Restore setup failed", it)
-                statusLabel.text = Strings.format("status.setupError", it.message ?: "")
-            }
-            .getOrNull() ?: return
-
-        val imported = snapshot.settings
-        settings = imported
-        SettingsStore.save(imported)
-        Strings.setLocale(imported.locale)
-        theme.applyTo(rootPane.scene!!)
-        applyFontToTerminals()
-        applyScrollbackToTerminals(imported.terminalScrollbackLimit)
-        applyThemeToTerminals()
-        applyTerminalSettingsToAll(imported.terminal)
-        applyKeyboardSettingsToAll(imported.keyboard)
-        applyAdditionalSettingsToAll(imported.additional)
-        stage.opacity = imported.window.transparency
-        rebuildMenusAndLabels()
-        statusLabel.text = Strings.format("status.setupRestored", file.absolutePath)
-
-        snapshot.savedSession?.let { saved ->
-            val confirm = Alert(Alert.AlertType.CONFIRMATION).apply {
-                title = Strings["setup.restoreSession.title"]
-                headerText = Strings.format("setup.restoreSession.header", saved.displayName)
-                contentText = Strings["setup.restoreSession.body"]
-            }.showAndWait()
-            if (confirm.isPresent && confirm.get() == javafx.scene.control.ButtonType.OK) {
-                openSavedSession(saved)
-            }
-        }
-    }
-
-    private fun openSavedSession(saved: com.opentermx.app.settings.SavedSession) {
-        val cfg = com.opentermx.app.settings.SnapshotConverters.configFromSession(saved, settings)
-        if (cfg == null) {
-            statusLabel.text = Strings.format("status.setupError",
-                "Unsupported saved session type: ${saved.type}")
-            return
-        }
-        when (cfg) {
-            is SshConfig -> openSession(cfg, "${cfg.username}@${cfg.host}", SshConnection(cfg, hostKeyVerifier))
-            is TelnetConfig -> {
-                val protocol = if (cfg.useTls) "telnets" else "telnet"
-                openSession(cfg, "$protocol://${cfg.host}:${cfg.port}", TelnetConnection(cfg))
-            }
-            is TcpRawConfig -> openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
-            is SerialConfig -> openSession(cfg, cfg.portName, SerialConnectionFactory.create(cfg, resolveSerialBackend()))
-        }
-    }
-
-    private fun showSetupDirectory() {
-        val dir = SettingsStore.configDir.toFile()
-        if (!dir.isDirectory) dir.mkdirs()
-        runCatching { java.awt.Desktop.getDesktop().open(dir) }
-            .onFailure { log.info("Desktop.open not available; just reporting path", it) }
-        statusLabel.text = Strings.format("status.setupDirOpen", dir.absolutePath)
-    }
-
-    private fun loadKeyMap() {
-        val file = FileChooser().apply {
-            title = Strings["setup.loadKeymap"]
-            extensionFilters.addAll(
-                FileChooser.ExtensionFilter("Key map", "*.keymap", "*.properties"),
-                FileChooser.ExtensionFilter("All files", "*.*"),
-            )
-        }.showOpenDialog(stage) ?: return
-        runCatching {
-            val props = java.util.Properties()
-            file.bufferedReader(Charsets.UTF_8).use { props.load(it) }
-            val merged = settings.accelerators.toMutableMap()
-            var n = 0
-            for (key in props.stringPropertyNames()) {
-                val value = props.getProperty(key).trim()
-                if (value.isEmpty()) merged.remove(key) else merged[key] = value
-                n++
-            }
-            persist { it.copy(accelerators = merged) }
-            rebuildMenusAndLabels()
-            n
-        }.onSuccess { count ->
-            statusLabel.text = Strings.format("status.keymapLoaded", count)
-        }.onFailure {
-            log.warn("Load key map failed", it)
-            statusLabel.text = Strings.format("status.setupError", it.message ?: "")
-        }
-    }
-
-    private fun applyScrollbackToTerminals(limit: Int) {
-        controllers.values.forEach { it.terminal.applyScrollbackLimit(limit) }
-        forEachTerminal { it.applyScrollbackLimit(limit) }
-    }
-
-    private fun applyThemeToTerminals() {
-        val c = effectiveTerminalColors()
-        controllers.values.forEach { it.terminal.applyColors(c.foreground, c.background, c.cursor, c.selection) }
-        // Welcome and any extra terminals not tracked in controllers
-        forEachTerminal { it.applyColors(c.foreground, c.background, c.cursor, c.selection) }
-    }
-
-    /**
-     * Resolves the effective terminal palette: theme provides cursor/selection (and the fg/bg
-     * defaults), while the user's `WindowSettings.terminalForeground`/`terminalBackground`
-     * overrides win for fg/bg when present. A blank override means "follow the theme".
-     */
-    private fun effectiveTerminalColors(): TerminalColors {
-        val themeColors = theme.terminalColors
-        val w = settings.window
-        val fg = parseHex(w.terminalForeground) ?: themeColors.foreground
-        val bg = parseHex(w.terminalBackground) ?: themeColors.background
-        return TerminalColors(fg, bg, themeColors.cursor, themeColors.selection)
-    }
-
-    private fun parseHex(hex: String): javafx.scene.paint.Color? =
-        if (hex.isBlank()) null else runCatching { javafx.scene.paint.Color.web(hex) }.getOrNull()
-
-    private fun applyFontToTerminals() {
-        controllers.values.forEach { it.terminal.applyFont(settings.terminalFontFamily, settings.terminalFontSize) }
-        forEachTerminal { it.applyFont(settings.terminalFontFamily, settings.terminalFontSize) }
-    }
-
-    private fun forEachTerminal(action: (TerminalView) -> Unit) {
-        for (tab in tabPane.tabs) {
-            (tab.content as? TerminalView)?.let(action)
-        }
-    }
+    /** Todos los terminales vivos: los de sesiones activas y los de tabs sueltos (welcome, etc.). */
+    private fun allTerminals(): List<TerminalView> =
+        controllers.values.map { it.terminal } +
+            tabPane.tabs.mapNotNull { it.content as? TerminalView }
 
     /**
      * Wraps the tabPane in a StackPane that hosts a mouse-transparent watermark on top.
@@ -1214,7 +861,7 @@ class MainWindow(
             getSettings = { settings.aiAssistant },
             onSettingsUpdated = { updated ->
                 persist { it.copy(aiAssistant = updated) }
-                updateAiStatusLabel()
+                statusBar.updateAiStatusLabel()
             },
             getTerminalContext = { buildAiTerminalContext() },
             getCommandSink = {
@@ -1281,16 +928,6 @@ class MainWindow(
         }
     }
 
-    private fun buildStatusBar(): Region {
-        val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
-        val separator = Separator(javafx.geometry.Orientation.VERTICAL)
-        return HBox(12.0, statusLabel, spacer, restApiLabel, mcpServerLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, separator, themeLabel).apply {
-            styleClass += "status-bar"
-            alignment = Pos.CENTER_LEFT
-            minHeight = 26.0
-        }
-    }
-
     private fun openWelcomeTab() {
         val terminal = newTerminal()
         terminal.append(Strings["welcome.line1"] + "\n")
@@ -1311,7 +948,7 @@ class MainWindow(
             initialRows = settings.terminal.rows,
             engine = resolveTerminalEngine(),
         )
-        val c = effectiveTerminalColors()
+        val c = applier.effectiveTerminalColors()
         terminal.applyColors(c.foreground, c.background, c.cursor, c.selection)
         terminal.applyTerminalSettings(
             cursorStyle = settings.terminal.cursorStyle,
@@ -1336,33 +973,6 @@ class MainWindow(
         )
         terminal.applyMouseCursor(settings.window.mouseCursorMode)
         return terminal
-    }
-
-    private fun applyTerminalSettingsToAll(t: com.opentermx.app.settings.TerminalSettings) {
-        val apply: (TerminalView) -> Unit = {
-            it.applyTerminalSettings(
-                cursorStyle = t.cursorStyle,
-                cursorBlink = t.cursorBlink,
-                encoding = t.encoding,
-                newlineMode = t.newlineMode,
-                localEcho = t.localEcho,
-                scrollMode = t.scrollMode,
-            )
-        }
-        controllers.values.forEach { apply(it.terminal) }
-        forEachTerminal(apply)
-    }
-
-    private fun applyKeyboardSettingsToAll(k: com.opentermx.app.settings.KeyboardSettings) {
-        val apply: (TerminalView) -> Unit = {
-            it.applyKeyboardSettings(
-                backspaceSendsDel = k.backspaceSendsDel,
-                deleteSendsBs = k.deleteSendsBs,
-                metaSendsEscape = k.metaSendsEscape,
-            )
-        }
-        controllers.values.forEach { apply(it.terminal) }
-        forEachTerminal(apply)
     }
 
     private fun openPortForwardDialog() {
@@ -1419,18 +1029,18 @@ class MainWindow(
                 val saved = com.opentermx.app.settings.SavedConnections.findMostRecent(
                     settings.savedConnections, protocol = "SSH", host = choice.host, port = choice.tcpPort,
                 )
-                val seed = seedSshConfig(choice.host, choice.tcpPort, saved)
-                val dialog = SshConfigDialog(
+                val seed = savedConnections.seedSshConfig(choice.host, choice.tcpPort, saved)
+                val dialog2 = SshConfigDialog(
                     seed,
                     rememberCredentialsDefault = saved != null,
                     initialLabel = saved?.label.orEmpty(),
                 )
-                val cfg = dialog.showAndWait().orElse(null) ?: return
-                val label = dialog.labelField.text?.trim().orEmpty()
-                persistSavedConnectionDecision(cfg, dialog.rememberCredentialsCheck.isSelected, label)
+                val cfg = dialog2.showAndWait().orElse(null) ?: return
+                val label = dialog2.labelField.text?.trim().orEmpty()
+                savedConnections.persistSavedConnectionDecision(cfg, dialog2.rememberCredentialsCheck.isSelected, label)
                 val tabName = label.ifBlank { "${cfg.username}@${cfg.host}" }
                 openSession(cfg, tabName, SshConnection(cfg, hostKeyVerifier))
-                rememberHost(choice.host)
+                savedConnections.rememberHost(choice.host)
             }
             is NewConnectionChoice.Telnet -> {
                 val saved = com.opentermx.app.settings.SavedConnections.findMostRecent(
@@ -1442,30 +1052,30 @@ class MainWindow(
                     terminalType = settings.tcpIp.terminalType,
                     keepAlive = settings.tcpIp.keepAlive,
                     recvBufferSize = settings.tcpIp.recvBufferSize,
-                    proxy = currentProxyConfig(),
+                    proxy = savedConnections.currentProxyConfig(),
                     dnsMode = settings.tcpIp.dnsMode,
                 )
-                val dialog = com.opentermx.app.ui.dialog.TelnetConfigDialog(
+                val dialog2 = com.opentermx.app.ui.dialog.TelnetConfigDialog(
                     initial = seedCfg,
                     initialLabel = saved?.label.orEmpty(),
                     initialUsername = saved?.username.orEmpty(),
                     rememberDefault = saved != null,
                 )
-                val confirmed = dialog.showAndWait().orElse(null) ?: return
+                val confirmed = dialog2.showAndWait().orElse(null) ?: return
                 val cfg = seedCfg.copy(
                     host = confirmed.host,
                     port = confirmed.port,
                     useTls = confirmed.useTls,
                 )
-                val label = dialog.labelField.text?.trim().orEmpty()
-                val refUser = dialog.usernameField.text?.trim().orEmpty()
-                persistSavedTelnet(cfg, dialog.rememberCheck.isSelected, label, refUser)
+                val label = dialog2.labelField.text?.trim().orEmpty()
+                val refUser = dialog2.usernameField.text?.trim().orEmpty()
+                savedConnections.persistSavedTelnet(cfg, dialog2.rememberCheck.isSelected, label, refUser)
                 val tabName = label.ifBlank {
                     val protocol = if (cfg.useTls) "telnets" else "telnet"
                     "$protocol://${cfg.host}:${cfg.port}"
                 }
                 openSession(cfg, tabName, TelnetConnection(cfg))
-                rememberHost(choice.host)
+                savedConnections.rememberHost(choice.host)
             }
             is NewConnectionChoice.TcpRaw -> {
                 val cfg = TcpRawConfig(
@@ -1473,96 +1083,11 @@ class MainWindow(
                     port = choice.tcpPort,
                     keepAlive = settings.tcpIp.keepAlive,
                     recvBufferSize = settings.tcpIp.recvBufferSize,
-                    proxy = currentProxyConfig(),
+                    proxy = savedConnections.currentProxyConfig(),
                     dnsMode = settings.tcpIp.dnsMode,
                 )
                 openSession(cfg, "${cfg.host}:${cfg.port}", RawTcpConnection(cfg))
-                rememberHost(choice.host)
-            }
-        }
-    }
-
-    /**
-     * Builds an SshConfig prefilled from `saved` (entrada recordada para este host:port) si
-     * existe, sino desde Setup → SSH / SSH Authentication / TCP-IP. El usuario puede sobreescribir
-     * cualquier campo en el [SshConfigDialog]; los campos que el dialog no renderiza pasan
-     * sin cambios.
-     */
-    private fun seedSshConfig(
-        host: String,
-        port: Int,
-        saved: com.opentermx.app.settings.SavedConnection? = null,
-    ): SshConfig {
-        val auth = settings.sshAuth
-        val gen = settings.sshGeneral
-        val username = saved?.username?.takeIf { it.isNotBlank() } ?: auth.defaultUsername
-        val authObj: SshAuth = when {
-            saved?.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD -> {
-                val plain = saved.secret?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
-                SshAuth.Password((plain ?: "").toCharArray())
-            }
-            saved?.authKind == com.opentermx.app.settings.SavedAuthKind.SSH_KEY && !saved.keyPath.isNullOrBlank() -> {
-                val passphrase = saved.secret?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
-                SshAuth.PublicKey(saved.keyPath, passphrase?.takeIf { it.isNotEmpty() }?.toCharArray())
-            }
-            auth.method == "PUBLIC_KEY" && auth.privateKeyPath.isNotBlank() -> SshAuth.PublicKey(auth.privateKeyPath)
-            else -> SshAuth.Password(CharArray(0))
-        }
-        return SshConfig(
-            host = host,
-            username = username,
-            auth = authObj,
-            port = port,
-            keepAliveSeconds = gen.heartbeatSeconds,
-            agentForwarding = false,
-            tryAgentFirst = auth.tryAgentFirst,
-            portForwards = emptyList(),
-            compression = gen.compression,
-            ciphers = gen.ciphers,
-            kex = gen.kex,
-            macs = gen.macs,
-            terminalType = settings.tcpIp.terminalType,
-            proxy = currentProxyConfig(),
-        )
-    }
-
-    private fun currentProxyConfig(): ProxyConfig {
-        val p = settings.proxy
-        val type = runCatching { ProxyConfig.Type.valueOf(p.type) }.getOrDefault(ProxyConfig.Type.NONE)
-        return ProxyConfig(
-            type = type,
-            host = p.host,
-            port = p.port,
-            username = p.username,
-            password = p.password,
-        )
-    }
-
-    private fun openSavedConnectionsDialog() {
-        val dialog = com.opentermx.app.ui.dialog.SavedConnectionsDialog(settings.savedConnections)
-        val updated = dialog.showAndWait().orElse(null) ?: return
-        if (updated != settings.savedConnections) {
-            persist { it.copy(savedConnections = updated) }
-            savedConnectionsListView.refresh()
-        }
-    }
-
-    /**
-     * Abre el dialog de configuración del resaltado. Al confirmar, persiste el nuevo
-     * `HighlightSettings` y dispara un repaint manual de todos los terminales (con
-     * `dirty=true`) para que los toggles cambien apenas se vea sin esperar nueva data.
-     */
-    private fun openHighlightConfigDialog() {
-        val dialog = com.opentermx.app.ui.dialog.HighlightConfigDialog(settings.highlight)
-        dialog.initOwner(stage)
-        val updated = dialog.showAndWait().orElse(null) ?: return
-        if (updated != settings.highlight) {
-            persist { it.copy(highlight = updated) }
-            // Forzar repaint en cada tab abierta (TerminalView lee `settings.highlight` vía
-            // su provider, pero el cache del engine es por-instancia: re-instalamos el
-            // provider que internamente invalida el cache y dispara `dirty=true`).
-            controllers.values.forEach { ctl ->
-                ctl.terminal.setHighlightSettingsProvider { settings.highlight }
+                savedConnections.rememberHost(choice.host)
             }
         }
     }
@@ -1582,7 +1107,7 @@ class MainWindow(
             rememberDefault = initial?.remember ?: false,
         )
         val result = dialog.showAndWait().orElse(null) ?: return
-        persistSavedWeb(result)
+        savedConnections.persistSavedWeb(result)
         openWebSession(result.url, result.label, result.username, result.password, result.autofill)
     }
 
@@ -1617,39 +1142,6 @@ class MainWindow(
     }
 
     /**
-     * Persiste/elimina una entrada WEB siguiendo la misma simetría que SSH/Telnet: si el
-     * usuario tildó "Recordar", upsert; si destildó y había entries, removeByHost (port = 0).
-     * `host` lleva la URL completa (porque `protocol = "WEB"` no usa el campo `port`).
-     */
-    private fun persistSavedWeb(result: com.opentermx.app.ui.dialog.WebConfigDialog.Result) {
-        val current = settings.savedConnections
-        val updated = if (result.remember) {
-            val secret = result.password.takeIf { it.isNotEmpty() }
-                ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
-            val entry = com.opentermx.app.settings.SavedConnection(
-                id = java.util.UUID.randomUUID().toString(),
-                protocol = "WEB",
-                host = result.url,
-                port = 0,
-                username = result.username,
-                authKind = if (secret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
-                    else com.opentermx.app.settings.SavedAuthKind.NONE,
-                secret = secret,
-                label = result.label,
-            )
-            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
-        } else {
-            com.opentermx.app.settings.SavedConnections.removeByHost(
-                current, protocol = "WEB", host = result.url, port = 0,
-            )
-        }
-        if (updated != current) {
-            persist { it.copy(savedConnections = updated) }
-            savedConnectionsListView.refresh()
-        }
-    }
-
-    /**
      * Abre el dialog para crear una sesión RDP. Solo soportado en Windows — en otro OS
      * mostramos un alert y salimos. Al confirmar, persiste (si tildó "Recordar") y lanza
      * `mstsc.exe` con la cred previamente registrada en Credential Manager. La ventana
@@ -1678,7 +1170,7 @@ class MainWindow(
             rememberDefault = initial?.remember ?: false,
         )
         val result = dialog.showAndWait().orElse(null) ?: return
-        persistSavedRdp(result)
+        savedConnections.persistSavedRdp(result)
         launchRdpSession(result.host, result.port, result.username, result.password)
     }
 
@@ -1687,40 +1179,6 @@ class MainWindow(
         val ok = com.opentermx.app.ui.rdp.RdpLauncher.launch(host, port, username, password)
         if (!ok) {
             statusLabel.text = "Fallo al lanzar mstsc.exe (ver log)"
-        }
-    }
-
-    /**
-     * Persiste o elimina una entrada RDP siguiendo la simetría on/off de SSH/Telnet/WEB.
-     * `host` lleva el hostname/IP; `port` el TCP port; password cifrada en `secret`.
-     */
-    private fun persistSavedRdp(result: com.opentermx.app.ui.dialog.RdpConfigDialog.Result) {
-        val current = settings.savedConnections
-        val updated = if (result.remember) {
-            val secret = result.password.takeIf { it.isNotEmpty() }
-                ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
-            val entry = com.opentermx.app.settings.SavedConnection(
-                id = java.util.UUID.randomUUID().toString(),
-                protocol = "RDP",
-                host = result.host,
-                port = result.port,
-                username = result.username,
-                authKind = if (secret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
-                    else com.opentermx.app.settings.SavedAuthKind.NONE,
-                secret = secret,
-                label = result.label,
-            )
-            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
-        } else {
-            // Si destildó "Recordar", también limpiamos la cred del Credential Manager si quedó.
-            com.opentermx.app.ui.rdp.RdpLauncher.deleteCredential(result.host)
-            com.opentermx.app.settings.SavedConnections.removeByHost(
-                current, protocol = "RDP", host = result.host, port = result.port,
-            )
-        }
-        if (updated != current) {
-            persist { it.copy(savedConnections = updated) }
-            savedConnectionsListView.refresh()
         }
     }
 
@@ -1757,310 +1215,6 @@ class MainWindow(
                 log.warn("No se pudo instalar SSL trust-all: {}", t.message)
             }
         }
-    }
-
-    /**
-     * Edita una entrada guardada desde el panel lateral (clic-derecho → Modificar…). Reusa el
-     * dialog correspondiente al protocolo, pre-cargado con los valores actuales. Al confirmar,
-     * reemplaza la entrada vieja por una nueva con los campos actualizados (mismo id) — no abre
-     * tab nuevo.
-     */
-    private fun editSavedConnection(saved: com.opentermx.app.settings.SavedConnection) {
-        when (saved.protocol) {
-            "SSH" -> editSshSaved(saved)
-            "TELNET" -> editTelnetSaved(saved)
-            "WEB" -> editWebSaved(saved)
-            "RDP" -> editRdpSaved(saved)
-            else -> log.warn("editSavedConnection: protocolo no soportado '${saved.protocol}'")
-        }
-    }
-
-    private fun editRdpSaved(saved: com.opentermx.app.settings.SavedConnection) {
-        val currentPlain = saved.secret
-            ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
-            ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
-            .orEmpty()
-        val dialog = com.opentermx.app.ui.dialog.RdpConfigDialog(
-            initialHost = saved.host,
-            initialPort = saved.port,
-            initialLabel = saved.label,
-            initialUsername = saved.username,
-            initialPassword = currentPlain,
-            rememberDefault = true,
-        )
-        val result = dialog.showAndWait().orElse(null) ?: return
-        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
-        // Si el host cambió, limpiar cred vieja del Credential Manager.
-        if (!result.host.equals(saved.host, ignoreCase = true)) {
-            com.opentermx.app.ui.rdp.RdpLauncher.deleteCredential(saved.host)
-        }
-        val newSecret = result.password.takeIf { it.isNotEmpty() }
-            ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
-        val newEntry = com.opentermx.app.settings.SavedConnection(
-            id = java.util.UUID.randomUUID().toString(),
-            protocol = "RDP",
-            host = result.host,
-            port = result.port,
-            username = result.username,
-            authKind = if (newSecret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
-                else com.opentermx.app.settings.SavedAuthKind.NONE,
-            secret = newSecret,
-            label = result.label,
-        )
-        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
-        persist { it.copy(savedConnections = updated) }
-        savedConnectionsListView.refresh()
-    }
-
-    private fun editSshSaved(saved: com.opentermx.app.settings.SavedConnection) {
-        val seed = seedSshConfig(saved.host, saved.port, saved)
-        val dialog = SshConfigDialog(seed, rememberCredentialsDefault = true, initialLabel = saved.label)
-        val cfg = dialog.showAndWait().orElse(null) ?: return
-        val newLabel = dialog.labelField.text?.trim().orEmpty()
-        // Sacamos primero la entrada vieja (por id) para evitar duplicar si user cambió host/port.
-        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
-        val newEntry = buildSavedConnectionFrom(cfg, newLabel)
-        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
-        persist { it.copy(savedConnections = updated) }
-        savedConnectionsListView.refresh()
-    }
-
-    private fun editTelnetSaved(saved: com.opentermx.app.settings.SavedConnection) {
-        val seedCfg = TelnetConfig(
-            host = saved.host,
-            port = saved.port,
-            terminalType = settings.tcpIp.terminalType,
-            keepAlive = settings.tcpIp.keepAlive,
-            recvBufferSize = settings.tcpIp.recvBufferSize,
-            proxy = currentProxyConfig(),
-            dnsMode = settings.tcpIp.dnsMode,
-        )
-        val dialog = com.opentermx.app.ui.dialog.TelnetConfigDialog(
-            initial = seedCfg,
-            initialLabel = saved.label,
-            initialUsername = saved.username,
-            rememberDefault = true,
-        )
-        val confirmed = dialog.showAndWait().orElse(null) ?: return
-        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
-        val newEntry = com.opentermx.app.settings.SavedConnection(
-            id = java.util.UUID.randomUUID().toString(),
-            protocol = "TELNET",
-            host = confirmed.host,
-            port = confirmed.port,
-            username = dialog.usernameField.text?.trim().orEmpty(),
-            authKind = com.opentermx.app.settings.SavedAuthKind.NONE,
-            label = dialog.labelField.text?.trim().orEmpty(),
-        )
-        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
-        persist { it.copy(savedConnections = updated) }
-        savedConnectionsListView.refresh()
-    }
-
-    private fun editWebSaved(saved: com.opentermx.app.settings.SavedConnection) {
-        val currentPlain = saved.secret
-            ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
-            ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
-            .orEmpty()
-        val dialog = com.opentermx.app.ui.dialog.WebConfigDialog(
-            initialUrl = saved.host,
-            initialLabel = saved.label,
-            initialUsername = saved.username,
-            initialPassword = currentPlain,
-            autofillDefault = true,
-            rememberDefault = true,
-        )
-        val result = dialog.showAndWait().orElse(null) ?: return
-        val withoutOld = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
-        val newSecret = result.password.takeIf { it.isNotEmpty() }
-            ?.let { com.opentermx.common.crypto.SecretCipher.encrypt(it) }
-        val newEntry = com.opentermx.app.settings.SavedConnection(
-            id = java.util.UUID.randomUUID().toString(),
-            protocol = "WEB",
-            host = result.url,
-            port = 0,
-            username = result.username,
-            authKind = if (newSecret != null) com.opentermx.app.settings.SavedAuthKind.PASSWORD
-                else com.opentermx.app.settings.SavedAuthKind.NONE,
-            secret = newSecret,
-            label = result.label,
-        )
-        val updated = com.opentermx.app.settings.SavedConnections.upsert(withoutOld, newEntry, bumpLastUsed = false)
-        persist { it.copy(savedConnections = updated) }
-        savedConnectionsListView.refresh()
-    }
-
-    /**
-     * Borra una entrada guardada desde el panel lateral (clic-derecho → Eliminar o tecla DELETE).
-     * Para entries RDP también limpia la cred del Credential Manager de Windows — simetría
-     * on/off: borrar la entrada de OpenTermX también la quita del SO.
-     */
-    private fun deleteSavedConnection(saved: com.opentermx.app.settings.SavedConnection) {
-        if (saved.protocol == "RDP") {
-            com.opentermx.app.ui.rdp.RdpLauncher.deleteCredential(saved.host)
-        }
-        val updated = com.opentermx.app.settings.SavedConnections.removeById(settings.savedConnections, saved.id)
-        if (updated != settings.savedConnections) {
-            persist { it.copy(savedConnections = updated) }
-            savedConnectionsListView.refresh()
-        }
-    }
-
-    /**
-     * Conecta directo desde el panel "Conexiones guardadas" (doble-click). Arma el config
-     * sin pasar por el dialog interactivo — todas las credenciales ya están en `saved`. Tras
-     * conectar, bumpea `lastUsedAtMillis` para que la entrada suba al tope del listado.
-     */
-    private fun quickConnectSaved(saved: com.opentermx.app.settings.SavedConnection) {
-        when (saved.protocol) {
-            "SSH" -> {
-                val seed = seedSshConfig(saved.host, saved.port, saved)
-                val tabName = saved.displayLabel()
-                openSession(seed, tabName, SshConnection(seed, hostKeyVerifier))
-            }
-            "TELNET" -> {
-                val cfg = TelnetConfig(
-                    host = saved.host,
-                    port = saved.port,
-                    terminalType = settings.tcpIp.terminalType,
-                    keepAlive = settings.tcpIp.keepAlive,
-                    recvBufferSize = settings.tcpIp.recvBufferSize,
-                    proxy = currentProxyConfig(),
-                    dnsMode = settings.tcpIp.dnsMode,
-                )
-                openSession(cfg, saved.displayLabel(), TelnetConnection(cfg))
-            }
-            "WEB" -> {
-                // `host` lleva la URL completa; `port` es 0 (no se usa).
-                val plaintext = saved.secret
-                    ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
-                    ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
-                    .orEmpty()
-                openWebSession(
-                    url = saved.host,
-                    label = saved.displayLabel(),
-                    autofillUser = saved.username,
-                    autofillPass = plaintext,
-                    autofill = true,
-                )
-            }
-            "RDP" -> {
-                if (!com.opentermx.app.ui.rdp.RdpLauncher.isSupported) {
-                    statusLabel.text = "RDP solo disponible en Windows"
-                    return
-                }
-                val plaintext = saved.secret
-                    ?.takeIf { saved.authKind == com.opentermx.app.settings.SavedAuthKind.PASSWORD }
-                    ?.let { runCatching { com.opentermx.common.crypto.SecretCipher.decrypt(it) }.getOrNull() }
-                    .orEmpty()
-                launchRdpSession(saved.host, saved.port, saved.username, plaintext)
-            }
-            else -> {
-                log.warn("quickConnect: protocolo no soportado '${saved.protocol}' para ${saved.host}")
-                return
-            }
-        }
-        // Bump del timestamp para que la entrada quede al tope del listado.
-        val refreshed = com.opentermx.app.settings.SavedConnections.upsert(
-            settings.savedConnections, saved, bumpLastUsed = true,
-        )
-        if (refreshed != settings.savedConnections) {
-            persist { it.copy(savedConnections = refreshed) }
-            savedConnectionsListView.refresh()
-        }
-        rememberHost(saved.host)
-    }
-
-    private fun rememberHost(host: String) {
-        if (!settings.historyEnabled || host.isBlank()) return
-        // Most-recent first, dedup case-insensitive, cap at 20.
-        val deduped = (listOf(host) + settings.recentHosts.filterNot { it.equals(host, ignoreCase = true) })
-            .take(20)
-        persist { it.copy(recentHosts = deduped) }
-    }
-
-    /**
-     * Persiste o elimina la `SavedConnection` para (cfg.host, cfg.port, cfg.username) según la
-     * decisión del checkbox "Recordar credenciales" del [SshConfigDialog].
-     *  - `remember = true`: cifra password/passphrase con SecretCipher, upsertea con timestamp.
-     *  - `remember = false`: si había entradas para `(host, port)` las elimina (el usuario
-     *    explícitamente destildó). Mantenemos la simetría: tildar/destildar = on/off.
-     */
-    /**
-     * Persiste o elimina una entrada Telnet. Telnet no tiene auth en el protocolo, así que
-     * `authKind = NONE` y no hay secret ni keyPath. `username` se guarda como referencia para
-     * que el operador recuerde con qué login entra (no se transmite).
-     */
-    private fun persistSavedTelnet(cfg: TelnetConfig, remember: Boolean, label: String, username: String) {
-        val current = settings.savedConnections
-        val updated = if (remember) {
-            val entry = com.opentermx.app.settings.SavedConnection(
-                id = java.util.UUID.randomUUID().toString(),
-                protocol = "TELNET",
-                host = cfg.host,
-                port = cfg.port,
-                username = username,
-                authKind = com.opentermx.app.settings.SavedAuthKind.NONE,
-                label = label,
-            )
-            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
-        } else {
-            com.opentermx.app.settings.SavedConnections.removeByHost(
-                current, protocol = "TELNET", host = cfg.host, port = cfg.port,
-            )
-        }
-        if (updated != current) {
-            persist { it.copy(savedConnections = updated) }
-            savedConnectionsListView.refresh()
-        }
-    }
-
-    private fun persistSavedConnectionDecision(cfg: SshConfig, remember: Boolean, label: String) {
-        val current = settings.savedConnections
-        val updated = if (remember) {
-            val entry = buildSavedConnectionFrom(cfg, label)
-            com.opentermx.app.settings.SavedConnections.upsert(current, entry, bumpLastUsed = true)
-        } else {
-            com.opentermx.app.settings.SavedConnections.removeByHost(
-                current, protocol = "SSH", host = cfg.host, port = cfg.port,
-            )
-        }
-        if (updated != current) {
-            persist { it.copy(savedConnections = updated) }
-            savedConnectionsListView.refresh()
-        }
-    }
-
-    private fun buildSavedConnectionFrom(cfg: SshConfig, label: String): com.opentermx.app.settings.SavedConnection {
-        val (kind, secret, keyPath) = when (val a = cfg.auth) {
-            is SshAuth.Password -> {
-                val pw = String(a.password)
-                Triple(
-                    com.opentermx.app.settings.SavedAuthKind.PASSWORD,
-                    if (pw.isEmpty()) null else com.opentermx.common.crypto.SecretCipher.encrypt(pw),
-                    null,
-                )
-            }
-            is SshAuth.PublicKey -> {
-                val pp = a.passphrase?.let { String(it) }.orEmpty()
-                Triple(
-                    com.opentermx.app.settings.SavedAuthKind.SSH_KEY,
-                    if (pp.isEmpty()) null else com.opentermx.common.crypto.SecretCipher.encrypt(pp),
-                    a.privateKeyPath,
-                )
-            }
-        }
-        return com.opentermx.app.settings.SavedConnection(
-            id = java.util.UUID.randomUUID().toString(),
-            protocol = "SSH",
-            host = cfg.host,
-            port = cfg.port,
-            username = cfg.username,
-            authKind = kind,
-            secret = secret,
-            keyPath = keyPath,
-            label = label,
-        )
     }
 
     private fun openSession(config: ConnectionConfig, name: String, connection: Connection): SessionId {
@@ -2169,15 +1323,7 @@ class MainWindow(
     }
 
     private fun bindStatusToTab(tab: Tab?) {
-        protocolLabel.textProperty().unbind()
-        val ctl = tab?.let { controllers[it] }
-        if (ctl == null) {
-            protocolLabel.text = Strings["status.noConnection"]
-        } else {
-            protocolLabel.textProperty().bind(Bindings.createStringBinding({
-                "${ctl.session.config.displayName} — ${ctl.state.value}"
-            }, ctl.state))
-        }
+        statusBar.bindProtocolTo(tab?.let { controllers[it] })
     }
 
     private fun closeTab(tab: Tab) {
@@ -2348,9 +1494,9 @@ class MainWindow(
     private fun refreshLabels() {
         statusLabel.text = Strings["status.ready"]
         bindStatusToTab(tabPane.selectionModel.selectedItem)
-        themeLabel.text = if (theme.isDark) Strings["status.themeDark"] else Strings["status.themeLight"]
-        updateTftpServerLabel()
-        updateTftpClientLabel()
+        statusBar.setThemeLabel(theme.isDark)
+        statusBar.updateTftpServerLabel()
+        statusBar.updateTftpClientLabel()
     }
 
     private fun accelerator(key: String): KeyCombination? = settings.accelerators[key]?.let {

@@ -29,14 +29,26 @@ class FingerprintPersister(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /**
+     * @param createIfMissing cuando `false`, NO da de alta el device si no existe — solo
+     *   actualiza los ya inventariados. Lo usa el auto-fingerprint con onboarding activo:
+     *   el alta de equipos nuevos la decide el operador en el asistente (Fase 6B), no un
+     *   proceso de fondo. Default `true` (back-compat con refresh_device_fingerprint).
+     */
     fun persist(
         report: FingerprintService.FingerprintReport,
         metadata: SessionMetadata,
         includeNeighbors: Boolean,
+        createIfMissing: Boolean = true,
     ): Outcome {
         if (report.matchedProbeId == null) return Outcome(persisted = false)
         val db = store.db() ?: return Outcome(persisted = false)
         val host = metadata.host ?: return Outcome(persisted = false)
+
+        if (!createIfMissing && db.devices.findIdByMgmtAddress(host) == null) {
+            log.debug("fingerprint de `{}`: device no inventariado y createIfMissing=false — no se da de alta", host)
+            return Outcome(persisted = false)
+        }
 
         val deviceId = db.devices.upsert(
             hostname = report.identity.hostname ?: host,

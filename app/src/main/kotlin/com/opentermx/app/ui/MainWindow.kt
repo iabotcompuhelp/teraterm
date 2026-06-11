@@ -672,6 +672,10 @@ class MainWindow(
         // Fase 5: fingerprint automático al conectar sesiones (gated por BD disponible
         // y `fingerprint.autoOnConnect`); también independiente del server MCP.
         com.opentermx.app.ui.mcp.AutoFingerprintManager.applySettings { settings }
+        // Fase 6B: el coordinator despierta el banner de onboarding sobre la pestaña.
+        com.opentermx.app.ui.mcp.InventoryOnboardingCoordinator.listener = { candidate ->
+            showOnboardingBanner(candidate)
+        }
         if (!settings.aiAssistant.mcpServerEnabled) return
         com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
             statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)
@@ -716,11 +720,86 @@ class MainWindow(
         statusBar.updateRestApiLabel()
     }
 
+    /**
+     * Banner de onboarding (Fase 6B): overlay NO MODAL alineado arriba de la pestaña de
+     * la sesión (error #50: jamás bloquea la terminal). [Agregar] abre el asistente,
+     * [Ignorar] lo cierra, [No volver a preguntar] persiste el host.
+     */
+    private fun showOnboardingBanner(candidate: com.opentermx.app.ui.mcp.InventoryOnboardingCoordinator.Candidate) {
+        val tab = controllers.entries.firstOrNull { it.value.session.id == candidate.sessionId }?.key ?: return
+        val stack = tab.content as? javafx.scene.layout.StackPane ?: return
+        // Evitar banners duplicados si el fingerprint reintenta.
+        if (stack.children.any { it.styleClass.contains("onboarding-banner") }) return
+
+        val host = candidate.host ?: candidate.report.identity.hostname ?: "?"
+        val model = candidate.report.identity.model
+        val message = Label(
+            if (model != null) Strings.format("onboarding.banner.detected", host, model)
+            else Strings.format("onboarding.banner.unknown", host)
+        ).apply { isWrapText = true }
+
+        lateinit var banner: javafx.scene.layout.HBox
+        fun dismiss() = stack.children.remove(banner)
+
+        val addBtn = javafx.scene.control.Button(Strings["onboarding.banner.add"]).apply {
+            setOnAction {
+                dismiss()
+                openOnboardingWizard(candidate)
+            }
+        }
+        val ignoreBtn = javafx.scene.control.Button(Strings["onboarding.banner.ignore"]).apply {
+            setOnAction { dismiss() }
+        }
+        val dontAskBtn = javafx.scene.control.Button(Strings["onboarding.banner.dontAsk"]).apply {
+            setOnAction {
+                dismiss()
+                if (candidate.host != null) {
+                    persist {
+                        it.copy(
+                            onboarding = it.onboarding.copy(
+                                ignoredHosts = (it.onboarding.ignoredHosts + candidate.host).distinct(),
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        banner = javafx.scene.layout.HBox(10.0, message, addBtn, ignoreBtn, dontAskBtn).apply {
+            styleClass += "onboarding-banner"
+            style = "-fx-background-color: rgba(40,40,40,0.92); -fx-background-radius: 6; " +
+                "-fx-border-color: #c8a000; -fx-border-radius: 6;"
+            padding = Insets(8.0, 12.0, 8.0, 12.0)
+            alignment = javafx.geometry.Pos.CENTER_LEFT
+            maxHeight = javafx.scene.layout.Region.USE_PREF_SIZE
+            javafx.scene.layout.HBox.setHgrow(message, Priority.ALWAYS)
+            javafx.scene.layout.StackPane.setAlignment(this, javafx.geometry.Pos.TOP_CENTER)
+            javafx.scene.layout.StackPane.setMargin(this, Insets(8.0))
+        }
+        stack.children += banner
+    }
+
+    private fun openOnboardingWizard(candidate: com.opentermx.app.ui.mcp.InventoryOnboardingCoordinator.Candidate) {
+        val service = com.opentermx.app.ui.mcp.InventoryOnboardingCoordinator.service ?: return
+        val created = com.opentermx.app.ui.dialog.OnboardingWizardDialog(
+            store = com.opentermx.app.ui.mcp.TelemetryDbManager.store,
+            service = service,
+            sessionId = candidate.sessionId,
+            report = candidate.report,
+        ).also { it.initOwner(stage) }.showAndWait().orElse(null)
+        if (created != null) {
+            statusLabel.text = Strings.format("onboarding.added", candidate.host ?: "")
+            // El alta invalida la caché de enriquecimiento + regenera el doc RAG.
+            candidate.host?.let {
+                com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyProfileEdited(it, it)
+            }
+        }
+    }
+
     private fun openFingerprintConfig() {
-        val updated = FingerprintSettingsDialog(settings.fingerprint)
+        val updated = FingerprintSettingsDialog(settings.fingerprint, settings.onboarding)
             .also { it.initOwner(stage) }
             .showAndWait().orElse(null) ?: return
-        persist { it.copy(fingerprint = updated) }
+        persist { it.copy(fingerprint = updated.fingerprint, onboarding = updated.onboarding) }
         // El auto-fingerprint toma los cambios al instante (el manager se reconstruye);
         // las tools MCP (refresh_device_fingerprint) los toman al próximo restart del
         // server MCP, que captura dryRun/activeProbing al construir sus handlers.
@@ -1294,8 +1373,10 @@ class MainWindow(
         terminal.append("→ ${config.displayName}\n")
 
         val controller = TerminalSessionController(session, terminal)
+        // StackPane para poder superponer el banner de onboarding (Fase 6B) sin
+        // desplazar el canvas; terminalOf() lo desenvuelve.
         val tab = Tab().apply {
-            content = terminal
+            content = javafx.scene.layout.StackPane(terminal)
             isClosable = true
         }
         bindTabTitle(tab, controller)
@@ -1560,7 +1641,18 @@ class MainWindow(
     }
 
     private fun currentController(): TerminalSessionController? = controllers[tabPane.selectionModel.selectedItem]
-    private fun currentTerminal(): TerminalView? = tabPane.selectionModel.selectedItem?.content as? TerminalView
+    private fun currentTerminal(): TerminalView? = terminalOf(tabPane.selectionModel.selectedItem)
+
+    /**
+     * El [TerminalView] de una pestaña. Las sesiones envuelven el terminal en un
+     * [javafx.scene.layout.StackPane] para poder superponer el banner de onboarding
+     * (Fase 6B); las pestañas sueltas (welcome) lo ponen directo.
+     */
+    private fun terminalOf(tab: javafx.scene.control.Tab?): TerminalView? = when (val c = tab?.content) {
+        is TerminalView -> c
+        is javafx.scene.layout.StackPane -> c.children.firstOrNull { it is TerminalView } as? TerminalView
+        else -> null
+    }
 
     private fun refreshLabels() {
         statusLabel.text = Strings["status.ready"]

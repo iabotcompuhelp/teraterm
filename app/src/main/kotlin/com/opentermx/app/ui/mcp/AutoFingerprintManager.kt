@@ -58,13 +58,19 @@ object AutoFingerprintManager {
             views = views,
             kbProvider = { KnowledgeBaseHolder.get(appSettings().aiAssistant) },
         )
+        // Fase 6B: el onboarding al conectar comparte el sondeo del auto-fingerprint.
+        // Con onboarding activo, un equipo no inventariado NO se da de alta solo: se
+        // ofrece al operador vía el coordinator.
+        InventoryOnboardingCoordinator.configure(appSettings, store)
         val auto = AutoFingerprint(
             service = service,
             store = store,
             persister = FingerprintPersister(store, views, ragDocs),
             scope = scope,
-            enabled = { appSettings().fingerprint.autoOnConnect },
+            enabled = { appSettings().fingerprint.autoOnConnect || InventoryOnboardingCoordinator.isEnabled() },
             ttlDays = { appSettings().fingerprint.ttlDays },
+            onboardingEnabled = { InventoryOnboardingCoordinator.isEnabled() },
+            onUninventoried = { sessionId, report -> InventoryOnboardingCoordinator.offer(sessionId, report) },
         )
         subscription = auto.start()
         profileViews = views

@@ -41,6 +41,11 @@ data class AppSettings(
      */
     val fingerprint: FingerprintSettings = FingerprintSettings(),
     /**
+     * Onboarding de equipos al conectar (Fase 6B): banner no bloqueante que ofrece
+     * agregar al inventario los equipos SSH/serial todavía no inventariados.
+     */
+    val onboarding: OnboardingSettings = OnboardingSettings(),
+    /**
      * Credenciales recordadas para conexiones SSH previas. Cada entrada lleva
      * `host/port/username` y opcionalmente password o ruta de clave + passphrase, cifrada
      * con [com.opentermx.common.crypto.SecretCipher]. Se popula al conectar con la opción

@@ -118,6 +118,17 @@ class DeviceRepository internal constructor(private val db: TelemetryDb) {
         }.getOrNull()
     }
 
+    /** Setea el sitio del device (campo del operador; onboarding 6B). */
+    fun updateSite(id: Long, site: String?): Boolean = runCatching {
+        db.withConnection { conn ->
+            conn.prepareStatement("UPDATE devices SET site = ?, updated_at = now() WHERE id = ?").use { ps ->
+                ps.setString(1, site?.trim()?.ifEmpty { null })
+                ps.setLong(2, id)
+                ps.executeUpdate() > 0
+            }
+        }
+    }.onFailure { log.warn("updateSite device={} falló: {}", id, it.message) }.getOrDefault(false)
+
     /** Fila completa del device (Fase 5C), o null. */
     fun findById(id: Long): Map<String, Any?>? = runCatching {
         db.withConnection { conn ->

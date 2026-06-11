@@ -12,11 +12,24 @@ import javafx.scene.control.SpinnerValueFactory
 import javafx.scene.layout.GridPane
 
 /**
- * `Setup → Fingerprint de dispositivos…` (Fase 5): edita [FingerprintSettings] —
- * auto-fingerprint al conectar, TTL del caché por dispositivo, pruebas activas de rol
- * y dry-run. Mismo patrón Dialog<T> + result converter que Proxy/Keyboard.
+ * `Setup → Fingerprint de dispositivos…` (Fase 5/6B): edita [FingerprintSettings] y el
+ * onboarding al conectar — auto-fingerprint, TTL, pruebas activas, dry-run, y el banner
+ * que ofrece agregar al inventario equipos no conocidos. Mismo patrón Dialog<T>.
  */
-class FingerprintSettingsDialog(initial: FingerprintSettings) : Dialog<FingerprintSettings>() {
+class FingerprintSettingsDialog(
+    initial: FingerprintSettings,
+    initialOnboarding: com.opentermx.app.settings.OnboardingSettings = com.opentermx.app.settings.OnboardingSettings(),
+) : Dialog<FingerprintSettingsDialog.Result>() {
+
+    data class Result(
+        val fingerprint: FingerprintSettings,
+        val onboarding: com.opentermx.app.settings.OnboardingSettings,
+    )
+
+    private val onboardingCheck = CheckBox(Strings["setup.fingerprint.onboarding"]).apply {
+        isSelected = initialOnboarding.askOnConnect
+    }
+    private val initialOnboarding = initialOnboarding
 
     private val autoOnConnectCheck = CheckBox(Strings["setup.fingerprint.autoOnConnect"]).apply {
         isSelected = initial.autoOnConnect
@@ -48,16 +61,23 @@ class FingerprintSettingsDialog(initial: FingerprintSettings) : Dialog<Fingerpri
             add(activeProbingCheck, 0, r, 2, 1); r++
             add(hint("setup.fingerprint.activeProbing.hint"), 0, r, 2, 1); r++
             add(dryRunCheck, 0, r, 2, 1); r++
-            add(hint("setup.fingerprint.dryRun.hint"), 0, r, 2, 1)
+            add(hint("setup.fingerprint.dryRun.hint"), 0, r, 2, 1); r++
+            add(javafx.scene.control.Separator(), 0, r, 2, 1); r++
+            add(onboardingCheck, 0, r, 2, 1); r++
+            add(hint("setup.fingerprint.onboarding.hint"), 0, r, 2, 1)
         }
         dialogPane.content = grid
         dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
         setResultConverter { btn ->
-            if (btn != ButtonType.OK) null else FingerprintSettings(
-                dryRun = dryRunCheck.isSelected,
-                activeProbing = activeProbingCheck.isSelected,
-                autoOnConnect = autoOnConnectCheck.isSelected,
-                ttlDays = ttlSpinner.value ?: initial.ttlDays,
+            if (btn != ButtonType.OK) null else Result(
+                fingerprint = FingerprintSettings(
+                    dryRun = dryRunCheck.isSelected,
+                    activeProbing = activeProbingCheck.isSelected,
+                    autoOnConnect = autoOnConnectCheck.isSelected,
+                    ttlDays = ttlSpinner.value ?: initial.ttlDays,
+                ),
+                // Conserva la lista de hosts ignorados; solo togglea el ask global.
+                onboarding = initialOnboarding.copy(askOnConnect = onboardingCheck.isSelected),
             )
         }
     }

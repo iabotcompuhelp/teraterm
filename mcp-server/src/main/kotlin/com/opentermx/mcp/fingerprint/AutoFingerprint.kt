@@ -35,13 +35,22 @@ class AutoFingerprint(
     private val scope: CoroutineScope,
     private val enabled: () -> Boolean = { true },
     private val ttlDays: () -> Int = { DEFAULT_TTL_DAYS },
+    /**
+     * Onboarding activo (Fase 6B): cuando `true`, un equipo NO inventariado NO se da de
+     * alta automáticamente — se sondea y el reporte va a [onUninventoried] para que el
+     * operador decida en el asistente. Con `false`, comportamiento de Fase 5
+     * (auto-fingerprint crea el device).
+     */
+    private val onboardingEnabled: () -> Boolean = { false },
+    /** Invocado (en el dispatcher del [scope]) con el reporte de un equipo no inventariado. */
+    private val onUninventoried: ((SessionId, FingerprintService.FingerprintReport) -> Unit)? = null,
     /** Espera post-conexión antes de sondear: que el banner/login terminen de llegar. */
     private val settleDelayMillis: Long = DEFAULT_SETTLE_DELAY_MILLIS,
     private val settleAttempts: Int = DEFAULT_SETTLE_ATTEMPTS,
 ) {
 
     enum class Outcome {
-        RAN, RAN_DRY,
+        RAN, RAN_DRY, RAN_ONBOARDING,
         SKIPPED_DISABLED, SKIPPED_NO_DB, SKIPPED_FRESH,
         SKIPPED_NOT_READY, SKIPPED_IN_FLIGHT, SKIPPED_SESSION_GONE,
     }
@@ -100,6 +109,10 @@ class AutoFingerprint(
                 )
             }
 
+            // Equipo NO inventariado + onboarding activo: sondear, NO crear, ofrecer al
+            // operador (Fase 6B). El alta de equipos nuevos la decide el humano.
+            val uninventoried = deviceId == null && onboardingEnabled()
+
             val report = service.fingerprint(sessionId, includeNeighbors = true)
             if (service.dryRun) {
                 log.info(
@@ -108,7 +121,15 @@ class AutoFingerprint(
                 )
                 return Outcome.RAN_DRY
             }
-            val outcome = persister.persist(report, metadata, includeNeighbors = true)
+            if (uninventoried) {
+                log.info(
+                    "onboarding.candidate session={} traceId={} vendor={} model={} — ofreciendo alta",
+                    sessionId.value, report.traceId, report.identity.vendor, report.identity.model,
+                )
+                onUninventoried?.invoke(sessionId, report)
+                return Outcome.RAN_ONBOARDING
+            }
+            val outcome = persister.persist(report, metadata, includeNeighbors = true, createIfMissing = true)
             log.info(
                 "auto-fingerprint session={} traceId={} vendor={} model={} persisted={} identityChanged={}",
                 sessionId.value, report.traceId, report.identity.vendor, report.identity.model,

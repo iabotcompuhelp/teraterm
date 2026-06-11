@@ -18,6 +18,7 @@ import com.opentermx.app.ui.dialog.NewConnectionDialog
 import com.opentermx.app.ui.dialog.PortForwardDialog
 import com.opentermx.app.ui.dialog.QuickGuideDialog
 import com.opentermx.app.ui.dialog.ShortcutsViewerDialog
+import com.opentermx.app.ui.dialog.TelemetrySettingsDialog
 import com.opentermx.app.ui.dialog.SshConfigDialog
 import com.opentermx.app.ui.dialog.SshVersion
 import com.opentermx.app.ui.dialog.SerialConfigDialog
@@ -339,7 +340,10 @@ class MainWindow(
                     accelerator = accelerator("setup.restApi")
                     setOnAction { openRestApiConfig() }
                 }
-                // Fase 5: features IA/MCP-adyacentes — también se ocultan en modo terminal.
+                // Fases 3-5: features IA/MCP-adyacentes — también se ocultan en modo terminal.
+                items += MenuItem(Strings["setup.telemetry"]).apply {
+                    setOnAction { openTelemetryConfig() }
+                }
                 items += MenuItem(Strings["setup.fingerprint"]).apply {
                     setOnAction { openFingerprintConfig() }
                 }
@@ -716,6 +720,16 @@ class MainWindow(
         // las tools MCP (refresh_device_fingerprint) los toman al próximo restart del
         // server MCP, que captura dryRun/activeProbing al construir sus handlers.
         com.opentermx.app.ui.mcp.AutoFingerprintManager.applySettings { settings }
+    }
+
+    private fun openTelemetryConfig() {
+        val result = TelemetrySettingsDialog(settings.database, settings.monitoringIntegrations)
+            .also { it.initOwner(stage) }
+            .showAndWait().orElse(null) ?: return
+        persist { it.copy(database = result.database, monitoringIntegrations = result.integrations) }
+        // BD/scheduler se reconectan según los settings nuevos (en IO). Las integraciones
+        // las leen los handlers MCP en vivo — no requieren reinicio del server.
+        com.opentermx.app.ui.mcp.TelemetryDbManager.applySettings(result.database)
     }
 
     private fun openDeviceProfilesConfig() {

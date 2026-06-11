@@ -9,6 +9,7 @@ import com.opentermx.app.ui.ai.AiChatPanel
 import com.opentermx.app.ui.dialog.AiAssistantDialog
 import com.opentermx.app.ui.dialog.RestApiDialog
 import com.opentermx.app.ui.dialog.ErrorDialog
+import com.opentermx.app.ui.dialog.FingerprintSettingsDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
 import com.opentermx.app.ui.dialog.LogConfigDialog
 import com.opentermx.app.ui.dialog.NewConnectionChoice
@@ -336,6 +337,10 @@ class MainWindow(
                 items += MenuItem(Strings["setup.restApi"]).apply {
                     accelerator = accelerator("setup.restApi")
                     setOnAction { openRestApiConfig() }
+                }
+                // Fase 5: feature IA/MCP-adyacente — también se oculta en modo terminal.
+                items += MenuItem(Strings["setup.fingerprint"]).apply {
+                    setOnAction { openFingerprintConfig() }
                 }
             }
             items += MenuItem(Strings["setup.terminalOnly"]).apply {
@@ -698,6 +703,17 @@ class MainWindow(
         statusBar.updateRestApiLabel()
     }
 
+    private fun openFingerprintConfig() {
+        val updated = FingerprintSettingsDialog(settings.fingerprint)
+            .also { it.initOwner(stage) }
+            .showAndWait().orElse(null) ?: return
+        persist { it.copy(fingerprint = updated) }
+        // El auto-fingerprint toma los cambios al instante (el manager se reconstruye);
+        // las tools MCP (refresh_device_fingerprint) los toman al próximo restart del
+        // server MCP, que captura dryRun/activeProbing al construir sus handlers.
+        com.opentermx.app.ui.mcp.AutoFingerprintManager.applySettings { settings }
+    }
+
     private fun openAiAssistantConfig() {
         val updated = AiAssistantDialog(settings.aiAssistant)
             .also { it.initOwner(stage) }
@@ -728,6 +744,9 @@ class MainWindow(
         if (locked) {
             if (::centerSplit.isInitialized) setAiChatPanelVisible(false)
             com.opentermx.app.ui.mcp.McpServerManager.stop()
+            // Fase 5: el auto-fingerprint alimenta el contexto del LLM — se detiene
+            // junto con MCP/REST. Se re-registra en bootMcpServerIfEnabled al desbloquear.
+            com.opentermx.app.ui.mcp.AutoFingerprintManager.stop()
             RestApiManager.stop()
         }
     }

@@ -30,9 +30,16 @@ object AutoFingerprintManager {
 
     @Volatile private var subscription: AutoCloseable? = null
 
+    /**
+     * Registra (o RE-registra) el listener. Idempotente pero reconstruye: `enabled` y
+     * `ttlDays` son lambdas que ya ven settings vivos, pero `dryRun`/`activeProbing`
+     * quedan fijos en el [FingerprintService] — al guardar el diálogo de Setup se llama
+     * de nuevo y el servicio se rearma con los valores nuevos.
+     */
     @Synchronized
     fun applySettings(appSettings: () -> AppSettings) {
-        if (subscription != null) return // listener ya registrado; los lambdas ven settings vivos
+        runCatching { subscription?.close() }
+        subscription = null
         val store = TelemetryDbManager.store
         val validator = ReadOnlyCommandValidator.default()
         val views = DeviceProfileViews(store, validator)

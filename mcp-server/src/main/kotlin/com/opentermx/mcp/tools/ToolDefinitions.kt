@@ -183,6 +183,54 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val RUN_READONLY_COMMAND = ToolDef(
+        name = "run_readonly_command",
+        description = "Ejecuta UN comando de SOLO LECTURA (show/display/get, ping, traceroute) en una " +
+            "sesión activa, validado contra una whitelist estricta por vendor que rechaza metacaracteres, " +
+            "encadenadores y pipes a comandos de escritura. Si el server tiene auto-aprobación read-only " +
+            "activa, no abre diálogo; si no, el operador aprueba con un click. Para cualquier comando " +
+            "mutativo usar `propose_commands` (gate obligatorio).",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId", "command"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+                "command" to obj(
+                    "type" to "string",
+                    "minLength" to 1,
+                    "description" to "Un único comando read-only. Sin newlines, `;`, `&&`, redirecciones " +
+                        "ni pipes a redirect/tee/save — la whitelist los rechaza.",
+                ),
+                "lastLines" to obj(
+                    "type" to "integer",
+                    "minimum" to 1,
+                    "maximum" to MAX_LAST_LINES,
+                    "default" to DEFAULT_LAST_LINES,
+                    "description" to "Cuántas líneas del buffer devolver como output tras ejecutar.",
+                ),
+                "rationale" to obj("type" to "string"),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("approved", "autoApproved", "executed", "auditLogId"),
+            "properties" to obj(
+                "approved" to obj("type" to "boolean"),
+                "autoApproved" to obj("type" to "boolean"),
+                "executed" to obj("type" to "integer"),
+                "vendor" to obj("type" to "string"),
+                "auditLogId" to obj("type" to "string"),
+                "output" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        // Inyecta en la sesión (aunque solo comandos de lectura), así que el modo
+        // read-only ESTRICTO del server también la bloquea: `mutating = true` deja esa
+        // decisión en manos del operador. La whitelist es la que garantiza que no se
+        // pueda escribir configuración a través de esta tool.
+        mutating = true,
+    )
+
     val LIST_MACROS = ToolDef(
         name = "list_macros",
         description = "Lista los macros Groovy disponibles en `~/.opentermx/macros/`. " +
@@ -841,6 +889,7 @@ object ToolDefinitions {
         INSPECT_SESSION,
         SEARCH_KNOWLEDGE_BASE,
         PROPOSE_COMMANDS,
+        RUN_READONLY_COMMAND,
         LIST_MACROS,
         RUN_MACRO,
         OPEN_SESSION,

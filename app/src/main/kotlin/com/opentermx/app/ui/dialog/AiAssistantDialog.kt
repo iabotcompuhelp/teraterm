@@ -234,6 +234,9 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
         isSelected = initial.mcpServerReadOnly
         graphic = Label("🔒")
     }
+    private val mcpReadonlyAutoApproveCheck = CheckBox(Strings["setup.ai.mcp.readonlyAutoApprove"]).apply {
+        isSelected = initial.mcpServerReadonlyAutoApprove
+    }
     private val mcpAllowedSessionGlobField = javafx.scene.control.TextField(initial.mcpServerAllowedSessionGlob.orEmpty()).apply {
         prefColumnCount = 30
         promptText = "lab-*,test-?"
@@ -321,6 +324,7 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
                 mcpServerVerboseLog = mcpVerboseLogCheck.isSelected,
                 mcpStdioProxyEnabled = mcpStdioProxyCheck.isSelected,
                 mcpServerReadOnly = mcpReadOnlyCheck.isSelected,
+                mcpServerReadonlyAutoApprove = mcpReadonlyAutoApproveCheck.isSelected,
                 mcpServerAllowedSessionGlob = mcpAllowedSessionGlobField.text.trim().ifBlank { null },
                 mcpServerTlsEnabled = mcpTlsEnabledCheck.isSelected,
                 mcpServerKeyStorePath = mcpKeyStorePathField.text.trim().ifBlank { null },
@@ -464,6 +468,7 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
             add(Label(""), 0, r); add(mcpStdioProxyCheck, 1, r); r++
             add(Label(""), 0, r); add(mcpStdioProxyStatus, 1, r); r++
             add(Label(""), 0, r); add(mcpReadOnlyCheck, 1, r); r++
+            add(Label(""), 0, r); add(mcpReadonlyAutoApproveCheck, 1, r); r++
             add(Label(Strings["setup.ai.mcp.allowedSessions"]), 0, r); add(mcpAllowedSessionGlobField, 1, r); r++
             add(Label(""), 0, r); add(mcpTlsEnabledCheck, 1, r); r++
             add(Label(Strings["setup.ai.mcp.keyStorePath"]), 0, r)

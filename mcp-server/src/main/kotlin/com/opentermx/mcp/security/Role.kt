@@ -64,6 +64,8 @@ object RoleAccessControl {
         "start_operation", "end_operation", "current_operation",
         // Mutación (con approval gate humano y, si la op lo exige, approval token).
         "open_session", "close_session", "propose_commands", "run_macro",
+        // Lectura ejecutable: whitelist estricta read-only, gate opcional (auto-approve).
+        "run_readonly_command",
         // Side-channel.
         "tail_session",
         // Phase 3 Fase 4 — snapshots: el operator captura el "antes" antes de ejecutar.

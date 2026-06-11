@@ -177,12 +177,14 @@ class McpDispatcher(
         }
 
         // Phase 3 Fase 1: si hay op activa, validar commands contra el scope antes de
-        // tocar el device. Cubre `propose_commands` y cualquier futura tool con `commands`.
+        // tocar el device. Cubre `propose_commands`, `run_readonly_command` (arg
+        // singular `command`) y cualquier futura tool con `commands`/`command`.
         val activeOp = operationRegistry?.forSessionKey(transport.sessionKey)
         if (activeOp != null) {
-            val commands = arguments["commands"] as? List<*>
-            if (commands != null) {
-                val violations = commands
+            val commandList = (arguments["commands"] as? List<*>).orEmpty() +
+                listOfNotNull(arguments["command"] as? String)
+            if (commandList.isNotEmpty()) {
+                val violations = commandList
                     .mapNotNull { it as? String }
                     .mapNotNull { cmd ->
                         val res = activeOp.context.scope.validateCommand(cmd)

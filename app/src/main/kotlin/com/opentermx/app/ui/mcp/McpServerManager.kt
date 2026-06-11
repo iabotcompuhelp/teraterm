@@ -182,6 +182,13 @@ object McpServerManager {
                 approvalSecretProvider = secretProvider,
                 snapshotStore = snapshotStore,
             ),
+            // Lectura ejecutable con whitelist estricta. El lambda lee el setting en vivo:
+            // togglear auto-approve en Setup aplica sin reiniciar el server.
+            com.opentermx.mcp.handlers.RunReadonlyCommandHandler(
+                approvalGate,
+                autoApprove = { settingsProvider().mcpServerReadonlyAutoApprove },
+                redactor = redactor,
+            ),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
             OpenSessionHandler(approvalGate, resolveSessionOpener(), inventoryProvider),

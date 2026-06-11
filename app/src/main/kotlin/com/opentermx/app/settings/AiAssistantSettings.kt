@@ -69,6 +69,13 @@ data class AiAssistantSettings(
     /** Si está activo, todas las tools mutativas devuelven error sin invocar handler. */
     val mcpServerReadOnly: Boolean = false,
     /**
+     * Auto-aprobación de `run_readonly_command`: si está activo, los comandos que pasen
+     * la whitelist estricta read-only ([com.opentermx.mcp.security.ReadOnlyCommandValidator])
+     * se ejecutan SIN diálogo de aprobación. Default OFF — el operador opta in. No afecta
+     * a `propose_commands`, que siempre exige el gate.
+     */
+    val mcpServerReadonlyAutoApprove: Boolean = false,
+    /**
      * Glob coma-separado de sessionIds permitidos. `null` o vacío = todas las sesiones.
      * Ejemplos: `lab-*` solo matchea sesiones que empiezan con "lab-"; `lab-*,test-?` matchea
      * "lab-foo", "lab-bar" y "test-A", "test-B".

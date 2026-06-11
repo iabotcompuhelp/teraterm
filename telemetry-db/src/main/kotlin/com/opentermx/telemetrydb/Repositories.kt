@@ -87,6 +87,72 @@ class DeviceRepository internal constructor(private val db: TelemetryDb) {
             }
         }
     }.getOrNull()
+
+    /** Lookup por IP de management (las sesiones identifican al equipo por host, no hostname). */
+    fun findIdByMgmtAddress(address: String?): Long? {
+        val inet = inetOrNull(address) ?: return null
+        return runCatching {
+            db.withConnection { conn ->
+                conn.prepareStatement("SELECT id FROM devices WHERE mgmt_address = ?::inet LIMIT 1").use { ps ->
+                    ps.setString(1, inet)
+                    ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+                }
+            }
+        }.getOrNull()
+    }
+
+    /** Fila completa del device (Fase 5C), o null. */
+    fun findById(id: Long): Map<String, Any?>? = runCatching {
+        db.withConnection { conn ->
+            conn.queryToMaps(
+                "SELECT id, hostname, mgmt_address::text AS mgmt_address, port, protocol::text AS protocol, " +
+                    "vendor::text AS vendor, model, os_version, serial_number, site, role, enabled, " +
+                    "created_at, updated_at FROM devices WHERE id = ?"
+            ) { it.setLong(1, id) }.firstOrNull()
+        }
+    }.getOrNull()
+
+    /**
+     * Inventario con filtros opcionales (tool `list_devices`, Fase 5C). Los filtros de
+     * texto comparan case-insensitive exacto; `criticality` viene de device_profiles
+     * (LEFT JOIN: device sin perfil cuenta como 'medium' default).
+     */
+    fun list(
+        role: String? = null,
+        site: String? = null,
+        vendor: String? = null,
+        criticality: String? = null,
+        limit: Int = 100,
+    ): List<Map<String, Any?>> = runCatching {
+        val clauses = mutableListOf<String>()
+        val binds = mutableListOf<String>()
+        if (!role.isNullOrBlank()) { clauses += "lower(d.role) = lower(?)"; binds += role }
+        if (!site.isNullOrBlank()) { clauses += "lower(d.site) = lower(?)"; binds += site }
+        if (!vendor.isNullOrBlank()) { clauses += "lower(d.vendor::text) = lower(?)"; binds += vendor }
+        if (!criticality.isNullOrBlank()) {
+            clauses += "lower(COALESCE(p.criticality, 'medium')) = lower(?)"
+            binds += criticality
+        }
+        val where = if (clauses.isEmpty()) "" else "WHERE " + clauses.joinToString(" AND ")
+        db.withConnection { conn ->
+            conn.queryToMaps(
+                """
+                SELECT d.id, d.hostname, d.mgmt_address::text AS mgmt_address, d.port,
+                       d.vendor::text AS vendor, d.model, d.os_version, d.site, d.role,
+                       COALESCE(p.criticality, 'medium') AS criticality,
+                       p.role_source::text AS role_source, d.enabled
+                FROM devices d
+                LEFT JOIN device_profiles p ON p.device_id = d.id
+                $where
+                ORDER BY lower(d.hostname)
+                LIMIT ?
+                """.trimIndent()
+            ) { ps ->
+                binds.forEachIndexed { i, value -> ps.setString(i + 1, value) }
+                ps.setInt(binds.size + 1, limit.coerceIn(1, 500))
+            }
+        }
+    }.onFailure { log.warn("list devices falló: {}", it.message) }.getOrDefault(emptyList())
 }
 
 class InterfaceRepository internal constructor(private val db: TelemetryDb) {

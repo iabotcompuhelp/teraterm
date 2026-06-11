@@ -50,7 +50,8 @@ class FingerprintService(
     private val roleRules: RoleRules = RoleRules.default(),
     private val auditLog: AiAuditLog = AiAuditLog(),
     private val redactor: CredentialRedactor = CredentialRedactor(),
-    private val dryRun: Boolean = true,
+    /** Público: la capa de persistencia (refresh_device_fingerprint, 5C) lo consulta. */
+    val dryRun: Boolean = true,
     /**
      * Pruebas ACTIVAS de rol (`show wlan summary`, `show spanning-tree summary`) cuando
      * el patrón de modelo no resolvió. Opt-in porque agrega comandos al equipo.
@@ -78,6 +79,10 @@ class FingerprintService(
         val warnings: List<String>,
         val dryRun: Boolean,
         val durationMs: Long,
+        /** Sonda que identificó al equipo (columna probe_id de 5B), o null sin match. */
+        val matchedProbeId: String? = null,
+        /** Excerpt del output que matcheó (máx 2 KB) — para `raw_excerpt` de 5B. */
+        val rawExcerpt: String? = null,
     )
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -97,6 +102,8 @@ class FingerprintService(
         )
 
         var identity: DeviceIdentity? = null
+        var matchedProbeId: String? = null
+        var rawExcerpt: String? = null
         var sessionBroken = false
         for (probe in probes) {
             val outcome = runProbe(traceId, sessionId, sessionVendor, probe, executedCommands)
@@ -104,6 +111,8 @@ class FingerprintService(
             when (outcome) {
                 is ProbeOutcome.Match -> {
                     identity = outcome.identity
+                    matchedProbeId = outcome.attempt.probeId
+                    rawExcerpt = outcome.rawExcerpt
                     break
                 }
                 is ProbeOutcome.NoMatch, is ProbeOutcome.Blocked -> Unit // sigue la cadena
@@ -161,6 +170,8 @@ class FingerprintService(
             warnings = warnings,
             dryRun = dryRun,
             durationMs = System.currentTimeMillis() - startedAt,
+            matchedProbeId = matchedProbeId,
+            rawExcerpt = rawExcerpt,
         ).also {
             log.info(
                 "fingerprint.done traceId={} session={} vendor={} model={} rol={} confianza={} vecinos={} en {} ms",
@@ -175,7 +186,11 @@ class FingerprintService(
     private sealed interface ProbeOutcome {
         val attempt: ProbeAttempt
 
-        data class Match(override val attempt: ProbeAttempt, val identity: DeviceIdentity) : ProbeOutcome
+        data class Match(
+            override val attempt: ProbeAttempt,
+            val identity: DeviceIdentity,
+            val rawExcerpt: String,
+        ) : ProbeOutcome
         data class NoMatch(override val attempt: ProbeAttempt) : ProbeOutcome
         data class Blocked(override val attempt: ProbeAttempt) : ProbeOutcome
         data class SessionError(override val attempt: ProbeAttempt) : ProbeOutcome
@@ -249,7 +264,11 @@ class FingerprintService(
             "fingerprint.probe.match traceId={} probe={} vendor={} model={} confianza={}",
             traceId, probe.id, identity.vendor, identity.model, identity.confidence,
         )
-        return ProbeOutcome.Match(ProbeAttempt(probe.id, probe.command, "match"), identity)
+        return ProbeOutcome.Match(
+            ProbeAttempt(probe.id, probe.command, "match"),
+            identity,
+            run.output.take(RAW_EXCERPT_CHARS),
+        )
     }
 
     /** Comando secundario de la sonda (MikroTik routerboard): best-effort, jamás aborta. */

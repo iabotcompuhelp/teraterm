@@ -106,6 +106,31 @@ object TestServerMain {
             com.opentermx.mcp.handlers.GetDeviceHistoryHandler(
                 com.opentermx.mcp.telemetry.TelemetryStore { null },
             ),
+            // Fase 5C: sin BD — get_device_profile/list_devices/diagnose devuelven
+            // DB_UNAVAILABLE; refresh_device_fingerprint corre pero no persiste.
+            com.opentermx.mcp.handlers.GetDeviceProfileHandler(
+                com.opentermx.mcp.telemetry.TelemetryStore { null },
+                com.opentermx.mcp.fingerprint.DeviceProfileViews(
+                    com.opentermx.mcp.telemetry.TelemetryStore { null },
+                    com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
+                ),
+            ),
+            com.opentermx.mcp.handlers.RefreshDeviceFingerprintHandler(
+                com.opentermx.mcp.fingerprint.FingerprintService(
+                    runner = sharedRunner,
+                    validator = com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
+                    roleRules = com.opentermx.mcp.fingerprint.RoleRules.embedded(),
+                ),
+                com.opentermx.mcp.telemetry.TelemetryStore { null },
+            ),
+            com.opentermx.mcp.handlers.ListDevicesHandler(com.opentermx.mcp.telemetry.TelemetryStore { null }),
+            com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(
+                com.opentermx.mcp.telemetry.TelemetryStore { null },
+                com.opentermx.mcp.fingerprint.DeviceProfileViews(
+                    com.opentermx.mcp.telemetry.TelemetryStore { null },
+                    com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
+                ),
+            ),
             // Fase 4: registry vacío — ejercita el camino "integración no configurada".
             com.opentermx.mcp.handlers.ZabbixGetHistoryHandler({ com.opentermx.integrations.IntegrationRegistry.Empty }),
             com.opentermx.mcp.handlers.ZabbixGetActiveProblemsHandler({ com.opentermx.integrations.IntegrationRegistry.Empty }),

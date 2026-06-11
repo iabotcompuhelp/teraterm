@@ -1,0 +1,187 @@
+{
+  "list_sessions" : {
+    "mutating" : false,
+    "inputSha256" : "32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e",
+    "outputSha256" : "8f787eb2ad839f7f6b4f6d3716f2f3ba74c2793dbcc317ef7f7597079844a37f"
+  },
+  "inspect_session" : {
+    "mutating" : false,
+    "inputSha256" : "2ae0aa7d559878d1293ee9e3762edfaff1bbdf10c3159470cc980587a0f0061b",
+    "outputSha256" : "af4f3575173d7bfe6026345c92d4407a805602f18248d52877659d3f9f584ae5"
+  },
+  "search_knowledge_base" : {
+    "mutating" : false,
+    "inputSha256" : "f9da73b128ad639259383e68ba2e573e893a20ed280dac785b8e09b55c069f09",
+    "outputSha256" : "f010a838aaea40bf8d40709a9d4a43eac5932c5f6d768bbee6f0a3ab737d6297"
+  },
+  "propose_commands" : {
+    "mutating" : true,
+    "inputSha256" : "e639cf74529b0a798839b57170f1aa4b4cecf269ad6cf71aac18bd191448e479",
+    "outputSha256" : "e5c2e3a4bdd37922ed8b5ec42489ac96c788c679091f08fede762174babae9f1"
+  },
+  "run_readonly_command" : {
+    "mutating" : true,
+    "inputSha256" : "b7bf122be73223e1f584530af8b2ccd5ceb233430a6199709b9cad8ee90e6149",
+    "outputSha256" : "428222923a93394cce46a84308b327e4bf7addaf5a7921291b1a861335793e04"
+  },
+  "get_interface_stats" : {
+    "mutating" : true,
+    "inputSha256" : "47dc7771fe5060ed53120f659979e12b19f5d556f9f10598d22857971d7d40aa",
+    "outputSha256" : "4f46b2d3f1e32a6bcd22d1a511264656e5db88df783c9aef3c38124105390879"
+  },
+  "get_link_status" : {
+    "mutating" : true,
+    "inputSha256" : "b527301f8564703552e18bce15b1616b6f4b782d42b86befe3d3de32f8568bd8",
+    "outputSha256" : "9ac635b571624fa67bb7e79ebe8c01eca4f43a10874f5505c9e0857684221032"
+  },
+  "get_bandwidth_utilization" : {
+    "mutating" : true,
+    "inputSha256" : "a30256a9d4d815c75236db19dbffab27fd48896cb24ca8ec033bdc717f0c112f",
+    "outputSha256" : "47537e85fac42691269cc8b8a5f98b11fc303a71b2aed11b54a9337e7bc6bb59"
+  },
+  "get_device_history" : {
+    "mutating" : false,
+    "inputSha256" : "f8e9fabec4f14f0170c2e89ab99f94dd0b6f8363ad1b7bcb4b354c80dc374251",
+    "outputSha256" : "d57ebb98dacf09fa0422475e01a9c1862da94371a473cbe5ebcd33dfb499caa4"
+  },
+  "zabbix_get_history" : {
+    "mutating" : false,
+    "inputSha256" : "b83e8b7d28e3f9773378740c19ab23488276a5b5abd34bba10d23535431cff3a",
+    "outputSha256" : "cbcc2163cde09e2e4167cae62f65a5773dc62d4c19bcbec5658ef20060d4c575"
+  },
+  "zabbix_get_active_problems" : {
+    "mutating" : false,
+    "inputSha256" : "77051480c8032f3061eb0b1c30f34405f7771798e0eddb417ee9c6470ad7d12f",
+    "outputSha256" : "cbcc2163cde09e2e4167cae62f65a5773dc62d4c19bcbec5658ef20060d4c575"
+  },
+  "opmanager_get_alarms" : {
+    "mutating" : false,
+    "inputSha256" : "f89c36a5d47475163c6b12e4bdadaee9e5bd975f4f947d20a121e77971a4fb55",
+    "outputSha256" : "cbcc2163cde09e2e4167cae62f65a5773dc62d4c19bcbec5658ef20060d4c575"
+  },
+  "opmanager_get_performance" : {
+    "mutating" : false,
+    "inputSha256" : "3d1b752950849692c89cad8a256e9a58b62ebba53477769b4d08c4bd15ae57f0",
+    "outputSha256" : "cbcc2163cde09e2e4167cae62f65a5773dc62d4c19bcbec5658ef20060d4c575"
+  },
+  "list_macros" : {
+    "mutating" : false,
+    "inputSha256" : "32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e",
+    "outputSha256" : "a40b2177153e63c581a9e7d11986ae1a510ce95e043609b06424627784e05c84"
+  },
+  "run_macro" : {
+    "mutating" : true,
+    "inputSha256" : "0cd8d999733b7cb6337d1092c5f066978f6fb94cc0436c1a52090b30802199ec",
+    "outputSha256" : "0fff08ed452cb7438982f37bf104f784438130722e4a3b35eb9831fa8137ccad"
+  },
+  "open_session" : {
+    "mutating" : true,
+    "inputSha256" : "4c832c5064a75e88afa1e4325fff108bfb761e6373f3ad6171b351ac88349a2a",
+    "outputSha256" : "6d6394c780aa6ce202575724f83726241693e586435473f39e24d0b19380458b"
+  },
+  "close_session" : {
+    "mutating" : true,
+    "inputSha256" : "8f29d94d47a28fe2bfd4dd4482a6732decb292e8609e84eb56fce777dc64e461",
+    "outputSha256" : "0f430587150e8933da14659539a050138399ec66442d584d754121579dd0e49e"
+  },
+  "read_audit_log" : {
+    "mutating" : false,
+    "inputSha256" : "6982a731c99c12b89e35929ca90c522c34b1e0d89a537ac1975385a9c75ff239",
+    "outputSha256" : "013e5d8356067d3be8550ea6c275e7516f6f5dc96cac10fcce6c410afad3f5a4"
+  },
+  "tail_session" : {
+    "mutating" : false,
+    "inputSha256" : "1a9a2ed8a91b05e02fe72b928e3282c06b3df4f70e80761f6c3693414c7314de",
+    "outputSha256" : "219c3d3cc08597766f354dc68a9f45ac911b3816b9313641ef5c36aa9d7929c3"
+  },
+  "start_operation" : {
+    "mutating" : false,
+    "inputSha256" : "29784f68a2a39018e30ce3a5c199c589dbaf09a6312d0ba4b80cab211a20c23b",
+    "outputSha256" : "a95cc7c1098c60fd807539b1045e18185f5df2869c11b8dc7d650cb896da5622"
+  },
+  "end_operation" : {
+    "mutating" : false,
+    "inputSha256" : "daa4dc8790bc76e28ae4e1463503cb22e4fc1445d79ae571bb6ec08611d72dfc",
+    "outputSha256" : "e37505a9ec84872ee88869b2eea41d71a712afc5444f43a55dec36bfba22bd87"
+  },
+  "current_operation" : {
+    "mutating" : false,
+    "inputSha256" : "32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e",
+    "outputSha256" : "53c5a8b4a0f7c5ad959b026b1b3242faa17b06e931e7c73b6c2fc35a33c1bffc"
+  },
+  "inventory_list" : {
+    "mutating" : false,
+    "inputSha256" : "9629b16515a7b39f4aff856370b7055b991975d2237a26e73edf8c6f003c1abd",
+    "outputSha256" : "f41d183f914797801726d02b294b67c3ce171c1e82fc74bc4b0730c05fe3cf3f"
+  },
+  "inventory_describe" : {
+    "mutating" : false,
+    "inputSha256" : "83d433b979f22b402be4dc3b9eaac115ec1074c76d892574631e86187ace3f58",
+    "outputSha256" : "c4949d9814ec6cd2ca4b6142a05e6e37eac7152b3a46ad703438a7eaa9451146"
+  },
+  "compliance_evaluate" : {
+    "mutating" : false,
+    "inputSha256" : "da0d019429ce79c6ff304e8a583860f68dac90198feeeb51101c9a227277a119",
+    "outputSha256" : "e6a76423ade2eb8ce2241d5e87f2c155c7fe910135585c953e879bd7417f6b03"
+  },
+  "snapshot_create" : {
+    "mutating" : false,
+    "inputSha256" : "7cf8b2eb67d46bd51ad5f43302f6d453692d71868b60ee89169e071b36bad454",
+    "outputSha256" : "887a3ee9ebc4a4ab4e3b7722043f85f33942bd62b15ae90c235c80b0ed7cc677"
+  },
+  "snapshot_diff" : {
+    "mutating" : false,
+    "inputSha256" : "9d018da85339943b00fbb8f8adf265d795fc5a9047c69b6f16ba4ce55db4a3c5",
+    "outputSha256" : "e633664d1ad5d0225f888c9ed4ba8cee382eaa49d970288ccfaa4e39a8a99fce"
+  },
+  "snapshot_compare_to_criteria" : {
+    "mutating" : false,
+    "inputSha256" : "d270471444a2350bcf2c8c9e2fe5a107dcf858d7c5703a4d0d99797040f1a171",
+    "outputSha256" : "0ad6fcbac778b72688acfb160ab956d10f56eb2dd3ef0245c1dee17c3303a3b4"
+  },
+  "rollback_propose" : {
+    "mutating" : false,
+    "inputSha256" : "d8d2d2b4c7677156e9e349b62a68fb2604ad4c281f595137ac18e983f01f6b8d",
+    "outputSha256" : "5d7a094bb8e037c47641e5dc9ac11c141a27855a00872ef7770561edaba11a28"
+  },
+  "policy_load" : {
+    "mutating" : false,
+    "inputSha256" : "12d450a5c919a7cbd9c24aee0c6eb16995fa6a242c8c87ccd2bb11be71ecc132",
+    "outputSha256" : "b9998a632d362dd4b59a8457eeba812086d261700777cfad7a54e8b59d434073"
+  },
+  "policy_list" : {
+    "mutating" : false,
+    "inputSha256" : "7760a5a5ce90f1c50ad52b3bb68cfcb409a0d348b55eb2f066cd92e85474cac1",
+    "outputSha256" : "6d7d4475e497d34b77eeefa06a14f9441827406f4446a517ff6d28f87cd7e3dd"
+  },
+  "policy_evaluate" : {
+    "mutating" : false,
+    "inputSha256" : "186cf2db50aae5c659d7ed53a5844b1a808123f60d6fcbde1af616bbb4a3e636",
+    "outputSha256" : "673d2d9f527c39c251544a01bba89f46bac15643100296689d8d9917c374e8b3"
+  },
+  "policy_audit" : {
+    "mutating" : false,
+    "inputSha256" : "ebd0f598a31d1d5583b5e2c9ed137eda3de0c71e68d817233e035101248d87e3",
+    "outputSha256" : "79455acbc5bdf34db6be335cbc64d476f33ef8401c044172ab97b499cb15af97"
+  },
+  "get_device_profile" : {
+    "mutating" : false,
+    "inputSha256" : "c4c642016de371ba7661bbde645550faaa064128af1fd4f2b78fefc336ada151",
+    "outputSha256" : "4917f2353947603629519c74f671a53432cb78cefb31be8ad148df7d4e446178"
+  },
+  "refresh_device_fingerprint" : {
+    "mutating" : true,
+    "inputSha256" : "41966bec2f9f4ac00a5f699b1b215761ca9eea63f442f7cb6689f6ea3cf33956",
+    "outputSha256" : "65d8f15ab712a0d0df3502c82cef76d5db3abf1ec00aaa8608decce8d80adb0c"
+  },
+  "list_devices" : {
+    "mutating" : false,
+    "inputSha256" : "2f29d99d94ece40a0825b498f2f19f55826bfdd636ce32db5837d92acf8bbf13",
+    "outputSha256" : "ea5025284e9fb358f999215e9332ea0f73bbfc8f11f9dc6cb83d50b2853ceadc"
+  },
+  "diagnose_device_context" : {
+    "mutating" : false,
+    "inputSha256" : "d8e918d79d625f4f0a9fd55b6ffc2db2ae743701982486d04cd10e9f2b66ce2f",
+    "outputSha256" : "6943443ecc4df9f9e75386310fc4d51599183e95efe7f4af47fe21903436e97a"
+  }
+}

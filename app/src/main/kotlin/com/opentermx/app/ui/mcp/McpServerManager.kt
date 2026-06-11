@@ -175,8 +175,22 @@ object McpServerManager {
         // las tools de inventory reflejan cambios del Setup → Saved Connections sin
         // necesidad de reiniciar el server.
         val inventoryProvider = SettingsInventoryProvider(appSettingsProvider)
+        // Fase 5C: perfiles de dispositivo. Una sola instancia de views (caché TTL del
+        // enriquecimiento) compartida por list_sessions, las tools de perfil y resources.
+        val fingerprintSettings = appSettingsProvider().fingerprint
+        val readonlyValidator = com.opentermx.mcp.security.ReadOnlyCommandValidator.default()
+        val profileViews = com.opentermx.mcp.fingerprint.DeviceProfileViews(
+            store = TelemetryDbManager.store,
+            validator = readonlyValidator,
+        )
+        val fingerprintService = com.opentermx.mcp.fingerprint.FingerprintService(
+            runner = commandRunner,
+            validator = readonlyValidator,
+            dryRun = fingerprintSettings.dryRun,
+            activeProbing = fingerprintSettings.activeProbing,
+        )
         val handlers = listOf(
-            ListSessionsHandler(),
+            ListSessionsHandler(views = profileViews),
             InspectSessionHandler(redactor),
             SearchKnowledgeBaseHandler { KnowledgeBaseHolder.get(settingsProvider()) },
             ProposeCommandsHandler(
@@ -203,6 +217,13 @@ object McpServerManager {
             com.opentermx.mcp.handlers.GetBandwidthUtilizationHandler(commandRunner, redactor = redactor),
             // Fase 3: histórico local en PostgreSQL (DB_UNAVAILABLE claro si no hay BD).
             com.opentermx.mcp.handlers.GetDeviceHistoryHandler(TelemetryDbManager.store),
+            // Fase 5C: perfiles de dispositivo (identidad + capacidades + topología).
+            com.opentermx.mcp.handlers.GetDeviceProfileHandler(TelemetryDbManager.store, profileViews),
+            com.opentermx.mcp.handlers.RefreshDeviceFingerprintHandler(
+                fingerprintService, TelemetryDbManager.store, profileViews,
+            ),
+            com.opentermx.mcp.handlers.ListDevicesHandler(TelemetryDbManager.store),
+            com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(TelemetryDbManager.store, profileViews),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.
             com.opentermx.mcp.handlers.ZabbixGetHistoryHandler(::integrationRegistry),
@@ -253,7 +274,11 @@ object McpServerManager {
             auditLog = com.opentermx.ai.audit.AiAuditLog(),
             redactor = redactor,
             tailManager = tailManager,
-            resourceProvider = com.opentermx.mcp.OpenTermXResources(redactor = redactor),
+            resourceProvider = com.opentermx.mcp.OpenTermXResources(
+                redactor = redactor,
+                store = TelemetryDbManager.store,
+                profileViews = profileViews,
+            ),
             operationRegistry = operationRegistry,
         )
     }

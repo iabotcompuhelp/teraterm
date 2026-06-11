@@ -36,6 +36,11 @@ data class AppSettings(
      */
     val monitoringIntegrations: List<MonitoringIntegrationSetting> = emptyList(),
     /**
+     * Fingerprinting de dispositivos (Fase 5): dry-run y pruebas activas de rol. Lo
+     * consumen `refresh_device_fingerprint` y el enriquecimiento de `list_sessions`.
+     */
+    val fingerprint: FingerprintSettings = FingerprintSettings(),
+    /**
      * Credenciales recordadas para conexiones SSH previas. Cada entrada lleva
      * `host/port/username` y opcionalmente password o ruta de clave + passphrase, cifrada
      * con [com.opentermx.common.crypto.SecretCipher]. Se popula al conectar con la opción

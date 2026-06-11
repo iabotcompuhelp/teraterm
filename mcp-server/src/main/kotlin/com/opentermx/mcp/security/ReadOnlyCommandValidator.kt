@@ -46,6 +46,13 @@ class ReadOnlyCommandValidator(
     private val deny: List<Regex>,
 ) {
 
+    /**
+     * Patrones de la whitelist del vendor, como texto (Fase 5C: `allowedCommands` de
+     * `get_device_profile`). Devuelve los PATRONES — jamás el producto cartesiano de
+     * comandos posibles (error #45).
+     */
+    fun patternsFor(vendor: Vendor): List<String> = whitelist[vendor].orEmpty().map { it.pattern }
+
     fun validate(rawCommand: String, vendor: Vendor): ReadOnlyValidation {
         val command = rawCommand.trim()
         if (command.length < MIN_COMMAND_LENGTH) return rejected("comando vacío o demasiado corto")

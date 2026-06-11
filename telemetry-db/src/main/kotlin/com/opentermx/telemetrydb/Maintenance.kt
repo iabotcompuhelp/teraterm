@@ -23,6 +23,8 @@ class Maintenance internal constructor(private val db: TelemetryDb) {
         db.metrics.ensurePartition(today)
         db.metrics.ensurePartition(today.plusMonths(1))
         dropPartitionsOlderThan(retentionDays)
+        // Fase 5B (error #43): el histórico de fingerprints no crece sin límite.
+        db.fingerprints.pruneKeepingLast(FingerprintRepository.DEFAULT_KEEP_PER_DEVICE)
     }
 
     /** Borra particiones `interface_metrics_YYYY_MM` cuyo fin de ventana excede la retención. */

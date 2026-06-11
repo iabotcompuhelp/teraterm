@@ -15,6 +15,9 @@ dependencies {
     runtimeOnly(libs.flyway.postgresql)
     implementation(libs.postgresql)
     implementation(libs.slf4j.api)
+    // JSONB del perfil de dispositivo (Fase 5B): parseo/serialización + ProfileMigrator.
+    implementation(libs.jackson.databind)
+    implementation(libs.jackson.module.kotlin)
     // Modelo canónico InterfaceStats — lo que se persiste en interface_metrics.
     api(project(":net-parsers"))
 

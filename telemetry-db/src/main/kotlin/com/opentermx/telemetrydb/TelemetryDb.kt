@@ -45,6 +45,11 @@ class TelemetryDb private constructor(
     val history = HistoryQueries(this)
     val maintenance = Maintenance(this)
 
+    // Fase 5B: identidad, perfiles y topología.
+    val fingerprints = FingerprintRepository(this)
+    val profiles = ProfileRepository(this)
+    val neighbors = NeighborRepository(this)
+
     /** `use {}` siempre: ninguna conexión sale del pool sin volver (error #17). */
     fun <T> withConnection(block: (Connection) -> T): T =
         dataSource.connection.use(block)

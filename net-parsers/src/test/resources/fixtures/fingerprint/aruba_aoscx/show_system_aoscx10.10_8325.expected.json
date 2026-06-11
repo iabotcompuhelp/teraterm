@@ -1,0 +1,10 @@
+{
+  "vendor": "ARUBA_AOSCX",
+  "model": "JL625A 8325-48Y8C",
+  "osVersion": "GL.10.10.1040",
+  "serialNumbers": ["TW1BKQX0AB"],
+  "hostname": "core-dc-8325",
+  "uptimeText": "203 days, 1 hour, 44 minutes",
+  "haRole": null,
+  "confidence": "HIGH"
+}

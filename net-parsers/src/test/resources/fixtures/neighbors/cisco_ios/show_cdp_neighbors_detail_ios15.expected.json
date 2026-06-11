@@ -1,0 +1,16 @@
+[
+  {
+    "localInterface": "GigabitEthernet1/0/1",
+    "remoteHostname": "sw-acceso-01.empresa.local",
+    "remotePort": "GigabitEthernet0/49",
+    "capabilities": ["Switch", "IGMP"],
+    "protocol": "CDP"
+  },
+  {
+    "localInterface": "GigabitEthernet1/0/48",
+    "remoteHostname": "rtr-wan-01",
+    "remotePort": "GigabitEthernet0/0/1",
+    "capabilities": ["Router", "Source-Route-Bridge", "IGMP"],
+    "protocol": "CDP"
+  }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "localInterface": "ether1",
+    "remoteHostname": "sw-lab-01",
+    "remotePort": null,
+    "capabilities": [],
+    "protocol": "MNDP"
+  },
+  {
+    "localInterface": "sfp-sfpplus1",
+    "remoteHostname": "core-r1",
+    "remotePort": null,
+    "capabilities": [],
+    "protocol": "MNDP"
+  },
+  {
+    "localInterface": "bridge-lan",
+    "remoteHostname": "srv-monitoreo",
+    "remotePort": null,
+    "capabilities": [],
+    "protocol": "MNDP"
+  }
+]

@@ -1,0 +1,35 @@
+# =====================================================================
+# OpenTermX — reglas de inferencia de ROL de dispositivo (Fase 5A)
+#
+# Evaluación en orden: la PRIMERA regla que matchea gana. Una regla matchea si
+# todas las condiciones de `when` se cumplen:
+#   - vendor:       nombre del enum com.opentermx.netparsers.Vendor
+#   - modelPattern: regex (java.util.regex) buscada DENTRO del modelo detectado
+# `when: {}` matchea siempre (fallback).
+#
+# El rol inferido es una SUGERENCIA (error #36): informa, no autoriza. El
+# operador confirma o corrige en la UI y su valor pisa siempre al inferido.
+#
+# Override del operador: ~/.opentermx/profiles/role-rules.yaml (si existe y
+# parsea, reemplaza por completo a este embebido).
+# =====================================================================
+version: 1
+
+rules:
+  - role: firewall
+    when: { vendor: FORTINET }
+
+  - role: wireless_controller
+    when: { modelPattern: "(?i)(9800|AIR-CT|Mobility|WLC|7030|7205)" }
+
+  - role: access_point
+    when: { modelPattern: "(?i)(AIR-AP|AP-\\d{3}|C91\\d{2}AX|CAP\\d)" }
+
+  - role: router
+    when: { modelPattern: "(?i)(ISR|ASR|NetEngine|CCR|RB\\d{3,4}|hAP|hEX)" }
+
+  - role: switch
+    when: { modelPattern: "(?i)(C9[23]00|C3[78]50|WS-C\\d{4}|Catalyst|Nexus|CloudEngine|CE\\d{4}|S[56]7\\d{2}|Quidway|JL\\d{3}A|Aruba [68]\\d{3}|63\\d{2}[MF]?|83\\d{2}|CRS\\d{3})" }
+
+  - role: unknown
+    when: {}          # fallback

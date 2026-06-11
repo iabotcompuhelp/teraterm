@@ -1,0 +1,15 @@
+Hostname                : core-dc-8325
+System Description      : GL.10.10.1040
+System Contact          : noc@empresa.example
+System Location         : Datacenter rack 12
+Vendor                  : Aruba
+Product Name            : JL625A 8325-48Y8C
+Chassis Serial Nbr      : TW1BKQX0AB
+Base MAC Address        : f8:60:f0:aa:bb:cc
+ArubaOS-CX Version      : GL.10.10.1040
+
+Time Zone               : America/Argentina/Buenos_Aires
+
+Up Time                 : 203 days, 1 hour, 44 minutes
+CPU Util (%)            : 9
+Memory Usage (%)        : 22

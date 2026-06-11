@@ -1,0 +1,18 @@
+                   uptime: 52w4d1h2m11s
+                  version: 6.49.10 (long-term)
+               build-time: Apr/05/2024 09:34:13
+         factory-software: 6.42.5
+              free-memory: 198.1MiB
+             total-memory: 256.0MiB
+                      cpu: ARM
+                cpu-count: 4
+            cpu-frequency: 1400MHz
+                 cpu-load: 7%
+           free-hdd-space: 4.1MiB
+          total-hdd-space: 16.0MiB
+  write-sect-since-reboot: 9912
+         write-sect-total: 88231
+               bad-blocks: 0%
+        architecture-name: arm
+               board-name: RB4011iGS+
+                 platform: MikroTik

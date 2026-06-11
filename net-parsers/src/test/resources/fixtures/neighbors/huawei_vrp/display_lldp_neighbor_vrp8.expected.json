@@ -1,0 +1,16 @@
+[
+  {
+    "localInterface": "GigabitEthernet0/0/1",
+    "remoteHostname": "CE-AGG-01",
+    "remotePort": "GigabitEthernet1/0/10",
+    "capabilities": ["bridge", "router"],
+    "protocol": "LLDP"
+  },
+  {
+    "localInterface": "GigabitEthernet0/0/24",
+    "remoteHostname": "S5720-LAB",
+    "remotePort": "XGigabitEthernet0/0/3",
+    "capabilities": ["bridge"],
+    "protocol": "LLDP"
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "vendor": "CISCO_IOS",
+  "model": "WS-C2960X-48TS-L",
+  "osVersion": "15.2(7)E3",
+  "serialNumbers": ["FOC1932X0K1"],
+  "hostname": "sw-acceso-p2",
+  "uptimeText": "5 weeks, 1 day, 3 hours, 12 minutes",
+  "haRole": null,
+  "confidence": "HIGH"
+}

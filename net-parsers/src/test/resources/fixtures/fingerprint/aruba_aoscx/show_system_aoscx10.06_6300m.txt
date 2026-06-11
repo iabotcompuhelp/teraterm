@@ -1,0 +1,17 @@
+Hostname                : sw-piso3-idf2
+System Description      : FL.10.06.0010
+System Contact          :
+System Location         : IDF 2, piso 3
+Vendor                  : Aruba
+Product Name            : JL658A 6300M 24SFP+ 4SFP56 Swch
+Chassis Serial Nbr      : SG0AKN0123
+Base MAC Address        : 88:3a:30:11:22:33
+ArubaOS-CX Version      : FL.10.06.0010
+
+Time Zone               : UTC
+
+Up Time                 : 17 days, 4 hours, 12 minutes
+CPU Util (%)            : 4
+CPU Util (% avg 1 min)  : 5
+CPU Util (% avg 5 min)  : 5
+Memory Usage (%)        : 14

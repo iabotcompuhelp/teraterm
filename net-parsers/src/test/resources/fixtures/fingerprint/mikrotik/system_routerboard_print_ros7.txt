@@ -1,0 +1,8 @@
+       routerboard: yes
+        board-name: CCR1036-12G-4S
+             model: CCR1036-12G-4S
+     serial-number: 9AB3045D7E2F
+     firmware-type: tilegx
+  factory-firmware: 6.46.3
+  current-firmware: 7.14.2
+  upgrade-firmware: 7.14.2

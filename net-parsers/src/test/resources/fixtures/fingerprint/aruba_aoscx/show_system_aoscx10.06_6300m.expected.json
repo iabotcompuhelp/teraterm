@@ -1,0 +1,10 @@
+{
+  "vendor": "ARUBA_AOSCX",
+  "model": "JL658A 6300M 24SFP+ 4SFP56 Swch",
+  "osVersion": "FL.10.06.0010",
+  "serialNumbers": ["SG0AKN0123"],
+  "hostname": "sw-piso3-idf2",
+  "uptimeText": "17 days, 4 hours, 12 minutes",
+  "haRole": null,
+  "confidence": "HIGH"
+}

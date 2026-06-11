@@ -1,0 +1,10 @@
+{
+  "vendor": "FORTINET",
+  "model": "FortiGate-100F",
+  "osVersion": "7.2.5 build1517",
+  "serialNumbers": ["FG100FTK20012345"],
+  "hostname": "fw-sucursal-norte",
+  "uptimeText": null,
+  "haRole": "standalone",
+  "confidence": "HIGH"
+}

@@ -1,0 +1,18 @@
+                   uptime: 2w3d5h12m36s
+                  version: 7.14.2 (stable)
+               build-time: 2024-03-27 08:54:54
+         factory-software: 6.44.6
+              free-memory: 3148.2MiB
+             total-memory: 4096.0MiB
+                      cpu: tilegx
+                cpu-count: 36
+            cpu-frequency: 1200MHz
+                 cpu-load: 2%
+           free-hdd-space: 83.2MiB
+          total-hdd-space: 128.0MiB
+  write-sect-since-reboot: 142883
+         write-sect-total: 1024917
+               bad-blocks: 0%
+        architecture-name: tile
+               board-name: CCR1036-12G-4S
+                 platform: MikroTik

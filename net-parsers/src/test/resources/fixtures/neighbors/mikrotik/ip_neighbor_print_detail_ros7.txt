@@ -1,0 +1,14 @@
+Flags: D - dhcp
+ 0   interface=ether1 address=10.0.0.2 address4=10.0.0.2
+     mac-address=CC:2D:E0:11:22:33 identity="sw-lab-01" platform="MikroTik"
+     version="6.49.10 (long-term)" unpack=none age=30s uptime=2w3d4h
+     software-id="ABCD-1234" board=CRS326-24G-2S+ interface-list=LAN
+
+ 1   interface=sfp-sfpplus1 address=10.0.0.3 address4=10.0.0.3
+     mac-address=DC:2C:6E:44:55:66 identity="core-r1" platform="MikroTik"
+     version="7.14.2 (stable)" unpack=none age=12s uptime=10w1d2h
+     software-id="EFGH-5678" board=CCR2004-1G-12S+2XS interface-list=LAN
+
+ 2 D interface=bridge-lan address=10.0.0.50 address4=10.0.0.50
+     mac-address=B8:27:EB:77:88:99 identity="srv-monitoreo" platform="Linux"
+     version="5.15" unpack=none age=5s

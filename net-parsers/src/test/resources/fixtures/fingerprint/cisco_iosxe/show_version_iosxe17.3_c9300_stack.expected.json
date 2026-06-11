@@ -1,0 +1,10 @@
+{
+  "vendor": "CISCO_IOSXE",
+  "model": "C9300-48P",
+  "osVersion": "17.03.04",
+  "serialNumbers": ["FCW2238G0LK", "FCW2238G0MN", "FCW2238G0PQ"],
+  "hostname": "sw-core-edif-a",
+  "uptimeText": "31 weeks, 4 days, 22 hours, 1 minute",
+  "haRole": null,
+  "confidence": "HIGH"
+}

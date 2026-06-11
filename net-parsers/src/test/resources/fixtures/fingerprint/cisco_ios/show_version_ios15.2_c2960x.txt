@@ -1,0 +1,43 @@
+Cisco IOS Software, C2960X Software (C2960X-UNIVERSALK9-M), Version 15.2(7)E3, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 31-Mar-20 17:25 by prod_rel_team
+
+ROM: Bootstrap program is C2960X boot loader
+BOOTLDR: C2960X Boot Loader (C2960X-HBOOT-M) Version 15.2(3r)E1, RELEASE SOFTWARE (fc1)
+
+sw-acceso-p2 uptime is 5 weeks, 1 day, 3 hours, 12 minutes
+System returned to ROM by power-on
+System restarted at 09:55:21 UTC Mon May 4 2026
+System image file is "flash:/c2960x-universalk9-mz.152-7.E3/c2960x-universalk9-mz.152-7.E3.bin"
+Last reload reason: power-on
+
+cisco WS-C2960X-48TS-L (APM86XXX) processor (revision A0) with 524288K bytes of memory.
+Processor board ID FOC1932X0K1
+Last reset from power-on
+48 Gigabit Ethernet interfaces
+4 Gigabit Ethernet SFP interfaces
+The password-recovery mechanism is enabled.
+
+512K bytes of flash-simulated non-volatile configuration memory.
+Base ethernet MAC Address       : 00:CA:FE:11:22:33
+Motherboard assembly number     : 73-15756-03
+Power supply part number        : 341-0524-01
+Motherboard serial number       : FOC19310ABC
+Power supply serial number      : DCB1930A1BC
+Model revision number           : A0
+Motherboard revision number     : B0
+Model number                    : WS-C2960X-48TS-L
+System serial number            : FOC1932X0K1
+Top Assembly Part Number        : 800-41277-01
+Top Assembly Revision Number    : A0
+Version ID                      : V03
+CLEI Code Number                : CMMPP00ARC
+Hardware Board Revision Number  : 0x18
+
+
+Switch Ports Model                     SW Version            SW Image
+------ ----- -----                     ----------            ----------
+*    1 52    WS-C2960X-48TS-L          15.2(7)E3             C2960X-UNIVERSALK9-M
+
+Configuration register is 0xF

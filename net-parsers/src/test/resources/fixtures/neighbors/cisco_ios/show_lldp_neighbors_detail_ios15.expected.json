@@ -1,0 +1,16 @@
+[
+  {
+    "localInterface": "Gi1/0/2",
+    "remoteHostname": "sw-dist-02.empresa.local",
+    "remotePort": "Gi1/0/24",
+    "capabilities": ["B", "R"],
+    "protocol": "LLDP"
+  },
+  {
+    "localInterface": "Te1/1/1",
+    "remoteHostname": "0011.2233.4455",
+    "remotePort": "537",
+    "capabilities": ["B"],
+    "protocol": "LLDP"
+  }
+]

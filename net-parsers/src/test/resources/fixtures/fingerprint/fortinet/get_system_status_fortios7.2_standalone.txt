@@ -1,0 +1,27 @@
+Version: FortiGate-100F v7.2.5,build1517,230620 (GA.F)
+Security Level: 1
+Firmware Signature: certified
+Virus-DB: 91.04444(2023-06-26 13:04)
+Extended DB: 91.04444(2023-06-26 13:03)
+AV AI/ML Model: 2.14036(2023-06-26 12:45)
+IPS-DB: 6.00741(2015-12-01 02:30)
+IPS-ETDB: 0.00000(2001-01-01 00:00)
+APP-DB: 25.00560(2023-06-26 12:57)
+Serial-Number: FG100FTK20012345
+BIOS version: 05000012
+System Part-Number: P24286-03
+Log hard disk: Available
+Hostname: fw-sucursal-norte
+Private Encryption: Disable
+Operation Mode: NAT
+Current virtual domain: root
+Max number of virtual domains: 10
+Virtual domains status: 1 in NAT mode, 0 in TP mode
+Virtual domain configuration: disable
+FIPS-CC mode: disable
+Current HA mode: standalone
+Branch point: 1517
+Release Version Information: GA
+FortiOS x86-64: Yes
+System time: Mon Jun  8 14:21:33 2026
+Last reboot reason: warm reboot

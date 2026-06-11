@@ -1,0 +1,40 @@
+-------------------------
+Device ID: sw-acceso-01.empresa.local
+Entry address(es):
+  IP address: 10.10.2.11
+Platform: cisco WS-C2960X-48TS-L,  Capabilities: Switch IGMP
+Interface: GigabitEthernet1/0/1,  Port ID (outgoing port): GigabitEthernet0/49
+Holdtime : 132 sec
+
+Version :
+Cisco IOS Software, C2960X Software (C2960X-UNIVERSALK9-M), Version 15.2(7)E3, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+
+advertisement version: 2
+Protocol Hello:  OUI=0x00000C, Protocol ID=0x0112; payload len=27
+VTP Management Domain: 'EMPRESA'
+Native VLAN: 1
+Duplex: full
+Management address(es):
+  IP address: 10.10.2.11
+
+-------------------------
+Device ID: rtr-wan-01
+Entry address(es):
+  IP address: 10.10.0.1
+Platform: Cisco ISR4331/K9,  Capabilities: Router Source-Route-Bridge IGMP
+Interface: GigabitEthernet1/0/48,  Port ID (outgoing port): GigabitEthernet0/0/1
+Holdtime : 154 sec
+
+Version :
+Cisco IOS XE Software, Version 17.03.04a
+Cisco IOS Software [Amsterdam], ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M)
+
+advertisement version: 2
+Duplex: full
+Management address(es):
+  IP address: 10.10.0.1
+
+
+Total cdp entries displayed : 2

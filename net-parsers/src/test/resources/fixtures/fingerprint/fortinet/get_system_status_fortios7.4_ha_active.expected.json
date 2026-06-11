@@ -1,0 +1,10 @@
+{
+  "vendor": "FORTINET",
+  "model": "FortiGate-600E",
+  "osVersion": "7.4.1 build2463",
+  "serialNumbers": ["FG6H0E5819901234"],
+  "hostname": "fw-dc-primario",
+  "uptimeText": null,
+  "haRole": "active",
+  "confidence": "HIGH"
+}

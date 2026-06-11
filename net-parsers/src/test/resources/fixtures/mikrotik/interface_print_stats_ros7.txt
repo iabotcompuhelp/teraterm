@@ -1,0 +1,7 @@
+Flags: D - dynamic; X - disabled, R - running
+Columns: NAME, RX-BYTE, TX-BYTE, RX-PACKET, TX-PACKET, RX-DROP, TX-DROP, TX-QUEUE-DROP, RX-ERROR, TX-ERROR
+ #    NAME             RX-BYTE        TX-BYTE      RX-PACKET   TX-PACKET  RX-DROP  TX-DROP  TX-QUEUE-DROP  RX-ERROR  TX-ERROR
+ 0 R  ether1     6543210987654  5876543210987     7654321098  6987654321     1024        0             37       312         0
+ 1 R  ether2       98765432109    87654321098       87654321    76543210        0        0              0         5         0
+ 2 X  ether3                 0              0              0           0        0        0              0         0         0
+ 3 R  bridge1    6641976419763  5964197532085     7741975419  7064197531        0        0              0         0         0

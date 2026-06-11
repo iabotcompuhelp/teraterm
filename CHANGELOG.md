@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased — Telemetría Fase 2 (2026-06-10)
+
+Parsing estructurado por vendor + tools de telemetría de alto nivel (catálogo MCP:
+**28 tools**).
+
+- Módulo nuevo `net-parsers/` (Kotlin puro): modelo canónico `InterfaceStats` (18
+  campos, contadores Long), `ParseResult` Success/PartialSuccess/Failure, y 8 parsers:
+  Cisco IOS/IOS-XE (`show interfaces`), NX-OS (`show interface`), Huawei VRP
+  (`display interface`), Aruba AOS-CX (`show interface`), FortiOS (`get system
+  interface` + `diagnose hardware deviceinfo nic`), MikroTik (`/interface print
+  stats` + `ethernet monitor`). Regla de oro: campo ausente ⇒ null, basura ⇒ Failure
+  con muestra del crudo — ningún parser lanza.
+- 24 fixtures reales/realistas (12 pares .txt/.expected.json en 6 vendors) comparados
+  con JSONAssert STRICT + fixtures `_dirty/` de stream crudo (ESC, backspaces,
+  Latin-1 inválido, paginadores, syslog) para el `OutputCleaner`, que se mudó de
+  `mcp-server` a `net-parsers` y ganó decode tolerante, filtro de syslog y descarte
+  de prompt final.
+- 3 tools MCP nuevas sobre el runner de la Fase 1 (instancia compartida ⇒ mutex por
+  sesión efectivo): `get_interface_stats` (JSON canónico; `parsed:false` + crudo si
+  el parser no reconoce; `persist` no-op hasta Fase 3), `get_link_status`
+  (proyección liviana + `onlyProblems`), `get_bandwidth_utilization`
+  (`device_rate` / `counter_delta` con descarte de deltas negativos por wrap).
+- Vendor canónico de telemetría alineado con el `vendor_t` del esquema PostgreSQL
+  de la Fase 3 (`CISCO_NXOS`, `ARUBA_AOSCX`, `FORTINET`, `MIKROTIK`, …).
+
 ## Unreleased — Telemetría Fase 1 (2026-06-10)
 
 Tool MCP `run_readonly_command`: ejecución de comandos de solo lectura sin aprobación

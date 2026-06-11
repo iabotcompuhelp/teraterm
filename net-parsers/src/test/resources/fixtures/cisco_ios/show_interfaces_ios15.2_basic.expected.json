@@ -1,0 +1,46 @@
+{
+  "parsed": true,
+  "vendor": "CISCO_IOS",
+  "interfaces": [
+    {
+      "name": "GigabitEthernet0/1",
+      "description": "UPLINK-TO-CORE-SW01",
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": 1000000000,
+      "duplex": "FULL",
+      "mtu": 1500,
+      "inputRateBps": 2304000,
+      "outputRateBps": 1841000,
+      "inputPackets": 58422345,
+      "outputPackets": 49283746,
+      "inputErrors": 142,
+      "outputErrors": 0,
+      "crcErrors": 89,
+      "inputDrops": 12,
+      "outputDrops": 35,
+      "collisions": 3,
+      "lastFlap": null
+    },
+    {
+      "name": "GigabitEthernet0/2",
+      "description": "LIBRE-RESERVADO",
+      "adminStatus": "DOWN",
+      "operStatus": "ADMIN_DOWN",
+      "speedBps": null,
+      "duplex": "AUTO",
+      "mtu": 1500,
+      "inputRateBps": 0,
+      "outputRateBps": 0,
+      "inputPackets": 0,
+      "outputPackets": 0,
+      "inputErrors": 0,
+      "outputErrors": 0,
+      "crcErrors": 0,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": 0,
+      "lastFlap": null
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "HUAWEI_VRP",
+  "interfaces": [
+    {
+      "name": "GigabitEthernet0/0/12",
+      "description": "HUAWEI Test Port - RESERVADO",
+      "adminStatus": "DOWN",
+      "operStatus": "ADMIN_DOWN",
+      "speedBps": 1000000000,
+      "duplex": "FULL",
+      "mtu": null,
+      "inputRateBps": 0,
+      "outputRateBps": 0,
+      "inputPackets": 0,
+      "outputPackets": 0,
+      "inputErrors": 0,
+      "outputErrors": 0,
+      "crcErrors": 0,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": 0,
+      "lastFlap": null
+    }
+  ]
+}

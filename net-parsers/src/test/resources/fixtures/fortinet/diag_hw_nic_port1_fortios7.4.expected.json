@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "FORTINET",
+  "interfaces": [
+    {
+      "name": "port1",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": 10000000000,
+      "duplex": "FULL",
+      "mtu": 1500,
+      "inputRateBps": null,
+      "outputRateBps": null,
+      "inputPackets": 7654321098,
+      "outputPackets": 6987654321,
+      "inputErrors": 312,
+      "outputErrors": 0,
+      "crcErrors": 287,
+      "inputDrops": 1024,
+      "outputDrops": 0,
+      "collisions": 0,
+      "lastFlap": null
+    }
+  ]
+}

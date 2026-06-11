@@ -79,6 +79,7 @@ object TestServerMain {
                 ),
             ),
         )
+        val sharedRunner = com.opentermx.mcp.exec.SessionCommandRunner()
         val handlers = listOf(
             ListSessionsHandler(),
             InspectSessionHandler(),
@@ -95,7 +96,12 @@ object TestServerMain {
                 gate,
                 allowWithoutApproval = { true },
                 validatorProvider = { com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded() },
+                runner = sharedRunner,
             ),
+            // Fase 2 telemetría: mismo runner compartido (mutex por sesión).
+            com.opentermx.mcp.handlers.GetInterfaceStatsHandler(sharedRunner),
+            com.opentermx.mcp.handlers.GetLinkStatusHandler(sharedRunner),
+            com.opentermx.mcp.handlers.GetBandwidthUtilizationHandler(sharedRunner),
             ListMacrosHandler(),
             RunMacroHandler(gate),
             OpenSessionHandler(gate, SessionOpener.NoOp, inventory),

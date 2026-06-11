@@ -164,6 +164,29 @@ El checkbox *Allow read-only commands without approval* (default ON) controla el
 apagado, cada comando vuelve a pasar por el diálogo de aprobación. Toda invocación —
 incluso los rechazos de la whitelist — queda en `~/.opentermx/audit-ia.csv`.
 
+### `get_interface_stats` / `get_link_status` / `get_bandwidth_utilization` (telemetría — Fase 2)
+
+Tools de alto nivel sobre la misma infraestructura: eligen el comando de interfaces
+según el vendor detectado (`show interfaces`, `show interface`, `display interface`,
+`get system interface` / `diagnose hardware deviceinfo nic <if>`, `/interface print
+stats`), lo ejecutan con prompt-detection/des-paginación/mutex y parsean el output a
+JSON canónico con el módulo `net-parsers`.
+
+- **`get_interface_stats`** — estado, velocidad, duplex, MTU, tasas, contadores,
+  errores, CRC, drops y lastFlap por interfaz (18 campos canónicos; campo que el
+  equipo no reporta = `null`). Si el parser no reconoce el output: `parsed: false` +
+  texto crudo. `persist` es no-op hasta la Fase 3 (`persisted: false`).
+- **`get_link_status`** — proyección liviana (nombre/admin/oper/lastFlap);
+  `onlyProblems: true` devuelve solo interfaces caídas o err-disabled con admin UP.
+- **`get_bandwidth_utilization`** — tasas + % de utilización. `method: device_rate`
+  si el equipo reporta tasas; si no, `counter_delta` con dos muestras separadas por
+  `sampleIntervalSeconds` (5–30 s). Delta negativo (wrap/reset) ⇒ tasa `null` con
+  warning, nunca un negativo.
+
+Las tres ejecutan SOLO comandos del catálogo interno (nunca input del cliente), son
+de lectura pura y quedan auditadas. Vendor sin soporte ⇒ error claro que sugiere
+`run_readonly_command`.
+
 ## Configuración del cliente
 
 ### Claude Desktop / Cursor / Claude Code

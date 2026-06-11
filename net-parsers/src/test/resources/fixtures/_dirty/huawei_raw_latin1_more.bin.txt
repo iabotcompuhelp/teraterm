@@ -1,0 +1,8 @@
+display interface GigabitEthernet0/0/1
+Aviso: acceso sólo personal autorizado © 2026
+GigabitEthernet0/0/1 current state : UP
+Line protocol current state : UP
+Description:LINK-TO-ACCESS-SW02-G0/0/24
+  ---- More ----
+Speed :  1000,  Duplex: FULL
+<HUA-CORE-01>

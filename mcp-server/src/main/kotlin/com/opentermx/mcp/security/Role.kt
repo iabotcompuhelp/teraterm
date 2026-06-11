@@ -66,6 +66,9 @@ object RoleAccessControl {
         "open_session", "close_session", "propose_commands", "run_macro",
         // Lectura ejecutable: whitelist estricta read-only, gate opcional (auto-approve).
         "run_readonly_command",
+        // Fase 2 telemetría: ejecutan comandos de interfaces del catálogo interno y
+        // devuelven JSON canónico parseado.
+        "get_interface_stats", "get_link_status", "get_bandwidth_utilization",
         // Side-channel.
         "tail_session",
         // Phase 3 Fase 4 — snapshots: el operator captura el "antes" antes de ejecutar.

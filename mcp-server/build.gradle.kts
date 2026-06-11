@@ -48,6 +48,8 @@ dependencies {
     api(project(":policy-engine"))
     implementation(project(":ai-assistant"))
     implementation(project(":macro-engine"))
+    // Fase 2 telemetría: parsers de output por vendor + OutputCleaner compartido.
+    implementation(project(":net-parsers"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.javalin)

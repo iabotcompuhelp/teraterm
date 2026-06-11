@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "HUAWEI_VRP",
+  "interfaces": [
+    {
+      "name": "GigabitEthernet0/0/1",
+      "description": "LINK-TO-ACCESS-SW02-G0/0/24",
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": 1000000000,
+      "duplex": "FULL",
+      "mtu": null,
+      "inputRateBps": 18456000,
+      "outputRateBps": 15234000,
+      "inputPackets": 124567890,
+      "outputPackets": 113456789,
+      "inputErrors": 73,
+      "outputErrors": 0,
+      "crcErrors": 61,
+      "inputDrops": 56,
+      "outputDrops": 8,
+      "collisions": 0,
+      "lastFlap": "2026-04-02 08:15:33"
+    }
+  ]
+}

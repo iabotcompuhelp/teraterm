@@ -1,0 +1,36 @@
+Name:            port1
+Driver:          ixgbe
+Version:         5.1.0-k
+Bus:             0000:01:00.0
+Hwaddr:          00:09:0f:aa:bb:01
+Permanent Hwaddr:00:09:0f:aa:bb:01
+State:           up
+Link:            up
+Mtu:             1500
+Supported:       1000full 10000full 
+Advertised:      1000full 10000full 
+Speed:           10000full
+Auto:            disabled
+RX Ring:         512
+TX Ring:         512
+============ Counters ===========
+rx_packets: 7654321098
+tx_packets: 6987654321
+rx_bytes: 6543210987654
+tx_bytes: 5876543210987
+rx_errors: 312
+tx_errors: 0
+rx_dropped: 1024
+tx_dropped: 0
+multicast: 8765432
+collisions: 0
+rx_length_errors: 0
+rx_over_errors: 0
+rx_crc_errors: 287
+rx_frame_errors: 25
+rx_fifo_errors: 0
+rx_missed_errors: 1024
+tx_aborted_errors: 0
+tx_carrier_errors: 0
+tx_fifo_errors: 0
+tx_heartbeat_errors: 0

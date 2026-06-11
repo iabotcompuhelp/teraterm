@@ -1,0 +1,34 @@
+Interface 1/1/7 is down (Waiting for link)
+ Admin state is up
+ Link state: down for 12 hours (since Mon Jun 08 19:30:02 ECT 2026)
+ Link transitions: 41
+ Description: AP-PISO3-OFICINA-NORTE
+ Hardware: Ethernet, MAC Address: 38:21:c7:11:22:07
+ MTU 1500
+ Type 1GbT
+ Auto-Duplex
+ qos trust none
+ Auto-Speed
+ Auto-negotiation is on
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDIX
+ VLAN Mode: access
+ Access VLAN: 30
+
+ Rate RX
+  Total (bps)                      0
+  Utilization (%)               0.00
+
+ Rate TX
+  Total (bps)                      0
+  Utilization (%)               0.00
+
+ RX
+  87654321 input packets      65432109876 bytes
+  2241 input error            305 dropped
+  2189 CRC/FCS
+ TX
+  76543210 output packets     54321098765 bytes
+  1 output errors             0 dropped
+  0 collision

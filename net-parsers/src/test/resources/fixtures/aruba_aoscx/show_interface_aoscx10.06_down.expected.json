@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "ARUBA_AOSCX",
+  "interfaces": [
+    {
+      "name": "1/1/7",
+      "description": "AP-PISO3-OFICINA-NORTE",
+      "adminStatus": "UP",
+      "operStatus": "DOWN",
+      "speedBps": null,
+      "duplex": "AUTO",
+      "mtu": 1500,
+      "inputRateBps": 0,
+      "outputRateBps": 0,
+      "inputPackets": 87654321,
+      "outputPackets": 76543210,
+      "inputErrors": 2241,
+      "outputErrors": 1,
+      "crcErrors": 2189,
+      "inputDrops": 305,
+      "outputDrops": 0,
+      "collisions": 0,
+      "lastFlap": "down for 12 hours (since Mon Jun 08 19:30:02 ECT 2026)"
+    }
+  ]
+}

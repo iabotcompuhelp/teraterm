@@ -1,0 +1,8 @@
+== [ port1 ]
+name: port1   mode: static    ip: 190.10.20.1 255.255.255.248   status: up    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    explicit-web-proxy: disable    explicit-ftp-proxy: disable    mtu-override: disable    wccp: disable    drop-overlapped-fragment: disable    drop-fragment: disable 
+== [ port2 ]
+name: port2   mode: static    ip: 10.0.10.1 255.255.255.0   status: up    netbios-forward: disable    type: physical   description: LAN-INTERNA-VLAN10   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    mtu-override: disable 
+== [ port3 ]
+name: port3   mode: static    ip: 0.0.0.0 0.0.0.0   status: down    netbios-forward: disable    type: physical   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    mtu-override: disable 
+== [ wan1 ]
+name: wan1   mode: pppoe    ip: 186.46.100.22 255.255.255.255   status: up    netbios-forward: disable    type: physical   description: ENLACE-ISP-PRINCIPAL   netflow-sampler: disable    sflow-sampler: disable    src-check: enable    mtu-override: enable    mtu: 1492 

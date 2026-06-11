@@ -1,0 +1,43 @@
+Interface 1/1/49 is up
+ Admin state is up
+ Link state: up for 3 weeks (since Tue May 19 09:12:44 ECT 2026)
+ Link transitions: 5
+ Description: UPLINK-DATACENTER-FW
+ Persona: 
+ Hardware: Ethernet, MAC Address: 38:21:c7:11:22:49
+ MTU 9198
+ Type SFP+SR
+ Full-duplex
+ qos trust none
+ Speed 10000 Mb/s
+ Auto-negotiation is off
+ Flow-control: off
+ Error-control: off
+ MDI mode: none
+ VLAN Mode: trunk
+ Native VLAN: 1
+ Allowed VLAN List: 10,20,30,100
+ Rate collection interval: 300 seconds
+
+ Rate RX
+  Total (bps)              412567000
+  Unicast (bps)            409876000
+  Multicast (bps)            1876000
+  Broadcast (bps)             815000
+  Utilization (%)               4.13
+
+ Rate TX
+  Total (bps)              389123000
+  Unicast (bps)            387654000
+  Multicast (bps)            1023000
+  Broadcast (bps)             446000
+  Utilization (%)               3.89
+
+ RX
+  2387654321 input packets    1987654321098 bytes
+  17 input error              43 dropped
+  9 CRC/FCS
+ TX
+  2198765432 output packets   1765432109876 bytes
+  0 output errors             12 dropped
+  0 collision

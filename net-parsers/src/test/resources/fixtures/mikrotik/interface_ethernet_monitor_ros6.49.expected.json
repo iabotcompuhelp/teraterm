@@ -1,0 +1,20 @@
+{
+  "parsed": true,
+  "vendor": "MIKROTIK",
+  "interfaces": [
+    {
+      "name": "ether1",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": 1000000000,
+      "duplex": "FULL",
+      "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": null, "outputPackets": null,
+      "inputErrors": null, "outputErrors": null, "crcErrors": null,
+      "inputDrops": null, "outputDrops": null, "collisions": null,
+      "lastFlap": null
+    }
+  ]
+}

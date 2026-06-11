@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "ARUBA_AOSCX",
+  "interfaces": [
+    {
+      "name": "1/1/49",
+      "description": "UPLINK-DATACENTER-FW",
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": 10000000000,
+      "duplex": "FULL",
+      "mtu": 9198,
+      "inputRateBps": 412567000,
+      "outputRateBps": 389123000,
+      "inputPackets": 2387654321,
+      "outputPackets": 2198765432,
+      "inputErrors": 17,
+      "outputErrors": 0,
+      "crcErrors": 9,
+      "inputDrops": 43,
+      "outputDrops": 12,
+      "collisions": 0,
+      "lastFlap": "up for 3 weeks (since Tue May 19 09:12:44 ECT 2026)"
+    }
+  ]
+}

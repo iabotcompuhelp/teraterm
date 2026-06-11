@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "CISCO_IOS",
+  "interfaces": [
+    {
+      "name": "FastEthernet0/3",
+      "description": "PUERTO-USUARIO-PISO2",
+      "adminStatus": "UP",
+      "operStatus": "ERR_DISABLED",
+      "speedBps": null,
+      "duplex": "AUTO",
+      "mtu": 1500,
+      "inputRateBps": 0,
+      "outputRateBps": 0,
+      "inputPackets": 8842311,
+      "outputPackets": 7731204,
+      "inputErrors": 3517,
+      "outputErrors": 2,
+      "crcErrors": 3401,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": 187,
+      "lastFlap": null
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+GigabitEthernet0/1 is up, line protocol is up 
+  Hardware is Gigabit Ethernet, address is 0019.e87c.5a01 (bia 0019.e87c.5a01)
+  Description: UPLINK-TO-CORE-SW01
+  MTU 1500 bytes, BW 1000000 Kbit/sec, DLY 10 usec, 
+     reliability 255/255, txload 1/255, rxload 1/255
+  Full-duplex, 1000Mb/s, media type is 10/100/1000BaseTX
+  5 minute input rate 2304000 bits/sec, 412 packets/sec
+  5 minute output rate 1841000 bits/sec, 389 packets/sec
+     58422345 packets input, 4123456789 bytes, 0 no buffer
+     142 input errors, 89 CRC, 0 frame, 0 overrun, 0 ignored
+     49283746 packets output, 3987654321 bytes, 0 underruns
+     0 output errors, 3 collisions, 1 interface resets

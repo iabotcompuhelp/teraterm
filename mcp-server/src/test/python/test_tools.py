@@ -194,3 +194,18 @@ def test_run_readonly_command_sesion_inexistente_devuelve_isError(client):
         "command": "show version",
     })
     assert resp["result"]["isError"] is True
+
+
+# --------------------------------------------------------------- Fase 2 telemetría
+
+
+def test_tools_list_expone_las_tools_de_telemetria(client):
+    resp = rpc(client, "tools/list")
+    tools = {t["name"] for t in resp["result"]["tools"]}
+    assert {"run_readonly_command", "get_interface_stats", "get_link_status",
+            "get_bandwidth_utilization"} <= tools
+
+
+def test_get_interface_stats_sesion_inexistente_devuelve_isError(client):
+    resp = call_tool(client, "get_interface_stats", {"sessionId": "no-existe"})
+    assert resp["result"]["isError"] is True

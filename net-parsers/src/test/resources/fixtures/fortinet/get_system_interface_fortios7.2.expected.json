@@ -1,0 +1,57 @@
+{
+  "parsed": true,
+  "vendor": "FORTINET",
+  "interfaces": [
+    {
+      "name": "port1",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": null, "outputPackets": null,
+      "inputErrors": null, "outputErrors": null, "crcErrors": null,
+      "inputDrops": null, "outputDrops": null, "collisions": null,
+      "lastFlap": null
+    },
+    {
+      "name": "port2",
+      "description": "LAN-INTERNA-VLAN10",
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": null, "outputPackets": null,
+      "inputErrors": null, "outputErrors": null, "crcErrors": null,
+      "inputDrops": null, "outputDrops": null, "collisions": null,
+      "lastFlap": null
+    },
+    {
+      "name": "port3",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "DOWN",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": null, "outputPackets": null,
+      "inputErrors": null, "outputErrors": null, "crcErrors": null,
+      "inputDrops": null, "outputDrops": null, "collisions": null,
+      "lastFlap": null
+    },
+    {
+      "name": "wan1",
+      "description": "ENLACE-ISP-PRINCIPAL",
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": null, "duplex": null, "mtu": 1492,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": null, "outputPackets": null,
+      "inputErrors": null, "outputErrors": null, "crcErrors": null,
+      "inputDrops": null, "outputDrops": null, "collisions": null,
+      "lastFlap": null
+    }
+  ],
+  "warnings": [
+    "get system interface no expone contadores ni velocidad; combinar con diagnose hardware deviceinfo nic <port> para metricas"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "CISCO_NXOS",
+  "interfaces": [
+    {
+      "name": "Ethernet1/1",
+      "description": "TO-SPINE-01-Eth1/12",
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": 10000000000,
+      "duplex": "FULL",
+      "mtu": 9216,
+      "inputRateBps": 312456000,
+      "outputRateBps": 287654000,
+      "inputPackets": 983109876,
+      "outputPackets": 877596296,
+      "inputErrors": 27,
+      "outputErrors": 0,
+      "crcErrors": 21,
+      "inputDrops": 18,
+      "outputDrops": 5,
+      "collisions": 0,
+      "lastFlap": "6week(s) 4day(s)"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+GigabitEthernet0/0/1 current state : UP
+Line protocol current state : UP
+Description:LINK-TO-ACCESS-SW02-G0/0/24
+Switch Port, PVID :   10, TPID : 8100(Hex), The Maximum Frame Length is 9216
+IP Sending Frames' Format is PKTFMT_ETHNT_2, Hardware address is 00e0-fc12-3401
+Last physical up time   : 2026-04-02 08:15:33
+Last physical down time : 2026-04-02 08:14:51
+Current system time: 2026-06-09 17:42:10
+Port Mode: COMMON COPPER
+Speed :  1000,  Loopback: NONE
+Duplex: FULL,   Negotiation: ENABLE
+Mdi   : AUTO,   Flow-control: DISABLE
+Last 300 seconds input rate 18456000 bits/sec, 3211 packets/sec
+Last 300 seconds output rate 15234000 bits/sec, 2876 packets/sec
+Input peak rate 245678000 bits/sec, Record time: 2026-05-12 10:21:44
+Output peak rate 198765000 bits/sec, Record time: 2026-05-12 10:21:44
+
+Input:  124567890 packets, 98765432109 bytes
+  Unicast:              123456789,  Multicast:             876543
+  Broadcast:               234558,  Jumbo:                      0
+  Discard:                     56,  Pause:                      0
+  Frames:                       0
+
+  Total Error:                 73
+  CRC:                         61,  Giants:                     0
+  Jabbers:                      0,  Fragments:                 12
+  Runts:                        0,  DropEvents:                 0
+  Alignments:                   0,  Symbols:                    0
+  Ignoreds:                     0
+
+Output: 113456789 packets, 87654321098 bytes
+  Unicast:              112345678,  Multicast:             987654
+  Broadcast:               123457,  Jumbo:                      0
+  Discard:                      8,  Pause:                      0
+
+  Total Error:                  0
+  Collisions:                   0,  ExcessiveCollisions:        0
+  Late Collisions:              0,  Deferreds:                  0
+
+  Input bandwidth utilization threshold : 90.00%
+  Output bandwidth utilization threshold: 90.00%
+  Input bandwidth utilization  :  1.85%
+  Output bandwidth utilization :  1.52%

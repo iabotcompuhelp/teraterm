@@ -1,0 +1,30 @@
+GigabitEthernet0/0/12 current state : Administratively DOWN
+Line protocol current state : DOWN
+Description:HUAWEI Test Port - RESERVADO
+Switch Port, PVID :    1, The Maximum Frame Length is 1600
+IP Sending Frames' Format is PKTFMT_ETHNT_2, Hardware address is 00e0-fc12-340c
+Port Mode: COMMON COPPER
+Speed : 1000,  Loopback: NONE
+Duplex: FULL,  Negotiation: ENABLE
+Mdi   : AUTO
+Last 300 seconds input rate 0 bits/sec, 0 packets/sec
+Last 300 seconds output rate 0 bits/sec, 0 packets/sec
+
+Input:  0 packets, 0 bytes
+  Unicast:                      0,  Multicast:                  0
+  Broadcast:                    0,  Jumbo:                      0
+  Discard:                      0,  Pause:                      0
+
+  Total Error:                  0
+  CRC:                          0,  Giants:                     0
+  Jabbers:                      0,  Fragments:                  0
+  Runts:                        0,  DropEvents:                 0
+
+Output: 0 packets, 0 bytes
+  Unicast:                      0,  Multicast:                  0
+  Broadcast:                    0,  Jumbo:                      0
+  Discard:                      0,  Pause:                      0
+
+  Total Error:                  0
+  Collisions:                   0,  ExcessiveCollisions:        0
+  Late Collisions:              0,  Deferreds:                  0

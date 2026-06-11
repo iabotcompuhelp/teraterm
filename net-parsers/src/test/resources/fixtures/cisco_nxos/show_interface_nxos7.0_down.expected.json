@@ -1,0 +1,26 @@
+{
+  "parsed": true,
+  "vendor": "CISCO_NXOS",
+  "interfaces": [
+    {
+      "name": "Ethernet1/5",
+      "description": "SERVIDOR-BACKUP-NIC2",
+      "adminStatus": "UP",
+      "operStatus": "DOWN",
+      "speedBps": null,
+      "duplex": "AUTO",
+      "mtu": 1500,
+      "inputRateBps": 0,
+      "outputRateBps": 0,
+      "inputPackets": 44385295,
+      "outputPackets": 39928518,
+      "inputErrors": 1875,
+      "outputErrors": 0,
+      "crcErrors": 1872,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": 0,
+      "lastFlap": "2d07h"
+    }
+  ]
+}

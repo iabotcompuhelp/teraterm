@@ -14,4 +14,5 @@ include(
     ":rest-api",
     ":mcp-server",
     ":policy-engine",
+    ":net-parsers",
 )

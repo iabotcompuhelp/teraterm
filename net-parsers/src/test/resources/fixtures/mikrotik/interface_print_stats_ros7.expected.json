@@ -1,0 +1,77 @@
+{
+  "parsed": true,
+  "vendor": "MIKROTIK",
+  "interfaces": [
+    {
+      "name": "ether1",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": 7654321098,
+      "outputPackets": 6987654321,
+      "inputErrors": 312,
+      "outputErrors": 0,
+      "crcErrors": null,
+      "inputDrops": 1024,
+      "outputDrops": 0,
+      "collisions": null,
+      "lastFlap": null
+    },
+    {
+      "name": "ether2",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": 87654321,
+      "outputPackets": 76543210,
+      "inputErrors": 5,
+      "outputErrors": 0,
+      "crcErrors": null,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": null,
+      "lastFlap": null
+    },
+    {
+      "name": "ether3",
+      "description": null,
+      "adminStatus": "DOWN",
+      "operStatus": "ADMIN_DOWN",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": 0,
+      "outputPackets": 0,
+      "inputErrors": 0,
+      "outputErrors": 0,
+      "crcErrors": null,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": null,
+      "lastFlap": null
+    },
+    {
+      "name": "bridge1",
+      "description": null,
+      "adminStatus": "UP",
+      "operStatus": "UP",
+      "speedBps": null, "duplex": null, "mtu": null,
+      "inputRateBps": null, "outputRateBps": null,
+      "inputPackets": 7741975419,
+      "outputPackets": 7064197531,
+      "inputErrors": 0,
+      "outputErrors": 0,
+      "crcErrors": null,
+      "inputDrops": 0,
+      "outputDrops": 0,
+      "collisions": null,
+      "lastFlap": null
+    }
+  ],
+  "warnings": [
+    "RouterOS print stats no expone tasas bps ni CRC por separado; usar /interface monitor-traffic para tasas y ethernet monitor para link"
+  ]
+}

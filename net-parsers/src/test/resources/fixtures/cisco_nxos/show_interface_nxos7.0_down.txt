@@ -1,0 +1,37 @@
+Ethernet1/5 is down (Link not connected)
+admin state is up, Dedicated Interface
+  Hardware: 100/1000/10000 Ethernet, address: 002a.6a8b.1c05 (bia 002a.6a8b.1c05)
+  Description: SERVIDOR-BACKUP-NIC2
+  MTU 1500 bytes, BW 10000000 Kbit, DLY 10 usec
+  reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation ARPA, medium is broadcast
+  Port mode is access
+  auto-duplex, auto-speed
+  Beacon is turned off
+  Auto-Negotiation is turned on
+  Input flow-control is off, output flow-control is off
+  Auto-mdix is turned off
+  Switchport monitor is off
+  EtherType is 0x8100
+  Last link flapped 2d07h
+  Last clearing of "show interface" counters never
+  9 interface resets
+  Load-Interval #1: 30 seconds
+    30 seconds input rate 0 bits/sec, 0 packets/sec
+    30 seconds output rate 0 bits/sec, 0 packets/sec
+  RX
+    44321098 unicast packets  54321 multicast packets  9876 broadcast packets
+    44385295 input packets  41234567890 bytes
+    0 jumbo packets  0 storm suppression bytes
+    3 runts  0 giants  1872 CRC  0 no buffer
+    1875 input error  0 short frame  0 overrun   0 underrun  0 ignored
+    0 watchdog  0 bad etype drop  0 bad proto drop  0 if down drop
+    0 input with dribble  0 input discard
+    0 Rx pause
+  TX
+    39876543 unicast packets  43210 multicast packets  8765 broadcast packets
+    39928518 output packets  36543219876 bytes
+    0 jumbo packets
+    0 output error  0 collision  0 deferred  0 late collision
+    0 lost carrier  0 no carrier  0 babble  0 output discard
+    0 Tx pause

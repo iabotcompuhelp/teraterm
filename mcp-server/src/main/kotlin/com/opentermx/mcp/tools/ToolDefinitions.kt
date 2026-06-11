@@ -234,6 +234,175 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val GET_INTERFACE_STATS = ToolDef(
+        name = "get_interface_stats",
+        description = "Obtiene estadísticas estructuradas de interfaces (estado, errores, CRC, descartes, " +
+            "tasas) de una sesión activa. Resuelve automáticamente el comando según el vendor y parsea " +
+            "el output a JSON canónico. Si el parser no reconoce el output devuelve `parsed: false` con " +
+            "el texto crudo. `persist` es no-op hasta la Fase 3 (PostgreSQL).",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+                "interfaceName" to obj(
+                    "type" to "string",
+                    "description" to "Opcional. Si se omite, devuelve todas.",
+                ),
+                "persist" to obj(
+                    "type" to "boolean",
+                    "default" to true,
+                    "description" to "Guardar la muestra en interface_metrics si la BD está disponible.",
+                ),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("parsed", "vendor", "interfaces"),
+            "properties" to obj(
+                "parsed" to obj("type" to "boolean"),
+                "vendor" to obj("type" to "string"),
+                "interfaces" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("name", "adminStatus", "operStatus"),
+                        "properties" to obj(
+                            "name" to obj("type" to "string"),
+                            "description" to obj("type" to listOf("string", "null")),
+                            "adminStatus" to obj("type" to "string", "enum" to listOf("UP", "DOWN", "UNKNOWN")),
+                            "operStatus" to obj(
+                                "type" to "string",
+                                "enum" to listOf("UP", "DOWN", "ERR_DISABLED", "ADMIN_DOWN", "UNKNOWN"),
+                            ),
+                            "speedBps" to obj("type" to listOf("integer", "null")),
+                            "duplex" to obj(
+                                "type" to listOf("string", "null"),
+                                "enum" to listOf("FULL", "HALF", "AUTO", "UNKNOWN", null),
+                            ),
+                            "mtu" to obj("type" to listOf("integer", "null")),
+                            "inputRateBps" to obj("type" to listOf("integer", "null")),
+                            "outputRateBps" to obj("type" to listOf("integer", "null")),
+                            "inputPackets" to obj("type" to listOf("integer", "null")),
+                            "outputPackets" to obj("type" to listOf("integer", "null")),
+                            "inputErrors" to obj("type" to listOf("integer", "null")),
+                            "outputErrors" to obj("type" to listOf("integer", "null")),
+                            "crcErrors" to obj("type" to listOf("integer", "null")),
+                            "inputDrops" to obj("type" to listOf("integer", "null")),
+                            "outputDrops" to obj("type" to listOf("integer", "null")),
+                            "collisions" to obj("type" to listOf("integer", "null")),
+                            "lastFlap" to obj("type" to listOf("string", "null")),
+                        ),
+                    ),
+                ),
+                "warnings" to obj("type" to "array", "items" to obj("type" to "string")),
+                "rawOutput" to obj(
+                    "type" to listOf("string", "null"),
+                    "description" to "Solo presente si parsed=false.",
+                ),
+                "command" to obj("type" to "string"),
+                "timedOut" to obj("type" to "boolean"),
+                "persisted" to obj("type" to "boolean"),
+            ),
+        ),
+        // Misma lógica que run_readonly_command: solo lectura del device, pero inyecta
+        // keystrokes — el modo read-only estricto del server la bloquea.
+        mutating = true,
+    )
+
+    val GET_LINK_STATUS = ToolDef(
+        name = "get_link_status",
+        description = "Resumen liviano del estado de enlaces de una sesión activa: nombre, admin/oper " +
+            "status y último flap. Ideal cuando solo importa saber qué está caído.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+                "onlyProblems" to obj(
+                    "type" to "boolean",
+                    "default" to false,
+                    "description" to "Si true, devuelve solo interfaces DOWN/ERR_DISABLED con admin UP.",
+                ),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("parsed", "vendor", "links"),
+            "properties" to obj(
+                "parsed" to obj("type" to "boolean"),
+                "vendor" to obj("type" to "string"),
+                "links" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("name", "adminStatus", "operStatus"),
+                        "properties" to obj(
+                            "name" to obj("type" to "string"),
+                            "adminStatus" to obj("type" to "string"),
+                            "operStatus" to obj("type" to "string"),
+                            "lastFlap" to obj("type" to listOf("string", "null")),
+                        ),
+                    ),
+                ),
+                "onlyProblems" to obj("type" to "boolean"),
+                "warnings" to obj("type" to "array", "items" to obj("type" to "string")),
+                "rawOutput" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        mutating = true,
+    )
+
+    val GET_BANDWIDTH_UTILIZATION = ToolDef(
+        name = "get_bandwidth_utilization",
+        description = "Calcula utilización de ancho de banda por interfaz. Usa la tasa reportada por el " +
+            "equipo (`method: device_rate`) o, si no existe, delta de contadores de bytes entre dos " +
+            "muestras separadas por sampleIntervalSeconds (`method: counter_delta`). Delta negativo " +
+            "(wrap/reset del contador) descarta la tasa de esa interfaz, nunca devuelve negativos.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("sessionId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+                "interfaceName" to obj("type" to "string"),
+                "sampleIntervalSeconds" to obj(
+                    "type" to "integer",
+                    "minimum" to 5,
+                    "maximum" to 30,
+                    "default" to 10,
+                ),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("method", "interfaces"),
+            "properties" to obj(
+                "method" to obj("type" to "string", "enum" to listOf("device_rate", "counter_delta")),
+                "vendor" to obj("type" to "string"),
+                "interfaces" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("name"),
+                        "properties" to obj(
+                            "name" to obj("type" to "string"),
+                            "speedBps" to obj("type" to listOf("integer", "null")),
+                            "inputRateBps" to obj("type" to listOf("integer", "null")),
+                            "outputRateBps" to obj("type" to listOf("integer", "null")),
+                            "utilizationInPct" to obj("type" to listOf("number", "null")),
+                            "utilizationOutPct" to obj("type" to listOf("number", "null")),
+                        ),
+                    ),
+                ),
+                "warnings" to obj("type" to "array", "items" to obj("type" to "string")),
+            ),
+        ),
+        mutating = true,
+    )
+
     val LIST_MACROS = ToolDef(
         name = "list_macros",
         description = "Lista los macros Groovy disponibles en `~/.opentermx/macros/`. " +
@@ -893,6 +1062,9 @@ object ToolDefinitions {
         SEARCH_KNOWLEDGE_BASE,
         PROPOSE_COMMANDS,
         RUN_READONLY_COMMAND,
+        GET_INTERFACE_STATS,
+        GET_LINK_STATUS,
+        GET_BANDWIDTH_UTILIZATION,
         LIST_MACROS,
         RUN_MACRO,
         OPEN_SESSION,

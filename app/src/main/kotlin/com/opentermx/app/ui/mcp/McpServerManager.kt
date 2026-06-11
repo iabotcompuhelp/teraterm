@@ -206,6 +206,11 @@ object McpServerManager {
                 operationRegistry = operationRegistry,
                 approvalSecretProvider = secretProvider,
                 snapshotStore = snapshotStore,
+                // Regla 2 Fase 3: pre/post-change de la running-config alrededor de la
+                // ejecución aprobada — mismo runner compartido (mutex por sesión).
+                changeSnapshots = com.opentermx.mcp.telemetry.ChangeSnapshotCapture(
+                    TelemetryDbManager.store, commandRunner,
+                ),
             ),
             // Lectura ejecutable con whitelist regex por vendor (Fase 1 telemetría). El
             // lambda lee el setting en vivo: togglear el checkbox aplica sin reiniciar.

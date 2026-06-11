@@ -188,6 +188,16 @@ object ToolDefinitions {
                         "dangerous" to obj("type" to "integer"),
                     ),
                 ),
+                // Regla 2 Fase 3: snapshots pre/post-change de la running-config en
+                // PostgreSQL (config_snapshots/config_diffs). Campos OPCIONALES: solo
+                // aparecen cuando lo aprobado incluye CONFIG/DANGEROUS y hay BD; null
+                // si esa captura puntual falló (best-effort, nunca aborta el cambio).
+                "preSnapshotId" to obj("type" to listOf("integer", "null")),
+                "postSnapshotId" to obj("type" to listOf("integer", "null")),
+                "configDiffId" to obj(
+                    "type" to listOf("integer", "null"),
+                    "description" to "null también cuando la config no cambió (hash idéntico tras sanitizar).",
+                ),
             ),
         ),
         mutating = true,

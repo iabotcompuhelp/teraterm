@@ -50,6 +50,14 @@ class ProposeCommandsHandler(
     private val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
     private val approvalSecretProvider: (() -> ByteArray)? = null,
     private val snapshotStore: com.opentermx.mcp.snapshots.SnapshotStore? = null,
+    /**
+     * Regla 2 de la Fase 3 (telemetría): snapshots pre/post-change de la running-config
+     * alrededor de la ejecución aprobada, persistidos en PostgreSQL con su diff. Solo
+     * se captura cuando lo aprobado incluye comandos CONFIG/DANGEROUS (snapshotear la
+     * config por un `show` aprobado es ruido). Best-effort: un fallo de captura JAMÁS
+     * aborta la ejecución que el operador ya aprobó.
+     */
+    private val changeSnapshots: com.opentermx.mcp.telemetry.ChangeSnapshotCapture? = null,
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.PROPOSE_COMMANDS
@@ -107,6 +115,16 @@ class ProposeCommandsHandler(
             }
             is ApprovalDecision.Approve -> {
                 val approved = decision.commands
+                // Snapshot pre-change: tras la aprobación (el estado inmediatamente
+                // anterior al cambio) y solo si hay comandos que pueden modificar config.
+                val wantsChangeSnapshot = changeSnapshots != null &&
+                    approved.isNotEmpty() &&
+                    decision.risks.any { it != RiskLevel.SAFE } &&
+                    changeSnapshots.isAvailable(vendor)
+                val preSnapshot = if (wantsChangeSnapshot) {
+                    changeSnapshots!!.capturePre(sessionId, metadata, vendor)
+                } else null
+
                 var executed = 0
                 var failed = 0
                 for (cmd in approved) {
@@ -123,7 +141,19 @@ class ProposeCommandsHandler(
                     rationale, approved, decision.risks,
                     executed = executed, failed = failed, rejected = false, outputTail = tailRedacted,
                 )
-                linkedMapOf(
+
+                // Snapshot post-change + diff (el post tiene valor aunque el pre haya
+                // fallado; el diff solo existe con ambos).
+                var postSnapshot: com.opentermx.mcp.telemetry.ChangeSnapshotCapture.Captured? = null
+                var configDiffId: Long? = null
+                if (wantsChangeSnapshot && executed > 0) {
+                    postSnapshot = changeSnapshots!!.capturePost(sessionId, metadata, vendor)
+                    if (preSnapshot != null && postSnapshot != null) {
+                        configDiffId = changeSnapshots.persistDiff(preSnapshot, postSnapshot, vendor)
+                    }
+                }
+
+                val result = linkedMapOf<String, Any?>(
                     "approved" to true,
                     "executed" to executed,
                     "rejected" to (commands.size - approved.size),
@@ -131,6 +161,12 @@ class ProposeCommandsHandler(
                     "output" to tailRedacted,
                     "riskSummary" to riskSummaryOf(decision.risks),
                 )
+                if (wantsChangeSnapshot) {
+                    result["preSnapshotId"] = preSnapshot?.snapshotId
+                    result["postSnapshotId"] = postSnapshot?.snapshotId
+                    result["configDiffId"] = configDiffId
+                }
+                result
             }
         }
     }

@@ -16,4 +16,17 @@ data class FingerprintSettings(
      * el patrón de modelo no resolvió. Opt-in: agrega comandos al equipo.
      */
     val activeProbing: Boolean = false,
+    /**
+     * Fingerprint automático en background al conectar una sesión (error #38). Solo
+     * actúa con la BD de telemetría habilitada (sin PostgreSQL no hay caché TTL ni
+     * perfil que actualizar — se saltea): por eso puede defaultear a `true` sin mandar
+     * comandos sorpresa en instalaciones sin BD.
+     */
+    val autoOnConnect: Boolean = true,
+    /**
+     * TTL del fingerprint cacheado por dispositivo, en días. Dentro del TTL la conexión
+     * no re-sondea, salvo que el hostname del prompt difiera del guardado o que el
+     * operador lo fuerce con `refresh_device_fingerprint`.
+     */
+    val ttlDays: Int = 7,
 )

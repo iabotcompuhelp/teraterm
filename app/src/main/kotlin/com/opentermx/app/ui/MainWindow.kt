@@ -226,6 +226,7 @@ class MainWindow(
             TftpTransferManager.cancelAll()
             RestApiManager.stop()
             com.opentermx.app.ui.mcp.McpServerManager.stop()
+            com.opentermx.app.ui.mcp.AutoFingerprintManager.stop()
             com.opentermx.app.ui.mcp.TelemetryDbManager.stop()
             com.opentermx.app.ui.ai.KnowledgeBaseHolder.shutdown()
         }
@@ -650,6 +651,9 @@ class MainWindow(
         // Fase 3 telemetría: la BD se conecta (en IO) según la sección `database` de los
         // settings, independientemente de si el server MCP está habilitado.
         com.opentermx.app.ui.mcp.TelemetryDbManager.applySettings(settings.database)
+        // Fase 5: fingerprint automático al conectar sesiones (gated por BD disponible
+        // y `fingerprint.autoOnConnect`); también independiente del server MCP.
+        com.opentermx.app.ui.mcp.AutoFingerprintManager.applySettings { settings }
         if (!settings.aiAssistant.mcpServerEnabled) return
         com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
             statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)

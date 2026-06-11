@@ -345,7 +345,10 @@ Flujo completo contra un equipo real (o el device fake de los tests de integraci
    excerpt crudo y `traceId` (grep de ese ID cruza logs, BD y auditoría), edad del
    perfil, vecinos y estado del doc RAG.
 
-Config en `settings.json` → `fingerprint`: `dryRun` (sondea sin persistir) y
-`activeProbing` (pruebas activas de rol, off por default). Los resources MCP
-`opentermx://devices/{hostname}/profile` y `opentermx://topology/summary` exponen lo
-mismo para clientes que prefieren resources sobre tools.
+Config en `settings.json` → `fingerprint`: `dryRun` (sondea sin persistir),
+`activeProbing` (pruebas activas de rol, off por default), `autoOnConnect` (fingerprint
+automático en background al conectar una sesión — solo actúa con la BD habilitada) y
+`ttlDays` (TTL del caché por dispositivo, default 7: dentro del TTL una reconexión no
+manda ni un comando, salvo que el hostname del prompt difiera del guardado). Los
+resources MCP `opentermx://devices/{hostname}/profile` y `opentermx://topology/summary`
+exponen lo mismo para clientes que prefieren resources sobre tools.

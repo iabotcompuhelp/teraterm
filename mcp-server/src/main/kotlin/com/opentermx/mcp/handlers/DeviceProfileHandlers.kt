@@ -11,7 +11,6 @@ import com.opentermx.mcp.telemetry.TelemetryStore
 import com.opentermx.mcp.tools.ToolDef
 import com.opentermx.mcp.tools.ToolDefinitions
 import com.opentermx.netparsers.Vendor
-import org.slf4j.LoggerFactory
 
 /* =====================================================================================
  * Tools MCP de perfiles de dispositivo (Fase 5C): get_device_profile,
@@ -71,12 +70,12 @@ class GetDeviceProfileHandler(
 class RefreshDeviceFingerprintHandler(
     private val service: FingerprintService,
     private val store: TelemetryStore,
-    private val views: DeviceProfileViews? = null,
+    views: DeviceProfileViews? = null,
     /** Regenerador de docs RAG (Fase 5D): se dispara tras persistir el perfil. */
-    private val ragDocs: com.opentermx.mcp.fingerprint.RagDocGenerator? = null,
+    ragDocs: com.opentermx.mcp.fingerprint.RagDocGenerator? = null,
 ) : ToolHandler {
 
-    private val log = LoggerFactory.getLogger(javaClass)
+    private val persister = com.opentermx.mcp.fingerprint.FingerprintPersister(store, views, ragDocs)
 
     override val definition: ToolDef = ToolDefinitions.REFRESH_DEVICE_FINGERPRINT
 
@@ -90,47 +89,8 @@ class RefreshDeviceFingerprintHandler(
             ?: throw McpToolException(UNAVAILABLE, "Sesión `$sessionIdRaw` sin sink: no es inyectable")
 
         val report = service.fingerprint(sessionId, includeNeighbors)
-
-        var persisted = false
-        var identityChanged = false
-        var deviceId: Long? = null
-        if (!service.dryRun && report.matchedProbeId != null) {
-            val db = store.db()
-            val host = metadata.host
-            if (db != null && host != null) {
-                deviceId = db.devices.upsert(
-                    hostname = report.identity.hostname ?: host,
-                    mgmtAddress = host,
-                    port = metadata.port ?: 22,
-                    protocol = metadata.protocol,
-                    vendor = report.identity.vendor,
-                )
-                if (deviceId != null) {
-                    val applied = db.profiles.applyFingerprint(
-                        deviceId = deviceId,
-                        identity = report.identity,
-                        roleSuggestion = report.roleSuggestion,
-                        probeId = report.matchedProbeId,
-                        traceId = report.traceId,
-                        rawExcerpt = report.rawExcerpt,
-                    )
-                    persisted = applied != null
-                    identityChanged = applied?.identityChanged == true
-                    if (includeNeighbors && persisted) {
-                        db.neighbors.replaceAll(deviceId, report.neighbors)
-                    }
-                    views?.invalidate(host)
-                    if (persisted) {
-                        ragDocs?.regenerateFor(report.identity.hostname ?: host)
-                    }
-                } else {
-                    log.debug(
-                        "refresh_device_fingerprint: host `{}` no persistible (no-INET) — solo reporte",
-                        host,
-                    )
-                }
-            }
-        }
+        val outcome = if (service.dryRun) com.opentermx.mcp.fingerprint.FingerprintPersister.Outcome(false)
+        else persister.persist(report, metadata, includeNeighbors)
 
         return linkedMapOf(
             "traceId" to report.traceId,
@@ -148,8 +108,8 @@ class RefreshDeviceFingerprintHandler(
                 )
             },
             "warnings" to report.warnings,
-            "persisted" to persisted,
-            "identityChanged" to identityChanged,
+            "persisted" to outcome.persisted,
+            "identityChanged" to outcome.identityChanged,
             "dryRun" to report.dryRun,
             "durationMs" to report.durationMs,
         )

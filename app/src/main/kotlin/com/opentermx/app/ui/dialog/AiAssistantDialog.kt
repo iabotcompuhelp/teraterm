@@ -237,6 +237,12 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
     private val mcpReadonlyAutoApproveCheck = CheckBox(Strings["setup.ai.mcp.readonlyAutoApprove"]).apply {
         isSelected = initial.mcpServerReadonlyAutoApprove
     }
+    private val mcpEditWhitelistBtn = Button(Strings["setup.ai.mcp.editReadonlyWhitelist"]).apply {
+        setOnAction { openReadonlyWhitelist() }
+    }
+    private val mcpWhitelistStatus = Label("").apply {
+        style = "-fx-text-fill: derive(-fx-text-base-color, 30%); -fx-font-size: 11px;"
+    }
     private val mcpAllowedSessionGlobField = javafx.scene.control.TextField(initial.mcpServerAllowedSessionGlob.orEmpty()).apply {
         prefColumnCount = 30
         promptText = "lab-*,test-?"
@@ -351,6 +357,31 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
 
     private fun decryptOrNull(v: EncryptedValue): String? =
         runCatching { SecretCipher.decrypt(v).takeIf { it.isNotBlank() } }.getOrNull()
+
+    /**
+     * Materializa la whitelist read-only embebida en `~/.opentermx/policies/` (si el
+     * operador todavía no la copió) y la abre con el editor del sistema. El server la
+     * relee solo (cache de 30 s) — no hace falta reiniciar.
+     */
+    private fun openReadonlyWhitelist() {
+        val target = com.opentermx.mcp.security.ReadOnlyCommandValidator.USER_OVERRIDE_PATH
+        val ok = runCatching {
+            if (!java.nio.file.Files.isRegularFile(target)) {
+                java.nio.file.Files.createDirectories(target.parent)
+                val embedded = com.opentermx.mcp.security.ReadOnlyCommandValidator::class.java
+                    .getResourceAsStream(com.opentermx.mcp.security.ReadOnlyCommandValidator.EMBEDDED_RESOURCE)
+                    ?.readBytes() ?: error("recurso embebido ausente")
+                java.nio.file.Files.write(target, embedded)
+            }
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop.getDesktop().open(target.toFile())
+                true
+            } else false
+        }.getOrDefault(false)
+        mcpWhitelistStatus.text =
+            if (ok) Strings.format("setup.ai.mcp.whitelistOpened", target.toString())
+            else target.toString()
+    }
 
     private fun toggleTokenVisibility() {
         if (mcpTokenPlain.isVisible) {
@@ -468,7 +499,9 @@ class AiAssistantDialog(initial: AiAssistantSettings) : Dialog<AiAssistantSettin
             add(Label(""), 0, r); add(mcpStdioProxyCheck, 1, r); r++
             add(Label(""), 0, r); add(mcpStdioProxyStatus, 1, r); r++
             add(Label(""), 0, r); add(mcpReadOnlyCheck, 1, r); r++
-            add(Label(""), 0, r); add(mcpReadonlyAutoApproveCheck, 1, r); r++
+            add(Label(""), 0, r)
+            add(HBox(8.0, mcpReadonlyAutoApproveCheck, mcpEditWhitelistBtn, mcpWhitelistStatus)
+                .apply { alignment = Pos.CENTER_LEFT }, 1, r); r++
             add(Label(Strings["setup.ai.mcp.allowedSessions"]), 0, r); add(mcpAllowedSessionGlobField, 1, r); r++
             add(Label(""), 0, r); add(mcpTlsEnabledCheck, 1, r); r++
             add(Label(Strings["setup.ai.mcp.keyStorePath"]), 0, r)

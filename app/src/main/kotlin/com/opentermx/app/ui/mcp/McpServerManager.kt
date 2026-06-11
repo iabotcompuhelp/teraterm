@@ -182,11 +182,11 @@ object McpServerManager {
                 approvalSecretProvider = secretProvider,
                 snapshotStore = snapshotStore,
             ),
-            // Lectura ejecutable con whitelist estricta. El lambda lee el setting en vivo:
-            // togglear auto-approve en Setup aplica sin reiniciar el server.
+            // Lectura ejecutable con whitelist regex por vendor (Fase 1 telemetría). El
+            // lambda lee el setting en vivo: togglear el checkbox aplica sin reiniciar.
             com.opentermx.mcp.handlers.RunReadonlyCommandHandler(
                 approvalGate,
-                autoApprove = { settingsProvider().mcpServerReadonlyAutoApprove },
+                allowWithoutApproval = { settingsProvider().mcpServerReadonlyAutoApprove },
                 redactor = redactor,
             ),
             ListMacrosHandler(),

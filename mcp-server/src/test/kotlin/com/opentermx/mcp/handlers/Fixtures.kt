@@ -96,3 +96,54 @@ internal data class ReviewCall(
 /** Sugar para los asserts sobre el riskSummary devuelto. */
 internal fun riskSummary(safe: Int, config: Int, dangerous: Int): Map<String, Int> =
     linkedMapOf("safe" to safe, "config" to config, "dangerous" to dangerous)
+
+/**
+ * Simulador de equipo para los tests del [com.opentermx.mcp.exec.SessionCommandRunner]:
+ * un buffer mutable + un sink que "responde" cada comando appendeando líneas (eco,
+ * output y prompt). [responder] es reemplazable por test; [responseDelayMillis] simula
+ * un equipo lento (la respuesta llega en otro thread).
+ */
+internal class FakeDevice(
+    initialBuffer: List<String> = listOf("Cisco IOS Software, Version 15.2", PROMPT),
+    private val prompt: String = PROMPT,
+) {
+    val buffer = java.util.concurrent.CopyOnWriteArrayList(initialBuffer)
+    val received = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val bufferSizeAtReceive = java.util.concurrent.CopyOnWriteArrayList<Int>()
+
+    var responder: (String) -> List<String> = { cmd ->
+        listOf("$prompt $cmd", "output de [$cmd] linea 1", "output de [$cmd] linea 2", prompt)
+    }
+    var responseDelayMillis: Long = 0
+
+    val provider = TerminalBufferProvider { n -> buffer.toList().takeLast(n) }
+    val sink = CommandSink { line ->
+        received += line
+        bufferSizeAtReceive += buffer.size
+        val lines = responder(line)
+        if (responseDelayMillis > 0) {
+            Thread {
+                Thread.sleep(responseDelayMillis)
+                buffer.addAll(lines)
+            }.also { it.isDaemon = true }.start()
+        } else {
+            buffer.addAll(lines)
+        }
+        true
+    }
+
+    fun register(idValue: String, host: String? = "1.2.3.4"): SessionId {
+        val id = SessionId(idValue)
+        SessionRegistry.register(
+            id,
+            SessionMetadata(name = idValue, protocol = "SSH", host = host, port = 22, username = "admin"),
+            provider,
+            sink,
+        )
+        return id
+    }
+
+    companion object {
+        const val PROMPT = "router-1#"
+    }
+}

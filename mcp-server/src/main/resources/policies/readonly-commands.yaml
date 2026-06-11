@@ -1,0 +1,68 @@
+# =====================================================================
+# OpenTermX — whitelist de comandos READ-ONLY por vendor (Fase 1)
+#
+# Este archivo define QUÉ puede ejecutar la tool MCP `run_readonly_command`
+# sin aprobación humana. Es whitelist pura: lo que no matchea acá se rechaza.
+#
+# - Las claves de `vendors` son los nombres del enum com.opentermx.ai.context.Vendor.
+# - Cada entrada es una regex (java.util.regex, case-insensitive, anclada con ^...$
+#   por el validador si no se ancla acá) que debe matchear el comando COMPLETO
+#   (la parte antes del primer pipe).
+# - `deny` se evalúa DESPUÉS de la whitelist y gana: sirve para excluir
+#   sub-comandos peligrosos o caros de familias permitidas.
+# - UNKNOWN no tiene entrada a propósito: vendor no detectado => rechazo.
+#
+# Override del operador: copiá este archivo a
+#   ~/.opentermx/policies/readonly-commands.yaml
+# (el botón "Editar whitelist…" del Setup lo hace por vos). Si ese archivo
+# existe, REEMPLAZA por completo al embebido.
+# =====================================================================
+version: 1
+
+vendors:
+  CISCO_IOS:
+    - '^show\s+\S+.*$'
+    - '^ping\s+\S+$'
+    - '^traceroute\s+\S+$'
+    - '^dir(\s+\S+)?$'
+    - '^terminal\s+(length|width)\s+\d+$'
+  CISCO_IOS_XE:
+    - '^show\s+\S+.*$'
+    - '^ping\s+\S+$'
+    - '^traceroute\s+\S+$'
+    - '^dir(\s+\S+)?$'
+    - '^terminal\s+(length|width)\s+\d+$'
+  CISCO_NX_OS:
+    - '^show\s+.*$'
+    - '^ping\s+\S+$'
+    - '^traceroute\s+\S+$'
+    - '^terminal\s+(length|width)\s+\d+$'
+  ARUBA_OS:
+    - '^show\s+.*$'
+    - '^display\s+.*$'
+    - '^ping\s+\S+$'
+    - '^traceroute\s+\S+$'
+  FORTINET_FORTIOS:
+    - '^get\s+.*$'
+    - '^diagnose\s+(sys|hardware|netlink)\s+.*$'
+  HUAWEI_VRP:
+    - '^display\s+.*$'
+    - '^ping\s+\S+.*$'
+    - '^tracert\s+\S+.*$'
+    - '^screen-length\s+\d+\s+temporary$'
+  MIKROTIK_ROUTEROS:
+    # Con slash inicial obligatorio (forma canónica RouterOS): la forma sin slash
+    # depende del menú actual de la CLI, que esta tool no trackea.
+    - '^/(interface|ip|system|tool|routing)\b.*\bprint\b.*$'
+  JUNIPER_JUNOS:
+    - '^show\s+.*$'
+    - '^ping\s+\S+.*$'
+    - '^traceroute\s+\S+.*$'
+
+# Rechazos explícitos que ganan sobre la whitelist (error #12 del catálogo:
+# `show tech-support` genera output gigante y carga CPU; `diagnose sys kill`
+# mata procesos aunque matchee `diagnose sys ...`).
+deny:
+  - '^show\s+tech-support\b.*$'
+  - '^diagnose\s+sys\s+kill\b.*$'
+  - '^display\s+diagnostic-information\b.*$'

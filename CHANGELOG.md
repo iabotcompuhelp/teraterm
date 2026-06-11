@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — Telemetría Fase 1 (2026-06-10)
+
+Tool MCP `run_readonly_command`: ejecución de comandos de solo lectura sin aprobación
+humana, gobernada por whitelist regex por vendor (catálogo MCP: **25 tools**).
+
+- Whitelist editable en `~/.opentermx/policies/readonly-commands.yaml` (default
+  embebido; el server la relee con cache de 30 s). Whitelist pura: vendor no detectado
+  o comando fuera de catálogo ⇒ rechazo. Deny-list para `show tech-support` y
+  `diagnose sys kill`.
+- `SessionCommandRunner`: detección de prompt por regex por vendor (override por
+  sesión), des-paginación automática una vez por sesión, auto-respuesta de espacio a
+  `--More--` y variantes, mutex por sesión para serializar comandos concurrentes,
+  timeout (1–120 s, default 15) con output parcial y `timedOut: true`.
+- `OutputCleaner`: strip de ANSI/VT100, backspaces, texto de paginador, eco del
+  comando; CRLF→LF.
+- Setup → AI Assistant → MCP: checkbox *Allow read-only commands without approval*
+  (default ON; apagado vuelve al gate humano por comando) y botón *Editar whitelist…*.
+- Auditoría en `audit-ia.csv` de toda invocación, incluidos los rechazos del validador.
+- `propose_commands` intacta: gate humano obligatorio para todo lo mutativo.
+
 ## 1.1.0 — 2026-05-18
 
 Phase 3 (Operación estructurada estilo clanet). Las 5 fases entregadas como milestone

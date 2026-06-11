@@ -185,11 +185,12 @@ object ToolDefinitions {
 
     val RUN_READONLY_COMMAND = ToolDef(
         name = "run_readonly_command",
-        description = "Ejecuta UN comando de SOLO LECTURA (show/display/get, ping, traceroute) en una " +
-            "sesión activa, validado contra una whitelist estricta por vendor que rechaza metacaracteres, " +
-            "encadenadores y pipes a comandos de escritura. Si el server tiene auto-aprobación read-only " +
-            "activa, no abre diálogo; si no, el operador aprueba con un click. Para cualquier comando " +
-            "mutativo usar `propose_commands` (gate obligatorio).",
+        description = "Ejecuta UN comando de solo lectura (whitelist por vendor) en una sesión activa, " +
+            "sin aprobación humana. Rechaza cualquier comando que pueda modificar el equipo: la whitelist " +
+            "regex por vendor (show/display/get, ping, traceroute, /… print) descarta metacaracteres, " +
+            "encadenadores y pipes a comandos de escritura. Detecta el prompt del equipo y des-pagina " +
+            "automáticamente; al expirar el timeout devuelve el output parcial con timedOut=true. " +
+            "Para cualquier comando mutativo usar `propose_commands` (gate obligatorio).",
         inputSchema = obj(
             "type" to "object",
             "required" to listOf("sessionId", "command"),
@@ -198,30 +199,32 @@ object ToolDefinitions {
                 "sessionId" to obj("type" to "string", "minLength" to 1),
                 "command" to obj(
                     "type" to "string",
-                    "minLength" to 1,
+                    "minLength" to 2,
+                    "maxLength" to 512,
                     "description" to "Un único comando read-only. Sin newlines, `;`, `&&`, redirecciones " +
                         "ni pipes a redirect/tee/save — la whitelist los rechaza.",
                 ),
-                "lastLines" to obj(
+                "timeoutSeconds" to obj(
                     "type" to "integer",
                     "minimum" to 1,
-                    "maximum" to MAX_LAST_LINES,
-                    "default" to DEFAULT_LAST_LINES,
-                    "description" to "Cuántas líneas del buffer devolver como output tras ejecutar.",
+                    "maximum" to 120,
+                    "default" to 15,
                 ),
-                "rationale" to obj("type" to "string"),
             ),
         ),
         outputSchema = obj(
             "type" to "object",
-            "required" to listOf("approved", "autoApproved", "executed", "auditLogId"),
+            "required" to listOf("sessionId", "command", "output", "timedOut"),
             "properties" to obj(
-                "approved" to obj("type" to "boolean"),
-                "autoApproved" to obj("type" to "boolean"),
-                "executed" to obj("type" to "integer"),
+                "sessionId" to obj("type" to "string"),
+                "command" to obj("type" to "string"),
                 "vendor" to obj("type" to "string"),
+                "approved" to obj("type" to "boolean"),
+                "output" to obj("type" to "string"),
+                "truncated" to obj("type" to "boolean"),
+                "timedOut" to obj("type" to "boolean"),
+                "durationMs" to obj("type" to "integer"),
                 "auditLogId" to obj("type" to "string"),
-                "output" to obj("type" to listOf("string", "null")),
             ),
         ),
         // Inyecta en la sesión (aunque solo comandos de lectura), así que el modo

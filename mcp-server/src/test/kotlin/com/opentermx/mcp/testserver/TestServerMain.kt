@@ -89,6 +89,13 @@ object TestServerMain {
                 approvalSecretProvider = secretProvider,
                 snapshotStore = snapshotStore,
             ),
+            // Fase 1 telemetría: whitelist embebida (sin override del usuario) para que
+            // el resultado no dependa de ~/.opentermx de la máquina que corre pytest.
+            com.opentermx.mcp.handlers.RunReadonlyCommandHandler(
+                gate,
+                allowWithoutApproval = { true },
+                validatorProvider = { com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded() },
+            ),
             ListMacrosHandler(),
             RunMacroHandler(gate),
             OpenSessionHandler(gate, SessionOpener.NoOp, inventory),

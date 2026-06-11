@@ -127,6 +127,43 @@ operador. La respuesta resume qué se aprobó, ejecutó y descartó.
 
 Si el operador rechaza: `approved: false`, `executed: 0`, `rejected: <total>`.
 
+### `run_readonly_command` (read-only ejecutable — sin aprobación humana)
+
+Fase 1 del plan de telemetría. Ejecuta **un** comando de solo lectura en una sesión
+activa, sin gate humano: la seguridad la garantiza una **whitelist regex por vendor**
+(`show`/`display`/`get`/`diagnose sys|hardware|netlink`, `ping`, `traceroute`,
+`/… print`), editable en `~/.opentermx/policies/readonly-commands.yaml` (botón
+*Editar whitelist…* del Setup; default embebido en el jar). Todo lo que no matchea se
+rechaza: metacaracteres, encadenadores, pipes a `redirect`/`tee`/`save`/`copy`,
+comandos de más de 512 chars, y **vendor no detectado** (no se adivina).
+
+El runner detecta el prompt del equipo (regex por vendor), des-pagina una vez por
+sesión (`terminal length 0`, `screen-length 0 temporary`, `no page`; MikroTik via
+`without-paging`; fallback: auto-respuesta de espacio ante `--More--`), serializa
+comandos concurrentes con un mutex por sesión, y al expirar el timeout devuelve el
+output parcial con `timedOut: true` — nunca cuelga al cliente.
+
+```jsonc
+// Input
+{ "sessionId": "session-cisco", "command": "show interfaces | include errors", "timeoutSeconds": 15 }
+// Output
+{
+  "sessionId": "session-cisco",
+  "command": "show interfaces | include errors",
+  "vendor": "Cisco IOS",
+  "approved": true,
+  "output": "  0 input errors, 0 CRC…",
+  "truncated": false,
+  "timedOut": false,
+  "durationMs": 842,
+  "auditLogId": "1c9a4f…"
+}
+```
+
+El checkbox *Allow read-only commands without approval* (default ON) controla el modo:
+apagado, cada comando vuelve a pasar por el diálogo de aprobación. Toda invocación —
+incluso los rechazos de la whitelist — queda en `~/.opentermx/audit-ia.csv`.
+
 ## Configuración del cliente
 
 ### Claude Desktop / Cursor / Claude Code

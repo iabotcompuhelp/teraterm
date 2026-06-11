@@ -9,6 +9,7 @@ import com.opentermx.ai.safety.CredentialRedactor
 import com.opentermx.ai.safety.RiskLevel
 import com.opentermx.common.ai.SessionRegistry
 import com.opentermx.common.session.SessionId
+import com.opentermx.mcp.exec.SessionCommandRunner
 import com.opentermx.mcp.handlers.McpToolException.ErrorCode.INVALID_ARGUMENT
 import com.opentermx.mcp.handlers.McpToolException.ErrorCode.NOT_FOUND
 import com.opentermx.mcp.handlers.McpToolException.ErrorCode.UNAVAILABLE
@@ -21,138 +22,168 @@ import com.opentermx.mcp.tools.ToolDefinitions
 import java.util.UUID
 
 /**
- * Handler de la tool `run_readonly_command`: ejecuta UN comando de solo lectura
- * (`show …`, `display …`, `get …`, ping/traceroute) contra una sesión activa.
+ * Handler de la tool `run_readonly_command` (Fase 1 del plan de telemetría): ejecuta UN
+ * comando de solo lectura contra una sesión activa con detección de prompt, manejo de
+ * paginador y timeout, devolviendo el output limpio.
  *
- * Diferencia con `propose_commands`: acá el gate humano es OPCIONAL. La invariante de
- * seguridad la sostiene el [ReadOnlyCommandValidator] — whitelist estricta por vendor,
- * sin metacaracteres, sin pipes a comandos de escritura — que corre SIEMPRE, antes de
- * cualquier aprobación. Un comando que no pase la whitelist se rechaza con
- * INVALID_ARGUMENT y la respuesta dirige al cliente a `propose_commands` (gate
- * obligatorio para todo lo mutativo).
+ * La invariante de seguridad la sostiene el [ReadOnlyCommandValidator] — whitelist regex
+ * por vendor (YAML editable), sin metacaracteres, sin pipes a comandos de escritura — que
+ * corre SIEMPRE antes de tocar la sesión. Vendor no detectado => rechazo explícito, no se
+ * adivina (error #8 del catálogo).
  *
- * Modos:
- *  - `autoApprove() == false` (default): el operador igualmente ve el diálogo de
- *    aprobación, con el comando ya pre-clasificado SAFE. Si el operador EDITA el
- *    comando en el diálogo, la edición se re-valida contra la whitelist; si la edición
- *    introduce algo no read-only, no se ejecuta NADA (fail-closed) — el camino correcto
- *    para eso es `propose_commands`.
- *  - `autoApprove() == true`: se ejecuta sin diálogo. Pensado para monitoreo/diagnóstico
- *    desatendido; se habilita con el setting `mcpServerReadonlyAutoApprove`.
+ * Aprobación: por spec esta tool NO requiere gate humano (su razón de ser es que el LLM
+ * consulte estado de forma autónoma). El setting `mcpServerReadonlyAutoApprove`
+ * (checkbox "Allow read-only commands without approval", default ON) permite volver al
+ * gate: con el setting OFF, cada comando abre el diálogo de aprobación. Si el operador
+ * edita el comando en el diálogo, la edición se re-valida contra la whitelist —
+ * fail-closed: edición no read-only aborta sin ejecutar nada.
  *
- * Todo lo ejecutado (o rechazado por el gate) queda en el [AiAuditLog], igual que
- * `propose_commands`.
+ * Toda invocación queda en el [AiAuditLog], incluso los rechazos del validador (el
+ * intento de colar `configure terminal` por acá ES información de auditoría). El flag
+ * `read_only=true` como columna llega con la tabla `command_audit` de la Fase 3; mientras
+ * tanto el marcador es el prompt `(mcp run_readonly_command)`.
  */
 class RunReadonlyCommandHandler(
     private val approvalGate: ApprovalGate,
     /** Lambda (no boolean) para que el toggle del setting aplique sin reiniciar el server. */
-    private val autoApprove: () -> Boolean = { false },
+    private val allowWithoutApproval: () -> Boolean = { true },
     private val auditLog: AiAuditLog = AiAuditLog(),
     private val redactor: CredentialRedactor = CredentialRedactor(),
-    /** Espera tras inyectar antes de leer el buffer — darle tiempo al device a responder. */
-    private val outputWaitMillis: Long = DEFAULT_OUTPUT_WAIT_MILLIS,
+    private val runner: SessionCommandRunner = SessionCommandRunner(),
+    private val validatorProvider: () -> ReadOnlyCommandValidator = cachedDefaultValidator(),
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.RUN_READONLY_COMMAND
 
     override suspend fun invoke(args: Map<String, Any?>): Map<String, Any?> {
         val sessionIdRaw = Args.requireString(args, "sessionId")
-        val command = Args.requireString(args, "command")
-        val lastLines = Args.optionalInt(
-            args, "lastLines",
-            default = ToolDefinitions.DEFAULT_LAST_LINES,
-            min = 1, max = ToolDefinitions.MAX_LAST_LINES,
+        val command = Args.requireString(args, "command").trim()
+        val timeoutSeconds = Args.optionalInt(
+            args, "timeoutSeconds",
+            default = DEFAULT_TIMEOUT_SECONDS, min = 1, max = MAX_TIMEOUT_SECONDS,
         )
-        val rationale = Args.optionalString(args, "rationale").orEmpty()
 
         val sessionId = SessionId(sessionIdRaw)
         val metadata = SessionRegistry.metadataOf(sessionId)
             ?: throw McpToolException(NOT_FOUND, "Sesión `$sessionIdRaw` no encontrada en el registro")
-        val sink = SessionRegistry.sinkOf(sessionId)
+        SessionRegistry.sinkOf(sessionId)
             ?: throw McpToolException(UNAVAILABLE, "Sesión `$sessionIdRaw` sin sink: no es inyectable")
 
         val sample = SessionRegistry.lastLinesOf(sessionId, VENDOR_SAMPLE_LINES).joinToString("\n")
         val vendor = if (sample.isBlank()) Vendor.UNKNOWN else VendorDetector.detect(sample)
-
-        // La whitelist corre SIEMPRE, incluso con auto-approve activo: es la invariante
-        // de seguridad de esta tool.
-        rejectIfNotReadonly(command, vendor)
-
         val auditLogId = UUID.randomUUID().toString()
-        val autoApproved = autoApprove()
-        val commandsToRun: List<String> = if (autoApproved) {
-            listOf(command)
-        } else {
+
+        // Error #8: vendor desconocido => no se adivina qué comando es seguro.
+        if (vendor == Vendor.UNKNOWN) {
+            auditRejected(auditLogId, sessionId, metadata.host, vendor, command,
+                reason = "vendor no detectado")
+            throw McpToolException(
+                INVALID_ARGUMENT,
+                "No pude detectar el vendor de la sesión `$sessionIdRaw` (buffer insuficiente o " +
+                    "equipo desconocido): sin whitelist no ejecuto nada. Generá output en la " +
+                    "sesión (p. ej. un Enter) o usá `propose_commands`.",
+            )
+        }
+
+        // La whitelist corre SIEMPRE: es la invariante de seguridad de esta tool.
+        val verdict = validatorProvider().validate(command, vendor)
+        if (verdict is ReadOnlyValidation.Rejected) {
+            auditRejected(auditLogId, sessionId, metadata.host, vendor, command, verdict.reason)
+            throw McpToolException(
+                INVALID_ARGUMENT,
+                "Comando rechazado por la whitelist read-only: ${verdict.reason}",
+            )
+        }
+
+        // Gate humano opcional (setting OFF => diálogo por cada comando).
+        var commandToRun = command
+        if (!allowWithoutApproval()) {
             val decision = approvalGate.reviewCommands(
-                rationale.ifBlank { "(mcp run_readonly_command)" },
-                vendor,
+                "(mcp run_readonly_command)", vendor,
                 listOf(ClassifiedCommand(command, RiskLevel.SAFE)),
             )
             when (decision) {
                 is ApprovalDecision.Reject -> {
-                    logAudit(auditLogId, sessionId, metadata.host, vendor, rationale,
-                        listOf(command), executed = 0, rejected = true, outputTail = "")
+                    auditRejected(auditLogId, sessionId, metadata.host, vendor, command,
+                        reason = "rechazado por el operador")
                     return linkedMapOf(
-                        "approved" to false,
-                        "autoApproved" to false,
-                        "executed" to 0,
+                        "sessionId" to sessionIdRaw,
+                        "command" to command,
                         "vendor" to vendor.displayName,
+                        "approved" to false,
+                        "output" to "",
+                        "truncated" to false,
+                        "timedOut" to false,
+                        "durationMs" to 0,
                         "auditLogId" to auditLogId,
-                        "output" to null,
                     )
                 }
                 is ApprovalDecision.Approve -> {
-                    // Si el operador editó en el diálogo, la edición debe seguir siendo
-                    // read-only. Fail-closed: una sola línea inválida aborta todo.
-                    decision.commands.forEach { rejectIfNotReadonly(it, vendor) }
-                    decision.commands
+                    val edited = decision.commands.filter { it.isNotBlank() }
+                    if (edited.size != 1) {
+                        throw McpToolException(
+                            INVALID_ARGUMENT,
+                            "Esta tool ejecuta UN solo comando; la edición del operador dejó ${edited.size}. " +
+                                "Para bloques usá `propose_commands`.",
+                        )
+                    }
+                    commandToRun = edited.single().trim()
+                    val reVerdict = validatorProvider().validate(commandToRun, vendor)
+                    if (reVerdict is ReadOnlyValidation.Rejected) {
+                        auditRejected(auditLogId, sessionId, metadata.host, vendor, commandToRun, reVerdict.reason)
+                        throw McpToolException(
+                            INVALID_ARGUMENT,
+                            "La edición del operador no es read-only (${reVerdict.reason}) — nada se ejecutó. " +
+                                "Usá `propose_commands` para comandos mutativos.",
+                        )
+                    }
                 }
             }
         }
 
-        var executed = 0
-        var failed = 0
-        for (cmd in commandsToRun) {
-            val ok = runCatching { sink.sendLine(cmd) }.getOrDefault(false)
-            if (ok) executed++ else failed++
+        val result = try {
+            runner.run(sessionId, vendor, commandToRun, timeoutSeconds * 1000L)
+        } catch (e: SessionCommandRunner.SessionGoneException) {
+            throw McpToolException(UNAVAILABLE, e.message ?: "Sesión no disponible")
         }
-        if (outputWaitMillis > 0) {
-            kotlinx.coroutines.delay(outputWaitMillis)
-        }
-        val tailRedacted = redactor.redact(
-            SessionRegistry.lastLinesOf(sessionId, lastLines).joinToString("\n"),
-            vendor,
+
+        val outputRedacted = redactor.redact(result.output, vendor)
+        auditLog.append(
+            AiAuditEntry(
+                timestampMillis = System.currentTimeMillis(),
+                sessionId = "${sessionId.value}#$auditLogId",
+                host = metadata.host,
+                vendor = vendor.displayName,
+                prompt = "(mcp run_readonly_command)",
+                commands = listOf(commandToRun),
+                commandRisks = listOf(RiskLevel.SAFE),
+                executedCount = 1,
+                skippedCount = 0,
+                failedCount = 0,
+                rejected = false,
+                outputTail = outputRedacted.take(AUDIT_OUTPUT_EXCERPT_CHARS),
+            )
         )
-        logAudit(auditLogId, sessionId, metadata.host, vendor, rationale,
-            commandsToRun, executed = executed, failed = failed, rejected = false, outputTail = tailRedacted)
         return linkedMapOf(
-            "approved" to true,
-            "autoApproved" to autoApproved,
-            "executed" to executed,
+            "sessionId" to sessionIdRaw,
+            "command" to commandToRun,
             "vendor" to vendor.displayName,
+            "approved" to true,
+            "output" to outputRedacted,
+            "truncated" to result.truncated,
+            "timedOut" to result.timedOut,
+            "durationMs" to result.durationMs,
             "auditLogId" to auditLogId,
-            "output" to tailRedacted,
         )
     }
 
-    private fun rejectIfNotReadonly(command: String, vendor: Vendor) {
-        val verdict = ReadOnlyCommandValidator.validate(command, vendor)
-        if (verdict is ReadOnlyValidation.Rejected) {
-            throw McpToolException(INVALID_ARGUMENT, "Comando rechazado por la whitelist read-only: ${verdict.reason}")
-        }
-    }
-
-    private fun logAudit(
+    private fun auditRejected(
         auditLogId: String,
         sessionId: SessionId,
         host: String?,
         vendor: Vendor,
-        rationale: String,
-        commands: List<String>,
-        executed: Int,
-        failed: Int = 0,
-        rejected: Boolean,
-        outputTail: String,
+        command: String,
+        reason: String,
     ) {
         auditLog.append(
             AiAuditEntry(
@@ -160,20 +191,41 @@ class RunReadonlyCommandHandler(
                 sessionId = "${sessionId.value}#$auditLogId",
                 host = host,
                 vendor = vendor.takeIf { it != Vendor.UNKNOWN }?.displayName,
-                prompt = rationale.ifBlank { "(mcp run_readonly_command)" },
-                commands = commands,
-                commandRisks = commands.map { RiskLevel.SAFE },
-                executedCount = executed,
-                skippedCount = (commands.size - executed - failed).coerceAtLeast(0),
-                failedCount = failed,
-                rejected = rejected,
-                outputTail = outputTail,
+                prompt = "(mcp run_readonly_command)",
+                commands = listOf(command),
+                commandRisks = listOf(RiskLevel.SAFE),
+                executedCount = 0,
+                skippedCount = 1,
+                failedCount = 0,
+                rejected = true,
+                outputTail = "rechazado: $reason",
             )
         )
     }
 
     companion object {
-        const val DEFAULT_OUTPUT_WAIT_MILLIS = 800L
+        const val DEFAULT_TIMEOUT_SECONDS = 15
+        const val MAX_TIMEOUT_SECONDS = 120
+        const val AUDIT_OUTPUT_EXCERPT_CHARS = 2048
         private const val VENDOR_SAMPLE_LINES = 64
+
+        /**
+         * El validador se relee del disco como mucho cada 30 s: el operador puede editar
+         * el YAML sin reiniciar, sin pagar un parse por request.
+         */
+        fun cachedDefaultValidator(): () -> ReadOnlyCommandValidator {
+            var cached: ReadOnlyCommandValidator? = null
+            var loadedAt = 0L
+            return {
+                val now = System.currentTimeMillis()
+                val current = cached
+                if (current == null || now - loadedAt > 30_000) {
+                    ReadOnlyCommandValidator.default().also {
+                        cached = it
+                        loadedAt = now
+                    }
+                } else current
+            }
+        }
     }
 }

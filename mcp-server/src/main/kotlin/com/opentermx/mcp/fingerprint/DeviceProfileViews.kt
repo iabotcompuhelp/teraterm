@@ -143,6 +143,7 @@ class DeviceProfileViews(
                 "notes" to record?.profile?.get("notes"),
                 "maintenanceWindow" to record?.profile?.get("maintenanceWindow"),
                 "contact" to record?.profile?.get("contact"),
+                "uplinks" to (record?.profile?.get("uplinks") as? List<*> ?: emptyList<String>()),
             )
         }
         out["untrustedFields"] = untrusted

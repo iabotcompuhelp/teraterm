@@ -72,6 +72,8 @@ class RefreshDeviceFingerprintHandler(
     private val service: FingerprintService,
     private val store: TelemetryStore,
     private val views: DeviceProfileViews? = null,
+    /** Regenerador de docs RAG (Fase 5D): se dispara tras persistir el perfil. */
+    private val ragDocs: com.opentermx.mcp.fingerprint.RagDocGenerator? = null,
 ) : ToolHandler {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -118,6 +120,9 @@ class RefreshDeviceFingerprintHandler(
                         db.neighbors.replaceAll(deviceId, report.neighbors)
                     }
                     views?.invalidate(host)
+                    if (persisted) {
+                        ragDocs?.regenerateFor(report.identity.hostname ?: host)
+                    }
                 } else {
                     log.debug(
                         "refresh_device_fingerprint: host `{}` no persistible (no-INET) — solo reporte",

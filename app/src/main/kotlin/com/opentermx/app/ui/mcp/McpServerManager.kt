@@ -189,6 +189,14 @@ object McpServerManager {
             dryRun = fingerprintSettings.dryRun,
             activeProbing = fingerprintSettings.activeProbing,
         )
+        // Fase 5D: docs RAG auto-generados en ~/.opentermx/kb/auto/, indexados en la KB
+        // Lucene del asistente. Regeneración: tras refresh_device_fingerprint + job diario.
+        val ragDocs = com.opentermx.mcp.fingerprint.RagDocGenerator(
+            store = TelemetryDbManager.store,
+            views = profileViews,
+            kbProvider = { KnowledgeBaseHolder.get(settingsProvider()) },
+        )
+        TelemetryDbManager.dailyMaintenanceHook = { ragDocs.regenerateAll() }
         val handlers = listOf(
             ListSessionsHandler(views = profileViews),
             InspectSessionHandler(redactor),
@@ -220,10 +228,12 @@ object McpServerManager {
             // Fase 5C: perfiles de dispositivo (identidad + capacidades + topología).
             com.opentermx.mcp.handlers.GetDeviceProfileHandler(TelemetryDbManager.store, profileViews),
             com.opentermx.mcp.handlers.RefreshDeviceFingerprintHandler(
-                fingerprintService, TelemetryDbManager.store, profileViews,
+                fingerprintService, TelemetryDbManager.store, profileViews, ragDocs,
             ),
             com.opentermx.mcp.handlers.ListDevicesHandler(TelemetryDbManager.store),
-            com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(TelemetryDbManager.store, profileViews),
+            com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(
+                TelemetryDbManager.store, profileViews, ragDocs::docStatus,
+            ),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.
             com.opentermx.mcp.handlers.ZabbixGetHistoryHandler(::integrationRegistry),

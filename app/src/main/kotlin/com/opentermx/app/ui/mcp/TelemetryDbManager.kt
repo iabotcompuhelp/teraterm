@@ -41,6 +41,13 @@ object TelemetryDbManager {
     val store = TelemetryStore { db }
 
     /**
+     * Hook extra del mantenimiento diario del scheduler (Fase 5D: McpServerManager lo
+     * apunta a `RagDocGenerator.regenerateAll`). Volátil: el scheduler captura la lambda
+     * indirecta y ve siempre el hook vigente.
+     */
+    @Volatile var dailyMaintenanceHook: (() -> Unit)? = null
+
+    /**
      * Aplica settings: conecta/reconecta/desconecta y sincroniza el scheduler. La
      * conexión corre en IO — el hilo JavaFX jamás espera a la BD (error #19).
      */
@@ -100,6 +107,7 @@ object TelemetryDbManager {
                     runner = sharedCommandRunner,
                     pollIntervalMinutes = { settings.pollIntervalMinutes },
                     retentionDays = { settings.retentionDays },
+                    onDailyMaintenance = { dailyMaintenanceHook?.invoke() },
                 ).also { it.start(scope) }
             }
         } else {

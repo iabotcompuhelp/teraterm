@@ -319,3 +319,33 @@ levanta en puerto libre con `OPENTERMX_TEST_AUTO_APPROVE=1`, lo que permite ejer
   el módulo no depende de JavaFX, lo que hace los tests rápidos y desacopla la UI.
 - **Python para integration tests** — pytest + httpx es más legible y con menos
   boilerplate que OkHttp + JUnit para validar contratos HTTP + JSON Schema black-box.
+
+## Fase 5 — Perfiles de dispositivo: demostración end-to-end
+
+Flujo completo contra un equipo real (o el device fake de los tests de integración —
+`DeviceProfileHandlersIntegrationTest` y `RagDocGeneratorTest` lo automatizan):
+
+1. **Conectar**: abrí una sesión SSH al equipo desde OpenTermX (o `open_session` vía MCP).
+2. **Fingerprint**: llamá `refresh_device_fingerprint` con el `sessionId`. El servicio
+   ejecuta la sonda del vendor detectado (`show version` / `display version` /
+   `get system status` / `/system resource print`…) **solo con comandos de la whitelist
+   read-only de la Fase 1**, infiere el rol con `profiles/role-rules.yaml` y descubre
+   vecinos LLDP/CDP/MNDP. Con PostgreSQL habilitado (`settings.json` → `database`)
+   persiste identidad, histórico y topología (esquema V2).
+3. **Perfil**: `get_device_profile` (por `sessionId` o `deviceHostname`) devuelve
+   identidad/rol/criticidad, capacidades (tools aplicables + patrones `allowedCommands`),
+   vecinos y notas del operador, con `untrustedFields` declarando qué campos provienen
+   del equipo. `list_sessions` muestra los mismos datos como campos opcionales.
+4. **RAG**: tras persistir, el `RagDocGenerator` escribe
+   `~/.opentermx/kb/auto/device-<hostname>.md` (encabezado `generated: true` +
+   `sourceHash`; solo reescribe/re-indexa si el perfil cambió) y lo indexa en Lucene:
+   `search_knowledge_base` con el hostname lo encuentra. El contenido que viene del
+   equipo va sanitizado dentro de bloques de código (anti prompt-injection).
+5. **Diagnóstico**: `diagnose_device_context` explica el contexto — última sonda con su
+   excerpt crudo y `traceId` (grep de ese ID cruza logs, BD y auditoría), edad del
+   perfil, vecinos y estado del doc RAG.
+
+Config en `settings.json` → `fingerprint`: `dryRun` (sondea sin persistir) y
+`activeProbing` (pruebas activas de rol, off por default). Los resources MCP
+`opentermx://devices/{hostname}/profile` y `opentermx://topology/summary` exponen lo
+mismo para clientes que prefieren resources sobre tools.

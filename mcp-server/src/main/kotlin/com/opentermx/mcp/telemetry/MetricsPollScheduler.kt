@@ -44,6 +44,8 @@ class MetricsPollScheduler(
     private val retentionDays: () -> Int = { 90 },
     maxConcurrent: Int = 5,
     private val commandTimeoutMillis: Long = 30_000,
+    /** Extras del mantenimiento diario (Fase 5D: regeneración de docs RAG). */
+    private val onDailyMaintenance: () -> Unit = {},
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -145,6 +147,8 @@ class MetricsPollScheduler(
         if (lastMaintenanceDay == today) return
         val db = store.db() ?: return
         db.maintenance.runDaily(retentionDays())
+        runCatching { onDailyMaintenance() }
+            .onFailure { log.warn("extra de mantenimiento diario falló: {}", it.message) }
         lastMaintenanceDay = today
     }
 

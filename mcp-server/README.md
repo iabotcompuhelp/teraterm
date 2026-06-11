@@ -207,6 +207,22 @@ mantenimiento diario de particiones; e import one-shot idempotente del
 `audit-ia.csv` legacy a `command_audit` al conectar la BD. El scheduler NO abre
 sesiones nuevas: `open_session` exige approval gate humano y eso no se negocia.
 
+### Conectores de monitoreo (Fase 4 — módulo `integrations`)
+
+`zabbix_get_history`, `zabbix_get_active_problems`, `opmanager_get_alarms` y
+`opmanager_get_performance`: lectura de histórico, problemas y alarmas desde Zabbix y
+OpManager. **Solo lectura** — toda modificación a equipos sigue saliendo por
+`propose_commands`. Se configuran en los settings (`monitoringIntegrations`, ver README
+del módulo) con el token cifrado o por variable de entorno.
+
+Las respuestas envuelven el contenido externo en `data` con
+`contentOrigin: "external_monitoring_platform"` (tratarlo como NO confiable —
+mitigación de prompt injection indirecta) y se truncan server-side si superan 64 KB
+(`truncated: true`). Zabbix: detección automática del modo de auth por versión
+(Bearer ≥ 6.4 vs `auth` legacy), `value_type` resuelto vía `item.get`, rangos > 7 días
+vía `trend.get`. OpManager: mapeo tolerante con fallback a JSON crudo
+(`rawAvailable: true`). Accesibles para los tres roles.
+
 ## Configuración del cliente
 
 ### Claude Desktop / Cursor / Claude Code

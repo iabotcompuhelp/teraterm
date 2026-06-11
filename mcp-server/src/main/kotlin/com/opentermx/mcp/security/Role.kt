@@ -71,6 +71,9 @@ object RoleAccessControl {
         "get_interface_stats", "get_link_status", "get_bandwidth_utilization",
         // Fase 3: histórico local (lectura pura de la BD).
         "get_device_history",
+        // Fase 4: plataformas de monitoreo externas (read-only).
+        "zabbix_get_history", "zabbix_get_active_problems",
+        "opmanager_get_alarms", "opmanager_get_performance",
         // Side-channel.
         "tail_session",
         // Phase 3 Fase 4 — snapshots: el operator captura el "antes" antes de ejecutar.
@@ -91,6 +94,9 @@ object RoleAccessControl {
         "policy_load", "policy_list", "policy_evaluate",
         // Telemetría Fase 3: histórico local — lectura pura de la BD, no toca devices.
         "get_device_history",
+        // Fase 4: monitoreo externo read-only.
+        "zabbix_get_history", "zabbix_get_active_problems",
+        "opmanager_get_alarms", "opmanager_get_performance",
     )
 
     private val validatorWhitelist: Set<String> = setOf(
@@ -104,6 +110,9 @@ object RoleAccessControl {
         "policy_list", "policy_evaluate", "policy_audit",
         // Telemetría Fase 3: histórico local — lectura pura de la BD, no toca devices.
         "get_device_history",
+        // Fase 4: monitoreo externo read-only.
+        "zabbix_get_history", "zabbix_get_active_problems",
+        "opmanager_get_alarms", "opmanager_get_performance",
     )
 
     fun allows(role: Role, toolName: String): Boolean = when (role) {

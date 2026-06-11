@@ -106,6 +106,11 @@ object TestServerMain {
             com.opentermx.mcp.handlers.GetDeviceHistoryHandler(
                 com.opentermx.mcp.telemetry.TelemetryStore { null },
             ),
+            // Fase 4: registry vacío — ejercita el camino "integración no configurada".
+            com.opentermx.mcp.handlers.ZabbixGetHistoryHandler({ com.opentermx.integrations.IntegrationRegistry.Empty }),
+            com.opentermx.mcp.handlers.ZabbixGetActiveProblemsHandler({ com.opentermx.integrations.IntegrationRegistry.Empty }),
+            com.opentermx.mcp.handlers.OpManagerGetAlarmsHandler({ com.opentermx.integrations.IntegrationRegistry.Empty }),
+            com.opentermx.mcp.handlers.OpManagerGetPerformanceHandler({ com.opentermx.integrations.IntegrationRegistry.Empty }),
             ListMacrosHandler(),
             RunMacroHandler(gate),
             OpenSessionHandler(gate, SessionOpener.NoOp, inventory),

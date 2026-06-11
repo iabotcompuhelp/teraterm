@@ -53,6 +53,9 @@ dependencies {
     // Fase 3 telemetría: persistencia PostgreSQL (histórico, scheduler, audit). `api`
     // porque TelemetryStore expone TelemetryDb/DbConfig y la app los construye.
     api(project(":telemetry-db"))
+    // Fase 4: conectores read-only Zabbix/OpManager. `api` porque la app construye el
+    // IntegrationRegistry desde sus settings.
+    api(project(":integrations"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.javalin)
@@ -70,6 +73,8 @@ dependencies {
     testImplementation(libs.mockito.core)
     // Fase 3: test de integración get_interface_stats → interface_metrics (PG embebido).
     testImplementation(libs.zonky.embedded.postgres)
+    // Fase 4: mocks HTTP para los handlers de Zabbix/OpManager.
+    testImplementation(libs.okhttp.mockwebserver)
 }
 
 tasks.test {

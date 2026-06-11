@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — Telemetría Fase 4 (2026-06-10)
+
+Conectores read-only a plataformas de monitoreo (catálogo MCP: **33 tools**). Módulo
+nuevo `integrations` (java.net.http + Jackson, sin UI/transporte).
+
+- 4 tools: `zabbix_get_history`, `zabbix_get_active_problems`, `opmanager_get_alarms`,
+  `opmanager_get_performance`. Solo lectura; toda modificación a equipos sigue
+  saliendo por `propose_commands`.
+- Zabbix: detección de modo de auth por `apiinfo.version` (Bearer ≥ 6.4/7.x — el campo
+  `auth` legacy en 7.x produce error; 5.x–6.0 usan `auth`, con `user.login` + sesión
+  cacheada si el secreto es `usuario:password`); override `apiVersionOverride`;
+  `value_type` resuelto vía `item.get` antes de `history.get` (con el tipo equivocado
+  Zabbix devuelve vacío sin error); rangos > 7 días via `trend.get`; epoch en SEGUNDOS.
+- OpManager: `apiKey` por parámetro, mapeo tolerante entre builds
+  (FAIL_ON_UNKNOWN_PROPERTIES off, claves alternativas) con fallback a JSON crudo
+  `rawAvailable: true`.
+- Mitigación de prompt injection indirecta: contenido externo envuelto en `data` +
+  `contentOrigin: "external_monitoring_platform"`; truncado server-side a 64 KB con
+  `truncated: true`. El token jamás viaja en logs/errores (scrubbing a `***`).
+- HTTP: timeout 10 s, 2 reintentos con backoff solo 5xx/transporte (4xx no se
+  reintenta); `verifyTls` default true (desactivable explícitamente, con warning).
+- Config en settings (`monitoringIntegrations`): token cifrado (SecretCipher) o env
+  `OPENTERMX_INTEGRATION_<NOMBRE>_TOKEN`.
+- Tests MockWebServer: ambos modos de auth (criterio de aceptación), value_type,
+  trend vs history, epoch, secreto nunca filtrado, tolerancia OpManager, reintentos.
+
 ## Unreleased — Telemetría Fase 3 (2026-06-10)
 
 Persistencia PostgreSQL (catálogo MCP: **29 tools**). Módulo nuevo `telemetry-db`:

@@ -222,3 +222,19 @@ def test_get_device_history_sin_bd_devuelve_DB_UNAVAILABLE(client):
     })
     assert resp["result"]["isError"] is True
     assert "DB_UNAVAILABLE" in resp["result"]["content"][0]["text"]
+
+
+# --------------------------------------------------------------- Fase 4 monitoreo
+
+
+def test_tools_list_expone_los_conectores_de_monitoreo(client):
+    resp = rpc(client, "tools/list")
+    tools = {t["name"] for t in resp["result"]["tools"]}
+    assert {"zabbix_get_history", "zabbix_get_active_problems",
+            "opmanager_get_alarms", "opmanager_get_performance"} <= tools
+
+
+def test_zabbix_integracion_no_configurada_devuelve_isError(client):
+    resp = call_tool(client, "zabbix_get_active_problems", {"integrationName": "zbx-prod"})
+    assert resp["result"]["isError"] is True
+    assert "no configurada" in resp["result"]["content"][0]["text"]

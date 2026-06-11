@@ -203,6 +203,12 @@ object McpServerManager {
             com.opentermx.mcp.handlers.GetBandwidthUtilizationHandler(commandRunner, redactor = redactor),
             // Fase 3: histórico local en PostgreSQL (DB_UNAVAILABLE claro si no hay BD).
             com.opentermx.mcp.handlers.GetDeviceHistoryHandler(TelemetryDbManager.store),
+            // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
+            // los settings en vivo — agregar una integración no exige reiniciar.
+            com.opentermx.mcp.handlers.ZabbixGetHistoryHandler(::integrationRegistry),
+            com.opentermx.mcp.handlers.ZabbixGetActiveProblemsHandler(::integrationRegistry),
+            com.opentermx.mcp.handlers.OpManagerGetAlarmsHandler(::integrationRegistry),
+            com.opentermx.mcp.handlers.OpManagerGetPerformanceHandler(::integrationRegistry),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
             OpenSessionHandler(approvalGate, resolveSessionOpener(), inventoryProvider),
@@ -251,6 +257,35 @@ object McpServerManager {
             operationRegistry = operationRegistry,
         )
     }
+
+    /**
+     * Registry de integraciones de monitoreo (Fase 4) construido en vivo desde los
+     * settings. El secreto se resuelve recién al usarlo: token cifrado con SecretCipher
+     * o env `OPENTERMX_INTEGRATION_<NOMBRE>_TOKEN` — nunca plaintext.
+     */
+    private fun integrationRegistry(): com.opentermx.integrations.IntegrationRegistry =
+        com.opentermx.integrations.IntegrationRegistry { name ->
+            val setting = appSettingsProvider().monitoringIntegrations
+                .firstOrNull { it.name.equals(name, ignoreCase = true) && it.name.isNotBlank() }
+                ?: return@IntegrationRegistry null
+            val kind = runCatching {
+                com.opentermx.integrations.IntegrationKind.valueOf(setting.kind.uppercase())
+            }.getOrNull() ?: return@IntegrationRegistry null
+            com.opentermx.integrations.MonitoringIntegration(
+                kind = kind,
+                name = setting.name,
+                baseUrl = setting.baseUrl,
+                verifyTls = setting.verifyTls,
+                extra = setting.apiVersionOverride?.let { mapOf("apiVersion" to it) } ?: emptyMap(),
+                secretProvider = {
+                    decodeToken(setting.token)
+                        ?: System.getenv(integrationTokenEnvVar(setting.name)).orEmpty()
+                },
+            )
+        }
+
+    private fun integrationTokenEnvVar(name: String): String =
+        "OPENTERMX_INTEGRATION_" + name.uppercase().replace(Regex("[^A-Z0-9]"), "_") + "_TOKEN"
 
     private fun resolveSessionOpener(): com.opentermx.mcp.security.SessionOpener {
         val launcher = sessionLauncherProvider()

@@ -16,4 +16,5 @@ include(
     ":policy-engine",
     ":net-parsers",
     ":telemetry-db",
+    ":integrations",
 )

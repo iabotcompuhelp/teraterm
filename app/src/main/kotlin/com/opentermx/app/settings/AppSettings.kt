@@ -31,6 +31,11 @@ data class AppSettings(
      */
     val database: DatabaseSettings = DatabaseSettings(),
     /**
+     * Integraciones read-only a plataformas de monitoreo (Fase 4): Zabbix / OpManager.
+     * Las consumen las tools MCP `zabbix_*` / `opmanager_*`.
+     */
+    val monitoringIntegrations: List<MonitoringIntegrationSetting> = emptyList(),
+    /**
      * Credenciales recordadas para conexiones SSH previas. Cada entrada lleva
      * `host/port/username` y opcionalmente password o ruta de clave + passphrase, cifrada
      * con [com.opentermx.common.crypto.SecretCipher]. Se popula al conectar con la opción

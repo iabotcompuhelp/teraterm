@@ -50,6 +50,9 @@ class TelemetryDb private constructor(
     val profiles = ProfileRepository(this)
     val neighbors = NeighborRepository(this)
 
+    // Fase 6A: catálogo de marcas/modelos y métodos de gestión por dispositivo.
+    val catalog = CatalogRepository(this)
+
     /** `use {}` siempre: ninguna conexión sale del pool sin volver (error #17). */
     fun <T> withConnection(block: (Connection) -> T): T =
         dataSource.connection.use(block)

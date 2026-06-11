@@ -8,6 +8,7 @@ import com.opentermx.app.rest.RestApiManager
 import com.opentermx.app.ui.ai.AiChatPanel
 import com.opentermx.app.ui.dialog.AiAssistantDialog
 import com.opentermx.app.ui.dialog.RestApiDialog
+import com.opentermx.app.ui.dialog.CatalogDialog
 import com.opentermx.app.ui.dialog.DeviceProfilesDialog
 import com.opentermx.app.ui.dialog.ErrorDialog
 import com.opentermx.app.ui.dialog.FingerprintSettingsDialog
@@ -343,6 +344,10 @@ class MainWindow(
                 // Fases 3-5: features IA/MCP-adyacentes — también se ocultan en modo terminal.
                 items += MenuItem(Strings["setup.telemetry"]).apply {
                     setOnAction { openTelemetryConfig() }
+                }
+                // Fase 6A: catálogo de marcas/modelos y packs YAML.
+                items += MenuItem(Strings["setup.catalog"]).apply {
+                    setOnAction { openCatalogConfig() }
                 }
                 items += MenuItem(Strings["setup.fingerprint"]).apply {
                     setOnAction { openFingerprintConfig() }
@@ -730,6 +735,12 @@ class MainWindow(
         // BD/scheduler se reconectan según los settings nuevos (en IO). Las integraciones
         // las leen los handlers MCP en vivo — no requieren reinicio del server.
         com.opentermx.app.ui.mcp.TelemetryDbManager.applySettings(result.database)
+    }
+
+    private fun openCatalogConfig() {
+        CatalogDialog(store = com.opentermx.app.ui.mcp.TelemetryDbManager.store)
+            .also { it.initOwner(stage) }
+            .showAndWait()
     }
 
     private fun openDeviceProfilesConfig() {

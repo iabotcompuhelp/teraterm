@@ -18,6 +18,8 @@ dependencies {
     // JSONB del perfil de dispositivo (Fase 5B): parseo/serialización + ProfileMigrator.
     implementation(libs.jackson.databind)
     implementation(libs.jackson.module.kotlin)
+    // Catalog packs YAML (Fase 6A): CatalogPackImporter.
+    implementation(libs.jackson.dataformat.yaml)
     // Modelo canónico InterfaceStats — lo que se persiste en interface_metrics.
     api(project(":net-parsers"))
 

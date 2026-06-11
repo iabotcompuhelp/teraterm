@@ -1,0 +1,60 @@
+# =====================================================================
+# Catalog Pack: Aruba 2930F (familia ArubaOS-Switch / ProVision, AOS-S 16.x)
+# Formato: Fase 6A de fase6-onboarding-adapters.md (packVersion 1)
+# =====================================================================
+packVersion: 1
+brand: Aruba
+vendorEnum: ARUBA_PROVISION
+models:
+
+  - name: "2930F"
+    deviceType: switch
+    family: ArubaOS-Switch
+    matchPatterns:
+      - "(?i)\\b2930F\\b"
+      - "(?i)Aruba\\s*2930F"
+      - "(?i)\\bJL(25[3-9]|26[0-4]|55[89])A\\b"   # JL253A-JL259A, JL260A-JL264A, JL558A/JL559A
+    defaultMethods: [CLI_SSH, CLI_SERIAL, NETMIKO, ANSIBLE, REST_API, SNMP]
+    metadata:
+      netmikoDeviceType: aruba_osswitch          # netmiko moderno; fallback legado: hp_procurve
+      ansibleCollection: arubanetworks.aos_switch
+      restApi:
+        base: "/rest/v7"
+        authStyle: session-cookie                 # POST /rest/v7/login-sessions -> cookie de sesion
+        loginPath: "/rest/v7/login-sessions"
+        readExamples:
+          - id: rest.get_system
+            method: GET
+            path: "/rest/v7/system"
+          - id: rest.get_ports
+            method: GET
+            path: "/rest/v7/ports"
+          - id: rest.get_port_stats
+            method: GET
+            path: "/rest/v7/port-statistics"
+          - id: rest.get_vlans
+            method: GET
+            path: "/rest/v7/vlans"
+        notes: "Requiere 'web-management ssl' habilitado en el equipo; cerrar sesion con DELETE /login-sessions (maximo de sesiones REST concurrentes limitado)"
+      readonlyProfile: arubaos_switch
+      parserHints:
+        interfaceCommand: "show interfaces"
+        interfaceBriefCommand: "show interfaces brief"
+        versionCommand: "show system"             # modelo+serial; 'show version' solo trae firmware
+        neighborsCommand: "show lldp info remote-device detail"
+        baseParser: "arubaos_switch"
+      pagination:
+        disableCommand: "no page"
+        scope: "session"
+      configMode:
+        enter: "configure terminal"
+        exit: "exit"
+        save: "write memory"
+      promptPattern: "^[\\w\\-.]+[#>]\\s*$"
+      quirks:
+        - "Familia ArubaOS-Switch (ProVision): comandos 'show', sintaxis DISTINTA de Aruba AOS-CX y de Comware"
+        - "La CLI usa secuencias ANSI intensivamente (pantalla VT100): imprescindible el strip de ANSI del OutputCleaner (error #3)"
+        - "'show interfaces brief' usa columnas de ancho fijo; 'show interfaces <port>' da contadores con Drops/Errors Rx-Tx"
+        - "Identificacion: 'show system' devuelve 'Serial Number' y el modelo con part number JLxxxA"
+        - "REST v7: si el firmware es 16.04-16.10 la version del path puede variar (v4-v7); detectar con GET /rest/version"
+        - "Banner inicial 'Press any key to continue' en consola serial: el detector de prompt debe enviarlo (error #32)"

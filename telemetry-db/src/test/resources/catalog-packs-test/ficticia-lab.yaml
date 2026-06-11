@@ -1,0 +1,28 @@
+# Pack de marca FICTICIA para el test de humo del CI (recomendación de la Fase 6A:
+# agregar una marca nueva debe ser solo YAML — si requiere tocar Kotlin, la
+# abstracción falló).
+packVersion: 1
+brand: Ficticia
+vendorEnum: GENERIC
+models:
+
+  - name: "FX-100"
+    deviceType: switch
+    family: FicticiaOS
+    matchPatterns:
+      - "(?i)\\bFX-100\\b"
+      - "(?i)\\bFCT10\\dA\\b"
+    defaultMethods: [CLI_SSH, NETMIKO]
+    metadata:
+      netmikoDeviceType: ficticia_os
+      readonlyProfile: ficticia_os
+      quirks:
+        - "Equipo de laboratorio: no existe en el mundo real"
+
+  - name: "FX-AP20"
+    deviceType: access_point
+    family: FicticiaOS
+    matchPatterns:
+      - "(?i)\\bFX-AP20\\b"
+    defaultMethods: [CLI_SSH]
+    metadata: {}

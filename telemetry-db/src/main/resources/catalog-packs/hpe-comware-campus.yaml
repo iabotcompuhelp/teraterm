@@ -1,0 +1,73 @@
+# =====================================================================
+# Catalog Pack: HPE FlexNetwork (familia Comware 7) — 5130 / 5140
+# Formato: Fase 6A de fase6-onboarding-adapters.md (packVersion 1)
+# IMPORTANTE: requiere agregar HPE_COMWARE al enum vendor_t (ver README)
+# =====================================================================
+packVersion: 1
+brand: HPE
+vendorEnum: HPE_COMWARE
+models:
+
+  - name: "5130 EI"
+    deviceType: switch
+    family: Comware
+    matchPatterns:
+      - "(?i)HPE?\\s*5130[\\s-]?EI"
+      - "(?i)\\b5130[\\s-]?EI\\b"
+      - "(?i)\\bJG9(3[2-9]|7[0-9])A\\b"     # part numbers JG932A-JG939A, JG970A-JG979A
+    defaultMethods: [CLI_SSH, CLI_SERIAL, NETMIKO, SNMP]
+    metadata:
+      netmikoDeviceType: hp_comware
+      ansibleCollection: h3c_open.comware     # comunidad H3C; verificar instalacion antes de habilitar
+      readonlyProfile: hpe_comware
+      parserHints:
+        interfaceCommand: "display interface"
+        interfaceBriefCommand: "display interface brief"
+        versionCommand: "display version"
+        neighborsCommand: "display lldp neighbor-information verbose"
+        baseParser: "huawei_vrp_like"          # la salida Comware 7 es muy similar a Huawei VRP (linaje H3C)
+      pagination:
+        disableCommand: "screen-length disable"
+        scope: "session"                       # se pierde al cerrar sesion; aplicar en cada conexion
+      configMode:
+        enter: "system-view"
+        exit: "quit"
+        save: "save force"
+      promptPattern: "^[<\\[][\\w\\-.]+[>\\]]\\s*$"   # <HOSTNAME> modo usuario, [HOSTNAME] system-view
+      quirks:
+        - "Comandos 'display ...', NO 'show ...' (familia Comware, no ProVision/ArubaOS-Switch)"
+        - "El prompt cambia de <host> a [host] al entrar a system-view: util para detectar modo config"
+        - "screen-length disable es por sesion: el ejecutor debe enviarlo en cada conexion nueva"
+        - "Contadores detallados de errores: 'display counters inbound interface' (CRC en bloque Input de display interface)"
+        - "El login puede caer en rol 'network-operator' (solo display); verificar rol antes de proponer cambios"
+
+  - name: "5140 EI"
+    deviceType: switch
+    family: Comware
+    matchPatterns:
+      - "(?i)HPE?\\s*5140[\\s-]?EI"
+      - "(?i)\\b5140[\\s-]?EI\\b"
+      - "(?i)\\bJL82[0-9]A\\b"               # part numbers JL820A-JL829A (serie 5140 EI)
+    defaultMethods: [CLI_SSH, CLI_SERIAL, NETMIKO, SNMP]
+    metadata:
+      netmikoDeviceType: hp_comware
+      ansibleCollection: h3c_open.comware
+      readonlyProfile: hpe_comware
+      parserHints:
+        interfaceCommand: "display interface"
+        interfaceBriefCommand: "display interface brief"
+        versionCommand: "display version"
+        neighborsCommand: "display lldp neighbor-information verbose"
+        baseParser: "huawei_vrp_like"
+      pagination:
+        disableCommand: "screen-length disable"
+        scope: "session"
+      configMode:
+        enter: "system-view"
+        exit: "quit"
+        save: "save force"
+      promptPattern: "^[<\\[][\\w\\-.]+[>\\]]\\s*$"
+      quirks:
+        - "Misma sintaxis Comware 7 que el 5130 EI; comparte parsers y whitelist"
+        - "Soporta IRF (stacking): 'display irf' devuelve miembros; display version lista N seriales (error #35 del catalogo)"
+        - "En IRF los nombres de interfaz incluyen el miembro: GigabitEthernet1/0/1, GigabitEthernet2/0/1"

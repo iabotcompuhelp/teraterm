@@ -44,16 +44,31 @@ sealed interface ReadOnlyValidation {
 class ReadOnlyCommandValidator(
     private val whitelist: Map<Vendor, List<Regex>>,
     private val deny: List<Regex>,
+    /**
+     * Fase 6A (schema v2): whitelists con NOMBRE, referenciadas desde el catálogo de
+     * modelos vía `metadata.readonlyProfile`. Un perfil es más específico que el vendor
+     * (p. ej. `arubaos_switch` vs `aruba_aoscx`) — cuando el caller lo pasa y existe,
+     * SU `allow` reemplaza al del vendor y su `deny` se suma al global.
+     */
+    private val profiles: Map<String, Profile> = emptyMap(),
 ) {
+
+    data class Profile(val allow: List<Regex>, val deny: List<Regex>)
+
+    /** Nombres de perfiles cargados (diagnóstico y validación de packs del catálogo). */
+    fun profileNames(): Set<String> = profiles.keys
 
     /**
      * Patrones de la whitelist del vendor, como texto (Fase 5C: `allowedCommands` de
      * `get_device_profile`). Devuelve los PATRONES — jamás el producto cartesiano de
-     * comandos posibles (error #45).
+     * comandos posibles (error #45). Con [profile] resuelto, los del perfil.
      */
-    fun patternsFor(vendor: Vendor): List<String> = whitelist[vendor].orEmpty().map { it.pattern }
+    fun patternsFor(vendor: Vendor, profile: String? = null): List<String> {
+        profile?.let { profiles[it] }?.let { return it.allow.map { rx -> rx.pattern } }
+        return whitelist[vendor].orEmpty().map { it.pattern }
+    }
 
-    fun validate(rawCommand: String, vendor: Vendor): ReadOnlyValidation {
+    fun validate(rawCommand: String, vendor: Vendor, profile: String? = null): ReadOnlyValidation {
         val command = rawCommand.trim()
         if (command.length < MIN_COMMAND_LENGTH) return rejected("comando vacío o demasiado corto")
         if (command.length > MAX_COMMAND_LENGTH) {
@@ -76,20 +91,23 @@ class ReadOnlyCommandValidator(
         }
 
         val head = segments.first()
-        val vendorPatterns = whitelist[vendor].orEmpty()
-        if (vendorPatterns.isEmpty()) {
+        // Perfil del catálogo (v2) más específico que el vendor; sin perfil, el vendor.
+        val resolvedProfile = profile?.let { profiles[it] }
+        val allowPatterns = resolvedProfile?.allow ?: whitelist[vendor].orEmpty()
+        val allowLabel = if (resolvedProfile != null) "del perfil `$profile`" else "de ${vendor.displayName}"
+        if (allowPatterns.isEmpty()) {
             return rejected(
                 "vendor `${vendor.displayName}` sin whitelist read-only (¿detección fallida?). " +
                     "No se adivina: verificá la sesión o usá `propose_commands`."
             )
         }
-        if (vendorPatterns.none { it.matches(head) }) {
+        if (allowPatterns.none { it.matches(head) }) {
             return rejected(
-                "`$head` no matchea la whitelist read-only de ${vendor.displayName}. " +
+                "`$head` no matchea la whitelist read-only $allowLabel. " +
                     "Para comandos mutativos usá `propose_commands`."
             )
         }
-        deny.firstOrNull { it.matches(head) }?.let {
+        (deny + (resolvedProfile?.deny ?: emptyList())).firstOrNull { it.matches(head) }?.let {
             return rejected("`$head` está explícitamente excluido por la deny-list (`${it.pattern}`)")
         }
 
@@ -115,6 +133,7 @@ class ReadOnlyCommandValidator(
     companion object {
         const val MIN_COMMAND_LENGTH = 2
         const val MAX_COMMAND_LENGTH = 512
+        const val SUPPORTED_VERSION = 2
 
         /** Recurso embebido con la whitelist default. */
         const val EMBEDDED_RESOURCE = "/policies/readonly-commands.yaml"
@@ -183,6 +202,9 @@ class ReadOnlyCommandValidator(
          */
         fun fromYaml(yamlText: String): ReadOnlyCommandValidator {
             val root = yamlMapper.readValue(yamlText, WhitelistFile::class.java)
+            require(root.version in 1..SUPPORTED_VERSION) {
+                "whitelist versión ${root.version} no soportada (soporto 1..$SUPPORTED_VERSION)"
+            }
             require(root.vendors.isNotEmpty()) { "whitelist sin sección `vendors`" }
             val byVendor = root.vendors.entries.associate { (name, patterns) ->
                 val vendor = runCatching { Vendor.valueOf(name) }.getOrElse {
@@ -190,7 +212,14 @@ class ReadOnlyCommandValidator(
                 }
                 vendor to patterns.map { compile(it) }
             }
-            return ReadOnlyCommandValidator(byVendor, root.deny.map { compile(it) })
+            val profiles = root.profiles.entries.associate { (name, entry) ->
+                require(entry.allow.isNotEmpty()) { "perfil `$name` sin sección `allow`" }
+                name to Profile(
+                    allow = entry.allow.map { compile(it) },
+                    deny = entry.deny.map { compile(it) },
+                )
+            }
+            return ReadOnlyCommandValidator(byVendor, root.deny.map { compile(it) }, profiles)
         }
 
         private fun compile(pattern: String): Regex {
@@ -209,5 +238,14 @@ class ReadOnlyCommandValidator(
         val version: Int = 1,
         val vendors: Map<String, List<String>> = emptyMap(),
         val deny: List<String> = emptyList(),
+        /** v2 (Fase 6A): perfiles con nombre referenciados por el catálogo de modelos. */
+        val profiles: Map<String, ProfileEntry> = emptyMap(),
+    )
+
+    private data class ProfileEntry(
+        val allow: List<String> = emptyList(),
+        val deny: List<String> = emptyList(),
+        /** Documentación del pack; no se interpreta. */
+        val notes: List<String> = emptyList(),
     )
 }

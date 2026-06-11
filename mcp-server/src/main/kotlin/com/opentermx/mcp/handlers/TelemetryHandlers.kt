@@ -106,6 +106,7 @@ internal fun com.opentermx.ai.context.Vendor.toNetVendor(): com.opentermx.netpar
         com.opentermx.ai.context.Vendor.ARUBA_OS -> com.opentermx.netparsers.Vendor.ARUBA_AOSCX
         com.opentermx.ai.context.Vendor.FORTINET_FORTIOS -> com.opentermx.netparsers.Vendor.FORTINET
         com.opentermx.ai.context.Vendor.HUAWEI_VRP -> com.opentermx.netparsers.Vendor.HUAWEI_VRP
+        com.opentermx.ai.context.Vendor.HPE_COMWARE -> com.opentermx.netparsers.Vendor.HPE_COMWARE
         com.opentermx.ai.context.Vendor.MIKROTIK_ROUTEROS -> com.opentermx.netparsers.Vendor.MIKROTIK
         com.opentermx.ai.context.Vendor.JUNIPER_JUNOS -> com.opentermx.netparsers.Vendor.JUNIPER_JUNOS
         com.opentermx.ai.context.Vendor.UNKNOWN -> com.opentermx.netparsers.Vendor.UNKNOWN

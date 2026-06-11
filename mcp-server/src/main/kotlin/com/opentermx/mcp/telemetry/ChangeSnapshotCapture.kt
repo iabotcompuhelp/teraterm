@@ -173,6 +173,7 @@ class ChangeSnapshotCapture(
             Vendor.CISCO_IOS, Vendor.CISCO_IOS_XE, Vendor.CISCO_NX_OS -> "show running-config"
             Vendor.ARUBA_OS -> "show running-config"
             Vendor.HUAWEI_VRP -> "display current-configuration"
+            Vendor.HPE_COMWARE -> "display current-configuration"
             Vendor.JUNIPER_JUNOS -> "show configuration"
             Vendor.MIKROTIK_ROUTEROS -> "/export"
             // FortiOS: `show` vuelca la config del scope actual; full-configuration es

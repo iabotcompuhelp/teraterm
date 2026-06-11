@@ -1,0 +1,10 @@
+{
+  "vendor": "HPE_COMWARE",
+  "model": "5130-24G-4SFP+ EI",
+  "osVersion": "7.1.070 Release 3208P03",
+  "serialNumbers": [],
+  "hostname": null,
+  "uptimeText": "25 weeks, 2 days, 1 hour, 5 minutes",
+  "haRole": null,
+  "confidence": "HIGH"
+}

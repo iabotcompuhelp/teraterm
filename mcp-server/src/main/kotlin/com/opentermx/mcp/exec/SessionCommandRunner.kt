@@ -231,6 +231,8 @@ class SessionCommandRunner(
             Vendor.CISCO_NX_OS to "terminal length 0",
             Vendor.ARUBA_OS to "no page",
             Vendor.HUAWEI_VRP to "screen-length 0 temporary",
+            // Comware 7 (Fase 6A): sintaxis propia, por sesión (se re-aplica al reconectar).
+            Vendor.HPE_COMWARE to "screen-length disable",
             Vendor.JUNIPER_JUNOS to "set cli screen-length 0",
         )
 
@@ -245,6 +247,8 @@ class SessionCommandRunner(
                 Vendor.ARUBA_OS to ciscoLike,
                 Vendor.JUNIPER_JUNOS to Regex("""^[\w.\-@]+[>%#]\s*$"""),
                 Vendor.HUAWEI_VRP to Regex("""^[<\[][\w.\-/]+[>\]]\s*$"""),
+                // Comware: <host> modo usuario, [host] system-view — mismo shape que VRP.
+                Vendor.HPE_COMWARE to Regex("""^[<\[][\w.\-/]+[>\]]\s*$"""),
                 Vendor.MIKROTIK_ROUTEROS to Regex("""^\[[\w@.\-/ ]+\]\s*>\s*$"""),
                 Vendor.FORTINET_FORTIOS to Regex("""^[\w.\-]+\s*[#$]\s*$"""),
                 Vendor.UNKNOWN to generic,

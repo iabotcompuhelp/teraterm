@@ -18,6 +18,10 @@ object VendorDetector {
             looksLikeCiscoIosXe(sample) -> Vendor.CISCO_IOS_XE
             looksLikeCiscoIos(sample) -> Vendor.CISCO_IOS
             looksLikeJuniper(sample) -> Vendor.JUNIPER_JUNOS
+            // Comware ANTES que Huawei: comparten linaje (H3C) y formatos parecidos,
+            // pero el banner de Comware nunca dice "Huawei" y viceversa (error #60:
+            // la familia decide, no la marca del chasis).
+            looksLikeComware(sample) -> Vendor.HPE_COMWARE
             looksLikeHuawei(sample) -> Vendor.HUAWEI_VRP
             looksLikeMikrotik(sample) -> Vendor.MIKROTIK_ROUTEROS
             looksLikeAruba(sample) -> Vendor.ARUBA_OS
@@ -42,6 +46,10 @@ object VendorDetector {
         s.contains("JUNOS", ignoreCase = true) ||
             s.contains("Junos OS", ignoreCase = true) ||
             s.contains("Juniper Networks", ignoreCase = true)
+
+    private fun looksLikeComware(s: String): Boolean =
+        s.contains("Comware", ignoreCase = true) ||
+            s.contains("H3C", ignoreCase = false)
 
     private fun looksLikeHuawei(s: String): Boolean =
         s.contains("Huawei Versatile Routing Platform", ignoreCase = true) ||

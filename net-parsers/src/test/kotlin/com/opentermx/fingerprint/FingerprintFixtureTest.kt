@@ -142,6 +142,7 @@ class FingerprintFixtureTest {
             "cisco_iosxe" -> ProbeRegistry.forVendor(Vendor.CISCO_IOSXE)!!
             "cisco_nxos" -> ProbeRegistry.forVendor(Vendor.CISCO_NXOS)!!
             "huawei_vrp" -> ProbeRegistry.forVendor(Vendor.HUAWEI_VRP)!!
+            "hpe_comware" -> ProbeRegistry.forVendor(Vendor.HPE_COMWARE)!!
             "aruba_aoscx" -> ProbeRegistry.forVendor(Vendor.ARUBA_AOSCX)!!
             "fortinet" -> ProbeRegistry.forVendor(Vendor.FORTINET)!!
             "mikrotik" -> ProbeRegistry.forVendor(Vendor.MIKROTIK)!!

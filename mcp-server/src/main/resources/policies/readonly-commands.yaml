@@ -17,7 +17,10 @@
 # (el botón "Editar whitelist…" del Setup lo hace por vos). Si ese archivo
 # existe, REEMPLAZA por completo al embebido.
 # =====================================================================
-version: 1
+# v2 (Fase 6A): se agrega la sección `profiles` — whitelists con nombre que el
+# catálogo de modelos referencia vía `metadata.readonlyProfile`. Un perfil resuelto
+# REEMPLAZA el allow del vendor y SUMA su deny al global. v1 sigue siendo válido.
+version: 2
 
 vendors:
   CISCO_IOS:
@@ -50,6 +53,11 @@ vendors:
     - '^ping\s+\S+.*$'
     - '^tracert\s+\S+.*$'
     - '^screen-length\s+\d+\s+temporary$'
+  # HPE FlexNetwork / H3C, Comware 7 (Fase 6A) — sintaxis display, NO show.
+  HPE_COMWARE:
+    - '^display\s+\S+.*$'
+    - '^ping(\s+-c\s+\d{1,2})?\s+[\w.:\-]+$'
+    - '^tracert\s+[\w.:\-]+$'
   MIKROTIK_ROUTEROS:
     # Con slash inicial obligatorio (forma canónica RouterOS): la forma sin slash
     # depende del menú actual de la CLI, que esta tool no trackea.
@@ -66,3 +74,30 @@ deny:
   - '^show\s+tech-support\b.*$'
   - '^diagnose\s+sys\s+kill\b.*$'
   - '^display\s+diagnostic-information\b.*$'
+
+# ---------------------------------------------------------------------
+# Perfiles con nombre (v2, Fase 6A). El catálogo de modelos los referencia
+# vía metadata.readonlyProfile; cuando hay perfil resuelto para el device,
+# su `allow` reemplaza al del vendor y su `deny` se suma al global.
+# Los comandos de des-paginación (`screen-length disable`, `no page`) NO
+# van acá: los envía el ejecutor como setup de sesión, no el LLM.
+# ---------------------------------------------------------------------
+profiles:
+  # HPE 5130 EI / 5140 EI (Comware 7) — del catalog pack inicial.
+  hpe_comware:
+    allow:
+      - '^display\s+\S+.*$'
+      - '^ping(\s+-c\s+\d{1,2})?\s+[\w.:\-]+$'
+      - '^tracert\s+[\w.:\-]+$'
+    deny:
+      # Equivalente a show tech: output gigante (error #12).
+      - '(?i)^display\s+diagnostic-information.*$'
+
+  # Aruba 2930F (AOS-S / ProVision) — del catalog pack inicial.
+  arubaos_switch:
+    allow:
+      - '^show\s+\S+.*$'
+      - '^ping\s+[\w.:\-]+$'
+      - '^traceroute\s+[\w.:\-]+$'
+    deny:
+      - '(?i)^show\s+tech.*$'

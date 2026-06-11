@@ -17,6 +17,13 @@ enum class Vendor {
     ARUBA_PROVISION,
     FORTINET,
     HUAWEI_VRP,
+
+    /**
+     * HPE FlexNetwork / H3C, familia Comware 7 (Fase 6A): sintaxis `display ...` de
+     * linaje VRP pero plataforma distinta de Huawei (error #60 del catálogo: la
+     * familia decide, no la marca). Agregado a `vendor_t` por V3_0.
+     */
+    HPE_COMWARE,
     MIKROTIK,
     JUNIPER_JUNOS,
     GENERIC,

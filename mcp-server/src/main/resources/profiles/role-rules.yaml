@@ -29,7 +29,7 @@ rules:
     when: { modelPattern: "(?i)(ISR|ASR|NetEngine|CCR|RB\\d{3,4}|hAP|hEX)" }
 
   - role: switch
-    when: { modelPattern: "(?i)(C9[23]00|C3[78]50|WS-C\\d{4}|Catalyst|Nexus|CloudEngine|CE\\d{4}|S[56]7\\d{2}|Quidway|JL\\d{3}A|Aruba [68]\\d{3}|63\\d{2}[MF]?|83\\d{2}|CRS\\d{3})" }
+    when: { modelPattern: "(?i)(C9[23]00|C3[78]50|WS-C\\d{4}|Catalyst|Nexus|CloudEngine|CE\\d{4}|S[56]7\\d{2}|Quidway|JL\\d{3}A|Aruba [68]\\d{3}|63\\d{2}[MF]?|83\\d{2}|CRS\\d{3}|\\b51[34]0\\b|29[23]0F|ICX)" }
 
   - role: unknown
     when: {}          # fallback

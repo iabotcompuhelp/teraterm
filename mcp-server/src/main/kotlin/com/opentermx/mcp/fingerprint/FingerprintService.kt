@@ -421,6 +421,7 @@ internal fun Vendor.toAiVendor(): com.opentermx.ai.context.Vendor = when (this) 
     Vendor.ARUBA_AOSCX, Vendor.ARUBA_PROVISION -> com.opentermx.ai.context.Vendor.ARUBA_OS
     Vendor.FORTINET -> com.opentermx.ai.context.Vendor.FORTINET_FORTIOS
     Vendor.HUAWEI_VRP -> com.opentermx.ai.context.Vendor.HUAWEI_VRP
+    Vendor.HPE_COMWARE -> com.opentermx.ai.context.Vendor.HPE_COMWARE
     Vendor.MIKROTIK -> com.opentermx.ai.context.Vendor.MIKROTIK_ROUTEROS
     Vendor.JUNIPER_JUNOS -> com.opentermx.ai.context.Vendor.JUNIPER_JUNOS
     Vendor.GENERIC, Vendor.UNKNOWN -> com.opentermx.ai.context.Vendor.UNKNOWN

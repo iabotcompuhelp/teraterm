@@ -1,0 +1,32 @@
+HPE Comware Platform Software
+Comware Software, Version 7.1.070, Release 6328
+Copyright (c) 2010-2021 Hewlett Packard Enterprise Development LP
+HPE 5140-48G-PoE+-4SFP+ EI Switch uptime is 11 weeks, 4 days, 9 hours, 30 minutes
+
+Slot 1:
+Uptime is 11 weeks,4 days,9 hours,30 minutes
+HPE 5140-48G-PoE+-4SFP+ EI Switch with 1 Processor
+BOARD TYPE:         5140-48G-PoE+-4SFP+ EI
+DRAM:               1024M bytes
+FLASH:              512M bytes
+PCB 1 Version:      VER.A
+Bootrom Version:    122
+CPLD 1 Version:     002
+Release Version:    HPE 5140-48G-PoE+-4SFP+ EI-6328
+Patch Version:      None
+Reboot Cause:       PowerOn
+[SubSlot 0] 48GE+4SFP Plus
+
+Slot 2:
+Uptime is 11 weeks,4 days,9 hours,28 minutes
+HPE 5140-48G-PoE+-4SFP+ EI Switch with 1 Processor
+BOARD TYPE:         5140-48G-PoE+-4SFP+ EI
+DRAM:               1024M bytes
+FLASH:              512M bytes
+PCB 1 Version:      VER.A
+Bootrom Version:    122
+CPLD 1 Version:     002
+Release Version:    HPE 5140-48G-PoE+-4SFP+ EI-6328
+Patch Version:      None
+Reboot Cause:       PowerOn
+[SubSlot 0] 48GE+4SFP Plus

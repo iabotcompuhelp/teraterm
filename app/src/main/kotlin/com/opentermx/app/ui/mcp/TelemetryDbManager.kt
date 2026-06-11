@@ -77,6 +77,16 @@ object TelemetryDbManager {
                         runCatching {
                             ImportLegacyAuditCsv.run(com.opentermx.ai.audit.AiAuditLog(), connected)
                         }.onFailure { log.warn("Import de audit legacy falló: {}", it.message) }
+                        // Fase 6A: catálogo — packs embebidos + los del operador en
+                        // ~/.opentermx/catalog/. Idempotente; jamás pisa source=operator.
+                        runCatching {
+                            val importer = com.opentermx.telemetrydb.CatalogPackImporter(connected)
+                            (importer.importBuiltins() + importer.importUserDir())
+                                .filter { !it.ok }
+                                .forEach { bad ->
+                                    log.warn("Catalog pack `{}` rechazado: {}", bad.packSource, bad.errors)
+                                }
+                        }.onFailure { log.warn("Import de catalog packs falló: {}", it.message) }
                     }
                     .onFailure {
                         // connect ya logueó el warning; liberar appliedConfig para que el

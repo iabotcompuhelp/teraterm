@@ -12,6 +12,7 @@ import com.opentermx.mcp.security.ReadOnlyCommandValidator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
 /**
@@ -29,6 +30,8 @@ object AutoFingerprintManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile private var subscription: AutoCloseable? = null
+    @Volatile private var profileViews: DeviceProfileViews? = null
+    @Volatile private var ragDocsRef: RagDocGenerator? = null
 
     /**
      * Registra (o RE-registra) el listener. Idempotente pero reconstruye: `enabled` y
@@ -64,12 +67,29 @@ object AutoFingerprintManager {
             ttlDays = { appSettings().fingerprint.ttlDays },
         )
         subscription = auto.start()
+        profileViews = views
+        ragDocsRef = ragDocs
         log.info(
             "Auto-fingerprint registrado (autoOnConnect={}, ttlDays={}, dryRun={})",
             appSettings().fingerprint.autoOnConnect,
             appSettings().fingerprint.ttlDays,
             appSettings().fingerprint.dryRun,
         )
+    }
+
+    /**
+     * El operador editó/confirmó un perfil (diálogo de Setup): invalida la caché de
+     * enriquecimiento (por hostname y por IP de management) y regenera el doc RAG en
+     * IO. No-op si el manager nunca se registró (p. ej. modo terminal).
+     */
+    fun notifyProfileEdited(hostname: String, mgmtAddress: String? = null) {
+        profileViews?.invalidate(hostname)
+        mgmtAddress?.let { profileViews?.invalidate(it) }
+        val ragDocs = ragDocsRef ?: return
+        scope.launch {
+            runCatching { ragDocs.regenerateFor(hostname) }
+                .onFailure { log.warn("regeneración RAG de `{}` falló: {}", hostname, it.message) }
+        }
     }
 
     @Synchronized

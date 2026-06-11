@@ -133,6 +133,25 @@ class DeviceProfilesIntegrationTest {
     }
 
     @Test
+    fun `releaseRoleToInferred devuelve el rol al control del sistema`() {
+        val deviceId = newDevice("10.99.5.9")
+        db.profiles.applyFingerprint(deviceId, identity(), roleSuggestion = "switch", probeId = "cisco_show_version")
+        db.profiles.updateOperatorFields(deviceId, role = "core-switch")
+        // Confirmado: el fingerprint no lo pisa.
+        db.profiles.applyFingerprint(deviceId, identity(), roleSuggestion = "router", probeId = "cisco_show_version")
+        var loaded = db.profiles.load(deviceId) as ProfileRepository.LoadResult.Loaded
+        assertEquals("core-switch", loaded.record.role)
+        assertEquals("OPERATOR", loaded.record.roleSource)
+
+        assertTrue(db.profiles.releaseRoleToInferred(deviceId))
+        // Liberado: la próxima sugerencia vuelve a escribir.
+        db.profiles.applyFingerprint(deviceId, identity(), roleSuggestion = "router", probeId = "cisco_show_version")
+        loaded = db.profiles.load(deviceId) as ProfileRepository.LoadResult.Loaded
+        assertEquals("router", loaded.record.role)
+        assertEquals("INFERRED", loaded.record.roleSource)
+    }
+
+    @Test
     fun `stackMembers de extras queda en profile custom`() {
         val deviceId = newDevice("10.99.5.3")
         db.profiles.applyFingerprint(

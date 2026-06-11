@@ -353,6 +353,24 @@ class ProfileRepository internal constructor(private val db: TelemetryDb) {
     }.onFailure { log.warn("updateOperatorFields device={} falló: {}", deviceId, it.message) }
         .getOrDefault(false)
 
+    /**
+     * Devuelve el rol al control del SISTEMA (`role_source=INFERRED`): el próximo
+     * fingerprint vuelve a escribir la sugerencia. Es el inverso de confirmar el rol
+     * con [updateOperatorFields] — la UI de perfiles lo usa al destildar "confirmar".
+     */
+    fun releaseRoleToInferred(deviceId: Long, updatedBy: String = "operator"): Boolean = runCatching {
+        db.withConnection { conn ->
+            conn.prepareStatement(
+                "UPDATE device_profiles SET role_source = 'INFERRED', updated_by = ? WHERE device_id = ?"
+            ).use { ps ->
+                ps.setString(1, updatedBy)
+                ps.setLong(2, deviceId)
+                ps.executeUpdate() > 0
+            }
+        }
+    }.onFailure { log.warn("releaseRoleToInferred device={} falló: {}", deviceId, it.message) }
+        .getOrDefault(false)
+
     private fun setJsonField(conn: Connection, deviceId: Long, path: String, jsonValue: String?, updatedBy: String) {
         if (jsonValue == null) return
         conn.prepareStatement(

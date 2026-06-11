@@ -8,6 +8,7 @@ import com.opentermx.app.rest.RestApiManager
 import com.opentermx.app.ui.ai.AiChatPanel
 import com.opentermx.app.ui.dialog.AiAssistantDialog
 import com.opentermx.app.ui.dialog.RestApiDialog
+import com.opentermx.app.ui.dialog.DeviceProfilesDialog
 import com.opentermx.app.ui.dialog.ErrorDialog
 import com.opentermx.app.ui.dialog.FingerprintSettingsDialog
 import com.opentermx.app.ui.dialog.JavaFxHostKeyVerifier
@@ -338,9 +339,12 @@ class MainWindow(
                     accelerator = accelerator("setup.restApi")
                     setOnAction { openRestApiConfig() }
                 }
-                // Fase 5: feature IA/MCP-adyacente — también se oculta en modo terminal.
+                // Fase 5: features IA/MCP-adyacentes — también se ocultan en modo terminal.
                 items += MenuItem(Strings["setup.fingerprint"]).apply {
                     setOnAction { openFingerprintConfig() }
+                }
+                items += MenuItem(Strings["setup.deviceProfiles"]).apply {
+                    setOnAction { openDeviceProfilesConfig() }
                 }
             }
             items += MenuItem(Strings["setup.terminalOnly"]).apply {
@@ -712,6 +716,17 @@ class MainWindow(
         // las tools MCP (refresh_device_fingerprint) los toman al próximo restart del
         // server MCP, que captura dryRun/activeProbing al construir sus handlers.
         com.opentermx.app.ui.mcp.AutoFingerprintManager.applySettings { settings }
+    }
+
+    private fun openDeviceProfilesConfig() {
+        // El diálogo maneja la BD ausente mostrando el aviso en su status — no hace
+        // falta pre-chequear acá. Tras guardar, invalida cachés y regenera el doc RAG.
+        DeviceProfilesDialog(
+            store = com.opentermx.app.ui.mcp.TelemetryDbManager.store,
+            onProfileSaved = { hostname, mgmt ->
+                com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyProfileEdited(hostname, mgmt)
+            },
+        ).also { it.initOwner(stage) }.showAndWait()
     }
 
     private fun openAiAssistantConfig() {

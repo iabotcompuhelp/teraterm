@@ -152,6 +152,42 @@ class DeviceProfilesIntegrationTest {
     }
 
     @Test
+    fun `delete del device cascadea perfil, fingerprints y vecinos pero conserva la auditoria`() {
+        val deviceId = newDevice("10.99.5.10", hostname = "sw-delete-me")
+        db.profiles.applyFingerprint(deviceId, identity(), roleSuggestion = "switch", probeId = "cisco_show_version")
+        db.neighbors.replaceAll(
+            deviceId,
+            listOf(NeighborEntry("Gi1/0/1", "vecino-x", null, protocol = NeighborProtocol.CDP)),
+        )
+        val sessionUid = "del-test-${deviceId}"
+        assertTrue(
+            db.audit.insert(
+                occurredAt = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC),
+                sessionUid = sessionUid, deviceId = deviceId, source = "test",
+                vendor = Vendor.CISCO_IOS, readOnly = true, commands = listOf("show version"),
+                rationale = null, riskSafe = 1, riskConfig = 0, riskDangerous = 0,
+                decision = "AUTO_READONLY", executedCount = 1, rejectedCount = 0,
+                outputExcerpt = null,
+            )
+        )
+
+        assertTrue(db.devices.delete(deviceId))
+
+        assertNull(db.devices.findById(deviceId))
+        assertTrue(db.fingerprints.listRecent(deviceId, 10).isEmpty(), "fingerprints cascadeados")
+        assertTrue(db.neighbors.list(deviceId).isEmpty(), "vecinos cascadeados")
+        assertTrue(db.profiles.load(deviceId) is ProfileRepository.LoadResult.Missing, "perfil cascadeado")
+        val audit = db.withConnection { conn ->
+            conn.queryToMaps("SELECT device_id FROM command_audit WHERE session_uid = ?") {
+                it.setString(1, sessionUid)
+            }
+        }
+        assertEquals(1, audit.size, "la auditoría sobrevive al borrado del device")
+        assertNull(audit.single()["device_id"], "…desvinculada (SET NULL)")
+        assertFalse(db.devices.delete(deviceId), "segundo delete: ya no existe")
+    }
+
+    @Test
     fun `stackMembers de extras queda en profile custom`() {
         val deviceId = newDevice("10.99.5.3")
         db.profiles.applyFingerprint(

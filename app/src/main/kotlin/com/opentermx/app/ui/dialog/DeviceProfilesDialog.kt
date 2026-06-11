@@ -38,6 +38,8 @@ class DeviceProfilesDialog(
     private val store: TelemetryStore,
     /** Hook post-guardado: invalidar caché de enriquecimiento + regenerar doc RAG. */
     private val onProfileSaved: (hostname: String, mgmtAddress: String?) -> Unit = { _, _ -> },
+    /** Hook post-borrado (error #49): eliminar el doc RAG del disco y del índice. */
+    private val onDeviceRemoved: (hostname: String, mgmtAddress: String?) -> Unit = { _, _ -> },
 ) : Dialog<Unit>() {
 
     private data class DeviceRow(
@@ -86,6 +88,10 @@ class DeviceProfilesDialog(
         isDisable = true
         setOnAction { saveCurrent() }
     }
+    private val deleteButton = javafx.scene.control.Button(Strings["setup.deviceProfiles.delete"]).apply {
+        isDisable = true
+        setOnAction { deleteCurrent() }
+    }
     private val statusLabel = Label().apply { isWrapText = true; maxWidth = 420.0 }
 
     /** roleSource del perfil cargado — decide si destildar implica liberar el rol. */
@@ -109,7 +115,7 @@ class DeviceProfilesDialog(
             add(Label(Strings["setup.deviceProfiles.contact"] + ":"), 0, r); add(contactField, 1, r); r++
             add(Label(Strings["setup.deviceProfiles.notes"] + ":"), 0, r); add(notesArea, 1, r); r++
             add(Label(Strings["setup.deviceProfiles.forbidden"] + ":"), 0, r); add(forbiddenArea, 1, r); r++
-            add(saveButton, 1, r); r++
+            add(HBox(8.0, saveButton, deleteButton), 1, r); r++
             add(statusLabel, 0, r, 2, 1)
         }
         setFormDisabled(true)
@@ -122,7 +128,7 @@ class DeviceProfilesDialog(
         setResultConverter { }
 
         deviceList.selectionModel.selectedItemProperty().addListener { _, _, row ->
-            if (row != null) loadProfile(row) else setFormDisabled(true)
+            if (row != null) loadProfile(row) else resetForm()
         }
         loadDevices(selectHostname = null)
     }
@@ -224,10 +230,43 @@ class DeviceProfilesDialog(
         }
     }
 
+    /** Borrado del inventario — destructivo: confirmación explícita antes de tocar la BD. */
+    private fun deleteCurrent() {
+        val row = deviceList.selectionModel.selectedItem ?: return
+        val confirm = javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION).apply {
+            title = Strings["setup.deviceProfiles.deleteConfirmTitle"]
+            headerText = Strings.format("setup.deviceProfiles.deleteConfirmHeader", row.hostname)
+            contentText = Strings["setup.deviceProfiles.deleteConfirmText"]
+            initOwner(dialogPane.scene.window)
+        }
+        if (confirm.showAndWait().orElse(null) != ButtonType.OK) return
+
+        setFormDisabled(true)
+        io({
+            val db = store.db() ?: error(Strings["setup.deviceProfiles.dbUnavailable"])
+            check(db.devices.delete(row.id)) { "delete devolvió false" }
+        }) {
+            onDeviceRemoved(row.hostname, row.mgmtAddress)
+            statusLabel.text = Strings.format("setup.deviceProfiles.deleted", row.hostname)
+            loadDevices(selectHostname = null)
+        }
+    }
+
+    /** Sin selección (lista vacía tras un borrado): campos limpios y deshabilitados. */
+    private fun resetForm() {
+        identityLabel.text = ""
+        roleSourceLabel.text = ""
+        roleCombo.value = null
+        criticalityCombo.value = null
+        confirmRoleCheck.isSelected = false
+        maintenanceField.clear(); contactField.clear(); notesArea.clear(); forbiddenArea.clear()
+        setFormDisabled(true)
+    }
+
     private fun setFormDisabled(disabled: Boolean) {
         listOf(
             roleCombo, roleSourceLabel, confirmRoleCheck, criticalityCombo,
-            maintenanceField, contactField, notesArea, forbiddenArea, saveButton,
+            maintenanceField, contactField, notesArea, forbiddenArea, saveButton, deleteButton,
         ).forEach { it.isDisable = disabled }
     }
 

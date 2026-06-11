@@ -88,6 +88,23 @@ class DeviceRepository internal constructor(private val db: TelemetryDb) {
         }
     }.getOrNull()
 
+    /**
+     * Borra el device del inventario (Fase 5, error #49). El CASCADE del esquema se
+     * lleva interfaces, métricas, fingerprints, perfil, vecinos y snapshots; la
+     * auditoría de comandos SOBREVIVE con `device_id = NULL` (ON DELETE SET NULL) —
+     * borrar un equipo no borra el registro de lo que se le hizo. El doc RAG lo
+     * limpia el hook del caller ([com.opentermx.fingerprint] removeFor) o, como red
+     * de seguridad, la pasada de huérfanos de regenerateAll.
+     */
+    fun delete(id: Long): Boolean = runCatching {
+        db.withConnection { conn ->
+            conn.prepareStatement("DELETE FROM devices WHERE id = ?").use { ps ->
+                ps.setLong(1, id)
+                ps.executeUpdate() > 0
+            }
+        }
+    }.onFailure { log.warn("delete device {} falló: {}", id, it.message) }.getOrDefault(false)
+
     /** Lookup por IP de management (las sesiones identifican al equipo por host, no hostname). */
     fun findIdByMgmtAddress(address: String?): Long? {
         val inet = inetOrNull(address) ?: return null

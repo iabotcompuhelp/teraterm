@@ -92,6 +92,21 @@ object AutoFingerprintManager {
         }
     }
 
+    /**
+     * El operador BORRÓ un device del inventario (error #49): borra su doc RAG del
+     * disco y del índice Lucene, e invalida la caché de enriquecimiento. Si el manager
+     * nunca se registró, la pasada de huérfanos de regenerateAll lo limpia igual.
+     */
+    fun notifyDeviceRemoved(hostname: String, mgmtAddress: String? = null) {
+        profileViews?.invalidate(hostname)
+        mgmtAddress?.let { profileViews?.invalidate(it) }
+        val ragDocs = ragDocsRef ?: return
+        scope.launch {
+            runCatching { ragDocs.removeFor(hostname) }
+                .onFailure { log.warn("borrado del doc RAG de `{}` falló: {}", hostname, it.message) }
+        }
+    }
+
     @Synchronized
     fun stop() {
         runCatching { subscription?.close() }

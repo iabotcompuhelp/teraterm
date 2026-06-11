@@ -740,6 +740,10 @@ class MainWindow(
             onProfileSaved = { hostname, mgmt ->
                 com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyProfileEdited(hostname, mgmt)
             },
+            // Error #49: borrar del inventario también borra el doc RAG (disco + Lucene).
+            onDeviceRemoved = { hostname, mgmt ->
+                com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyDeviceRemoved(hostname, mgmt)
+            },
         ).also { it.initOwner(stage) }.showAndWait()
     }
 

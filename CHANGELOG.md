@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased — Telemetría Fase 3 (2026-06-10)
+
+Persistencia PostgreSQL (catálogo MCP: **29 tools**). Módulo nuevo `telemetry-db`:
+HikariCP + Flyway + JDBC explícito, sin ORM.
+
+- Esquema `opentermx` completo (V1__init.sql): devices/interfaces/sessions_log,
+  `command_audit` (sucesor del CSV), `config_snapshots`+`config_diffs` con
+  **sanitización de secretos** (valor → `<REDACTED>`; sha256 sobre el texto ya
+  sanitizado), `interface_metrics` particionada por mes (creación on-demand +
+  retry ante `no partition of relation`), `link_events`, tablas de integraciones
+  (Fase 4) y vista `v_latest_interface_status`.
+- **Degradación con gracia**: sin BD, las tools de telemetría siguen funcionando
+  (`persisted: false`) y solo `get_device_history` (tool nueva) devuelve
+  `DB_UNAVAILABLE`. `get_interface_stats` con `persist: true` inserta la muestra y
+  detecta transiciones de enlace.
+- Scheduler de muestreo opcional sobre sesiones ACTIVAS (no abre sesiones: el
+  approval gate de `open_session` no se negocia): semáforo de 5, backoff exponencial
+  5→10→20→60 min tras 3 fallos, mantenimiento diario de particiones (pre-crear mes
+  próximo, retención default 90 días).
+- Import one-shot **idempotente** del `audit-ia.csv` legacy (`legacy_row_hash`
+  sha256 por fila) — corre automáticamente al conectar la BD.
+- Config en settings (`database`): host default `localhost` (placeholder), password
+  cifrado con SecretCipher o env `OPENTERMX_DB_PASSWORD`; nunca plaintext. El
+  `SessionCommandRunner` pasa a ser único por proceso (compartido entre MCP server y
+  scheduler — el mutex por sesión exige una sola instancia).
+- Tests contra **PostgreSQL real embebido** (binarios zonky, sin Docker): migración
+  limpia/idempotente, roundtrip con particiones y vista, sanitización, import
+  idempotente, transición de enlace vía scheduler, `DB_UNAVAILABLE`.
+
 ## Unreleased — Telemetría Fase 2 (2026-06-10)
 
 Parsing estructurado por vendor + tools de telemetría de alto nivel (catálogo MCP:

@@ -69,6 +69,8 @@ object RoleAccessControl {
         // Fase 2 telemetría: ejecutan comandos de interfaces del catálogo interno y
         // devuelven JSON canónico parseado.
         "get_interface_stats", "get_link_status", "get_bandwidth_utilization",
+        // Fase 3: histórico local (lectura pura de la BD).
+        "get_device_history",
         // Side-channel.
         "tail_session",
         // Phase 3 Fase 4 — snapshots: el operator captura el "antes" antes de ejecutar.
@@ -87,6 +89,8 @@ object RoleAccessControl {
         // para validator. policy_evaluate complementa la decisión LLM con hechos
         // determinísticos.
         "policy_load", "policy_list", "policy_evaluate",
+        // Telemetría Fase 3: histórico local — lectura pura de la BD, no toca devices.
+        "get_device_history",
     )
 
     private val validatorWhitelist: Set<String> = setOf(
@@ -98,6 +102,8 @@ object RoleAccessControl {
         "snapshot_create", "snapshot_diff", "snapshot_compare_to_criteria", "rollback_propose",
         // Phase 3 Fase 5: validator audita policies sobre flotas.
         "policy_list", "policy_evaluate", "policy_audit",
+        // Telemetría Fase 3: histórico local — lectura pura de la BD, no toca devices.
+        "get_device_history",
     )
 
     fun allows(role: Role, toolName: String): Boolean = when (role) {

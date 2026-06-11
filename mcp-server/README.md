@@ -187,6 +187,26 @@ Las tres ejecutan SOLO comandos del catálogo interno (nunca input del cliente),
 de lectura pura y quedan auditadas. Vendor sin soporte ⇒ error claro que sugiere
 `run_readonly_command`.
 
+Con PostgreSQL configurado (sección `database` de los settings, módulo `telemetry-db`),
+`get_interface_stats` con `persist: true` (default) inserta la muestra en
+`interface_metrics` y detecta transiciones de enlace (`link_events`). Sin BD todo sigue
+funcionando con `persisted: false`.
+
+### `get_device_history` (histórico local — Fase 3)
+
+Consulta el histórico en PostgreSQL: `interface_metrics`, `link_events`,
+`config_diffs` o `command_audit` de un dispositivo, con filtro por interfaz y rango
+temporal ISO-8601, `limit` server-side (1–1000, default 200). Sin BD responde el error
+claro `DB_UNAVAILABLE` (las tools de telemetría en vivo no dependen de la BD).
+Accesible para los tres roles (lectura pura local).
+
+También en esta fase: scheduler de muestreo periódico opcional
+(`database.schedulerEnabled`) que recorre las sesiones ACTIVAS cada
+`pollIntervalMinutes` (semáforo de 5, backoff 5→10→20→60 min tras 3 fallos) y
+mantenimiento diario de particiones; e import one-shot idempotente del
+`audit-ia.csv` legacy a `command_audit` al conectar la BD. El scheduler NO abre
+sesiones nuevas: `open_session` exige approval gate humano y eso no se negocia.
+
 ## Configuración del cliente
 
 ### Claude Desktop / Cursor / Claude Code

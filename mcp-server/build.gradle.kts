@@ -50,6 +50,9 @@ dependencies {
     implementation(project(":macro-engine"))
     // Fase 2 telemetría: parsers de output por vendor + OutputCleaner compartido.
     implementation(project(":net-parsers"))
+    // Fase 3 telemetría: persistencia PostgreSQL (histórico, scheduler, audit). `api`
+    // porque TelemetryStore expone TelemetryDb/DbConfig y la app los construye.
+    api(project(":telemetry-db"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.javalin)
@@ -65,6 +68,8 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.okhttp)
     testImplementation(libs.mockito.core)
+    // Fase 3: test de integración get_interface_stats → interface_metrics (PG embebido).
+    testImplementation(libs.zonky.embedded.postgres)
 }
 
 tasks.test {

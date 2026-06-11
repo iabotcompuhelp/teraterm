@@ -114,13 +114,15 @@ internal fun com.opentermx.ai.context.Vendor.toNetVendor(): com.opentermx.netpar
 /**
  * `get_interface_stats`: estadísticas estructuradas de interfaces. Ante un output que
  * el parser no entiende devuelve `parsed: false` + el texto crudo (regla de oro Fase 2:
- * el LLM al menos puede leerlo). `persist` se acepta pero es no-op hasta la Fase 3
- * (PostgreSQL) — se devuelve `persisted: false` para que el cliente no asuma histórico.
+ * el LLM al menos puede leerlo). Con `persist=true` (default) y la BD disponible, la
+ * muestra se inserta en `interface_metrics` (Fase 3) — sin BD degrada con gracia y
+ * devuelve `persisted: false`.
  */
 class GetInterfaceStatsHandler(
     runner: SessionCommandRunner,
     auditLog: AiAuditLog = AiAuditLog(),
     redactor: CredentialRedactor = CredentialRedactor(),
+    private val store: com.opentermx.mcp.telemetry.TelemetryStore? = null,
 ) : ToolHandler {
 
     private val executor = TelemetryExecutor(runner, auditLog, redactor)
@@ -130,6 +132,7 @@ class GetInterfaceStatsHandler(
     override suspend fun invoke(args: Map<String, Any?>): Map<String, Any?> {
         val sessionId = Args.requireString(args, "sessionId")
         val interfaceName = Args.optionalString(args, "interfaceName")
+        val persist = args["persist"] as? Boolean ?: true
         val exec = executor.collect(sessionId, interfaceName, "get_interface_stats")
 
         val base = when (val r = exec.result) {
@@ -144,8 +147,25 @@ class GetInterfaceStatsHandler(
         }
         base["command"] = exec.command
         base["timedOut"] = exec.timedOut
-        base["persisted"] = false // Fase 3: interface_metrics en PostgreSQL.
+        base["persisted"] = persistIfPossible(persist, exec, sessionId)
         return base
+    }
+
+    /** Persistencia con degradación: BD ausente o caída => false, jamás un error. */
+    private fun persistIfPossible(
+        persist: Boolean,
+        exec: TelemetryExecutor.Execution,
+        sessionIdRaw: String,
+    ): Boolean {
+        if (!persist || store == null) return false
+        val interfaces = when (val r = exec.result) {
+            is ParseResult.Success -> r.data
+            is ParseResult.PartialSuccess -> r.data
+            is ParseResult.Failure -> return false
+        }
+        val metadata = SessionRegistry.metadataOf(com.opentermx.common.session.SessionId(sessionIdRaw))
+            ?: return false
+        return store.persistSample(metadata, exec.netVendor, interfaces) > 0
     }
 
     private fun filterByName(

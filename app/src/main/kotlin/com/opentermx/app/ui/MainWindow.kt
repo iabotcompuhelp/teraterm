@@ -226,6 +226,7 @@ class MainWindow(
             TftpTransferManager.cancelAll()
             RestApiManager.stop()
             com.opentermx.app.ui.mcp.McpServerManager.stop()
+            com.opentermx.app.ui.mcp.TelemetryDbManager.stop()
             com.opentermx.app.ui.ai.KnowledgeBaseHolder.shutdown()
         }
         TftpServerManager.runningProperty.addListener { _, _, _ -> statusBar.updateTftpServerLabel() }
@@ -646,6 +647,9 @@ class MainWindow(
         )
         com.opentermx.app.ui.mcp.McpServerManager.status()?.let { statusBar.observeMcpStatus(it) }
         statusBar.updateMcpServerLabel()
+        // Fase 3 telemetría: la BD se conecta (en IO) según la sección `database` de los
+        // settings, independientemente de si el server MCP está habilitado.
+        com.opentermx.app.ui.mcp.TelemetryDbManager.applySettings(settings.database)
         if (!settings.aiAssistant.mcpServerEnabled) return
         com.opentermx.app.ui.mcp.McpServerManager.applySettings().exceptionOrNull()?.let { e ->
             statusLabel.text = "MCP: " + (e.message ?: e.javaClass.simpleName)

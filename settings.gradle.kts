@@ -15,4 +15,5 @@ include(
     ":mcp-server",
     ":policy-engine",
     ":net-parsers",
+    ":telemetry-db",
 )

@@ -102,6 +102,10 @@ object TestServerMain {
             com.opentermx.mcp.handlers.GetInterfaceStatsHandler(sharedRunner),
             com.opentermx.mcp.handlers.GetLinkStatusHandler(sharedRunner),
             com.opentermx.mcp.handlers.GetBandwidthUtilizationHandler(sharedRunner),
+            // Fase 3: sin BD en el server de pruebas — ejercita el camino DB_UNAVAILABLE.
+            com.opentermx.mcp.handlers.GetDeviceHistoryHandler(
+                com.opentermx.mcp.telemetry.TelemetryStore { null },
+            ),
             ListMacrosHandler(),
             RunMacroHandler(gate),
             OpenSessionHandler(gate, SessionOpener.NoOp, inventory),

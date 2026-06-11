@@ -209,3 +209,16 @@ def test_tools_list_expone_las_tools_de_telemetria(client):
 def test_get_interface_stats_sesion_inexistente_devuelve_isError(client):
     resp = call_tool(client, "get_interface_stats", {"sessionId": "no-existe"})
     assert resp["result"]["isError"] is True
+
+
+# --------------------------------------------------------------- Fase 3 telemetría
+
+
+def test_get_device_history_sin_bd_devuelve_DB_UNAVAILABLE(client):
+    """El server de pruebas corre sin PostgreSQL: el error debe ser claro, no un 500."""
+    resp = call_tool(client, "get_device_history", {
+        "deviceHostname": "router-cisco.lab",
+        "dataType": "interface_metrics",
+    })
+    assert resp["result"]["isError"] is True
+    assert "DB_UNAVAILABLE" in resp["result"]["content"][0]["text"]

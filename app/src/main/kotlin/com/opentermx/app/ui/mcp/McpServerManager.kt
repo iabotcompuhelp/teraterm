@@ -152,9 +152,9 @@ object McpServerManager {
         val approvalGate: ApprovalGate = JavaFxApprovalGate(ownerProvider)
         val redactor = com.opentermx.mcp.security.RedactorFactory.fromCustomRules(settings.mcpServerCustomRedactionRules)
         val tailManager = TailManager()
-        // Runner compartido por run_readonly_command y las tools de telemetría: el mutex
-        // por sesión vive acá, así que UNA instancia por server.
-        val commandRunner = com.opentermx.mcp.exec.SessionCommandRunner()
+        // Runner ÚNICO del proceso (compartido también con el scheduler de telemetría):
+        // el mutex por sesión solo sirve si todos los inyectores usan la misma instancia.
+        val commandRunner = TelemetryDbManager.sharedCommandRunner
         // Phase 3 Fase 1: registry de operations persistido en `~/.opentermx/operations/`.
         // Se construye una vez por server start; recovery automático al cargar.
         val operationRegistry = com.opentermx.mcp.operation.OperationRegistry(
@@ -195,9 +195,14 @@ object McpServerManager {
             ),
             // Fase 2 telemetría: tools de alto nivel sobre el MISMO runner (el mutex por
             // sesión solo serializa si todos los handlers comparten la instancia).
-            com.opentermx.mcp.handlers.GetInterfaceStatsHandler(commandRunner, redactor = redactor),
+            com.opentermx.mcp.handlers.GetInterfaceStatsHandler(
+                commandRunner, redactor = redactor,
+                store = TelemetryDbManager.store, // persist=true inserta en interface_metrics si hay BD
+            ),
             com.opentermx.mcp.handlers.GetLinkStatusHandler(commandRunner, redactor = redactor),
             com.opentermx.mcp.handlers.GetBandwidthUtilizationHandler(commandRunner, redactor = redactor),
+            // Fase 3: histórico local en PostgreSQL (DB_UNAVAILABLE claro si no hay BD).
+            com.opentermx.mcp.handlers.GetDeviceHistoryHandler(TelemetryDbManager.store),
             ListMacrosHandler(),
             RunMacroHandler(approvalGate),
             OpenSessionHandler(approvalGate, resolveSessionOpener(), inventoryProvider),

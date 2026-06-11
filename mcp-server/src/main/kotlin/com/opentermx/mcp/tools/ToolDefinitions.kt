@@ -403,6 +403,47 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val GET_DEVICE_HISTORY = ToolDef(
+        name = "get_device_history",
+        description = "Consulta el histórico local (PostgreSQL): métricas de interfaces, eventos de " +
+            "enlace, cambios de configuración y auditoría de comandos de un dispositivo. Si la BD no " +
+            "está disponible devuelve el error DB_UNAVAILABLE — las tools de telemetría en vivo siguen " +
+            "funcionando sin BD.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceHostname", "dataType"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceHostname" to obj("type" to "string", "minLength" to 1),
+                "dataType" to obj(
+                    "type" to "string",
+                    "enum" to listOf("interface_metrics", "link_events", "config_diffs", "command_audit"),
+                ),
+                "interfaceName" to obj("type" to "string"),
+                "fromIso" to obj("type" to "string", "format" to "date-time"),
+                "toIso" to obj("type" to "string", "format" to "date-time"),
+                "limit" to obj(
+                    "type" to "integer",
+                    "minimum" to 1,
+                    "maximum" to 1000,
+                    "default" to 200,
+                ),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceHostname", "dataType", "count", "rows"),
+            "properties" to obj(
+                "deviceHostname" to obj("type" to "string"),
+                "dataType" to obj("type" to "string"),
+                "count" to obj("type" to "integer"),
+                "rows" to obj("type" to "array", "items" to obj("type" to "object")),
+            ),
+        ),
+        // Lectura pura de la BD local: no toca ningún device.
+        mutating = false,
+    )
+
     val LIST_MACROS = ToolDef(
         name = "list_macros",
         description = "Lista los macros Groovy disponibles en `~/.opentermx/macros/`. " +
@@ -1065,6 +1106,7 @@ object ToolDefinitions {
         GET_INTERFACE_STATS,
         GET_LINK_STATUS,
         GET_BANDWIDTH_UTILIZATION,
+        GET_DEVICE_HISTORY,
         LIST_MACROS,
         RUN_MACRO,
         OPEN_SESSION,

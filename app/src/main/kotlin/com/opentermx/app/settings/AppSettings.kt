@@ -25,6 +25,12 @@ data class AppSettings(
     val aiAssistant: AiAssistantSettings = AiAssistantSettings(),
     val restApi: RestApiPersistedSettings = RestApiPersistedSettings(),
     /**
+     * PostgreSQL de telemetría (Fase 3): histórico de métricas de interfaces, eventos de
+     * enlace, snapshots de config y auditoría. Default OFF; la app degrada con gracia
+     * si la BD no responde.
+     */
+    val database: DatabaseSettings = DatabaseSettings(),
+    /**
      * Credenciales recordadas para conexiones SSH previas. Cada entrada lleva
      * `host/port/username` y opcionalmente password o ruta de clave + passphrase, cifrada
      * con [com.opentermx.common.crypto.SecretCipher]. Se popula al conectar con la opción

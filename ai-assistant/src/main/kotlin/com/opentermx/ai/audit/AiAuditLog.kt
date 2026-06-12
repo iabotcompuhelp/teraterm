@@ -75,8 +75,13 @@ class AiAuditLog(private val file: Path = defaultPath()) {
     }
 
     private fun csvEscape(value: String): String {
-        val needsQuote = value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }
-        return if (!needsQuote) value else "\"${value.replace("\"", "\"\"")}\""
+        // Defensa de inyección de fórmulas (CSV/formula injection): campos como `prompt`,
+        // `host`, `commands` y `outputTail` derivan de output de EQUIPOS (no confiable).
+        // Un valor que arranca con `= + - @` es una fórmula en Excel/LibreOffice; se
+        // antepone `'` para que la planilla lo trate como texto literal, no la ejecute.
+        val guarded = if (value.isNotEmpty() && value.first() in FORMULA_TRIGGERS) "'$value" else value
+        val needsQuote = guarded.any { it == ',' || it == '"' || it == '\n' || it == '\r' }
+        return if (!needsQuote) guarded else "\"${guarded.replace("\"", "\"\"")}\""
     }
 
     /**
@@ -161,6 +166,9 @@ class AiAuditLog(private val file: Path = defaultPath()) {
 
     companion object {
         const val HEADER = "timestamp,sessionId,host,vendor,prompt,riskSummary,executedCount,skippedCount,failedCount,rejected,commands,outputTail"
+
+        /** Primer carácter que una planilla interpreta como fórmula (CSV formula injection). */
+        private val FORMULA_TRIGGERS = setOf('=', '+', '-', '@')
         private val FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(ZoneId.systemDefault())
 
         @Throws(IOException::class)

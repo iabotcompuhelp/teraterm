@@ -49,6 +49,57 @@ class AiAuditLogTest {
     }
 
     @Test
+    fun neutralizesSpreadsheetFormulaInjectionFromUntrustedDeviceOutput(@TempDir dir: Path) {
+        val file = dir.resolve("audit.csv")
+        val log = AiAuditLog(file)
+        // Banner/output de un equipo malicioso: campos que arrancan con caracteres de fórmula.
+        log.append(
+            AiAuditEntry(
+                timestampMillis = 1_700_000_000_000L,
+                sessionId = "s-evil",
+                host = "=HYPERLINK(\"http://evil\",\"x\")",
+                vendor = "X",
+                prompt = "+cmd|'/c calc'",
+                commands = listOf("@SUM(1+1)", "show version"),
+                commandRisks = listOf(RiskLevel.SAFE, RiskLevel.SAFE),
+                executedCount = 2, skippedCount = 0, failedCount = 0, rejected = false,
+                outputTail = "-2+3",
+            )
+        )
+        val row = Files.readAllLines(file).last()
+        // Ningún campo del CSV arranca con un carácter de fórmula sin neutralizar:
+        val fields = parseFieldsForTest(row)
+        for (f in fields) {
+            assertTrue(
+                f.isEmpty() || f.first() !in charArrayOf('=', '+', '-', '@').toList(),
+                "campo `$f` arranca con carácter de fórmula sin neutralizar",
+            )
+        }
+        // El contenido sigue presente (solo prefijado con ' dentro del campo).
+        assertTrue(row.contains("'=HYPERLINK"))
+        assertTrue(row.contains("'@SUM(1+1)"))
+        assertTrue(row.contains("'-2+3"))
+    }
+
+    /** Split CSV que respeta comillas, para inspeccionar campos en el test. */
+    private fun parseFieldsForTest(row: String): List<String> {
+        val out = mutableListOf<String>(); val sb = StringBuilder(); var q = false; var i = 0
+        while (i < row.length) {
+            val c = row[i]
+            if (q) {
+                if (c == '"') { if (i + 1 < row.length && row[i + 1] == '"') { sb.append('"'); i++ } else q = false }
+                else sb.append(c)
+            } else when (c) {
+                ',' -> { out += sb.toString(); sb.clear() }
+                '"' -> q = true
+                else -> sb.append(c)
+            }
+            i++
+        }
+        out += sb.toString(); return out
+    }
+
+    @Test
     fun escapesCommasAndQuotesInPromptAndCommands(@TempDir dir: Path) {
         val file = dir.resolve("audit.csv")
         val log = AiAuditLog(file)

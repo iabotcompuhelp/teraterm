@@ -78,6 +78,10 @@ object RoleAccessControl {
         "tail_session",
         // Phase 3 Fase 4 — snapshots: el operator captura el "antes" antes de ejecutar.
         "snapshot_create", "snapshot_diff",
+        // Fase 6C — adaptadores de gestión: métodos efectivos (6C.1), lectura vía adaptador
+        // (6C.2) y propuesta de escritura sujeta a aprobación humana (6C.3). La escritura pasa
+        // SIEMPRE por el ApprovalGate; la lectura valida read-only server-side.
+        "get_management_methods", "adapter_read", "propose_adapter_write",
     )
 
     private val complianceWhitelist: Set<String> = setOf(

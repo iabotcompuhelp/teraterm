@@ -109,4 +109,21 @@ interface ManagementAdapter {
     suspend fun executeRead(device: DeviceRef, op: ReadOperation): AdapterResult
 
     suspend fun proposeWrite(device: DeviceRef, op: WriteOperation): ProposalTicket
+
+    /**
+     * Aplica EFECTIVAMENTE un cambio de configuración que ya fue aprobado por un operador
+     * humano (Fase 6C.3). Es la contraparte ejecutora de [proposeWrite].
+     *
+     * INVARIANTE DE SEGURIDAD (no negociable): este método sólo puede invocarse DESPUÉS de
+     * que el [com.opentermx.mcp.security.ApprovalGate] devolvió `Approve` sobre el ticket
+     * de [proposeWrite]. Ninguna tool MCP ni ruta directa lo llama: el único caller legítimo
+     * es la rama post-aprobación del handler `propose_adapter_write`. La separación es a
+     * propósito — `proposeWrite` JAMÁS toca el equipo; `applyApprovedChange` SÍ, y por eso
+     * vive detrás de la revisión humana.
+     *
+     * El default devuelve [AdapterResult.Failure]: un adaptador que no implementa escrituras
+     * (o todavía no las habilita) nunca aplica nada por accidente (fail-closed).
+     */
+    suspend fun applyApprovedChange(device: DeviceRef, op: WriteOperation): AdapterResult =
+        AdapterResult.Failure("el adaptador `$method` no implementa la aplicación de cambios aprobados")
 }

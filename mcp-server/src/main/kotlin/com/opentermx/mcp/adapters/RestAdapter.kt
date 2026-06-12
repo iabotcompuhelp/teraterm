@@ -96,6 +96,30 @@ class RestAdapter(
         )
     }
 
+    /**
+     * Aplica un cambio REST ya aprobado por el operador (ver invariante en [ManagementAdapter]).
+     * Resuelve config/credenciales por dispositivo (fail-closed si faltan) y, recién entonces,
+     * realizaría la operación de gestión sobre el equipo.
+     *
+     * PENDIENTE (stub deliberado, 6C.3): la llamada HTTP MUTANTE final (login → método+path+body
+     * de escritura → logout) queda sin enviar a la espera de la revisión del Cyber Verification
+     * Program. Es una request HTTP estándar, análoga a [executeSessionCookie] pero con el verbo
+     * de escritura; se completa cuando el CVP lo habilite. Hasta entonces devolvemos un Failure
+     * explícito: el camino de PROPUESTA y APROBACIÓN (que no toca la red) queda completo y testeado,
+     * y el equipo nunca recibe una escritura a medio implementar.
+     */
+    override suspend fun applyApprovedChange(device: DeviceRef, op: WriteOperation): AdapterResult {
+        // El runtime real necesita config + credenciales; sin ellas no hay nada que aplicar.
+        deviceConfigOf(device.deviceId)
+            ?: return AdapterResult.Failure("REST no configurado en el dispositivo (falta baseUrl)")
+        credentialsOf(device.deviceId)
+            ?: return AdapterResult.Failure("sin credenciales REST para el dispositivo")
+        // TODO(6C.3 / CVP): emitir la request HTTP de escritura aprobada y devolver Success.
+        return AdapterResult.Failure(
+            "aplicación REST de escritura pendiente de revisión CVP (operación `${op.id}` aprobada, no enviada)",
+        )
+    }
+
     // ------------------------------------------------------------------ internals
 
     private fun executeSessionCookie(

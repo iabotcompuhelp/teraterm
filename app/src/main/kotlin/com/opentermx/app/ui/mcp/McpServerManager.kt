@@ -289,6 +289,17 @@ object McpServerManager {
             com.opentermx.mcp.handlers.AdapterReadHandler(
                 TelemetryDbManager.store, profileViews, capabilities, adapterRegistry,
             ),
+            // Fase 6C.3: propuesta de escritura sujeta a aprobación humana. Detrás del flag
+            // `adapters.rest.write.enabled` (leído en vivo): apagado → responde deshabilitado.
+            // El cambio se aplica SÓLO tras el ApprovalGate.
+            com.opentermx.mcp.handlers.ProposeAdapterWriteHandler(
+                store = TelemetryDbManager.store,
+                views = profileViews,
+                capabilities = capabilities,
+                registry = adapterRegistry,
+                approvalGate = approvalGate,
+                writeEnabled = { appSettingsProvider().adapters.restWriteEnabled },
+            ),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.
             com.opentermx.mcp.handlers.ZabbixGetHistoryHandler(::integrationRegistry),

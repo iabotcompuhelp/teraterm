@@ -1538,6 +1538,58 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    val PROPOSE_ADAPTER_WRITE = ToolDef(
+        name = "propose_adapter_write",
+        description = "PROPONE (no aplica) un cambio de configuración vía un adaptador habilitado " +
+            "(REST_API). NUNCA toca el equipo por sí sola: construye un ticket con la representación " +
+            "literal de la operación y lo manda al panel de aprobación humano. El cambio se aplica " +
+            "SÓLO si el operador lo aprueba. Las lecturas van por adapter_read; las escrituras CLI por " +
+            "propose_commands. Detrás del flag `adapters.rest.write.enabled` (default false): con el flag " +
+            "apagado responde deshabilitado y no crea ticket.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceHostname", "method", "operation", "rationale"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceHostname" to obj("type" to "string", "minLength" to 1),
+                "method" to obj("type" to "string", "enum" to listOf("NETMIKO", "REST_API", "ANSIBLE")),
+                "operation" to obj(
+                    "type" to "string", "minLength" to 1,
+                    "description" to "Id de operación de ESCRITURA del adaptador, ej: `rest.set_vlan`.",
+                ),
+                "payload" to obj(
+                    "type" to "object", "additionalProperties" to true,
+                    "description" to "Cuerpo de la operación que el operador verá literal en el panel de aprobación.",
+                ),
+                "rationale" to obj(
+                    "type" to "string", "minLength" to 1,
+                    "description" to "Por qué se propone el cambio. Se muestra al operador y se audita.",
+                ),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("ok", "status"),
+            "properties" to obj(
+                "ok" to obj("type" to "boolean"),
+                "status" to obj(
+                    "type" to "string",
+                    "enum" to listOf("disabled", "rejected", "applied", "apply_failed"),
+                    "description" to "disabled: flag apagado; rejected: operador rechazó; applied: aplicado; " +
+                        "apply_failed: aprobado pero la aplicación falló.",
+                ),
+                "ticketId" to obj("type" to listOf("string", "null")),
+                "method" to obj("type" to "string"),
+                "operation" to obj("type" to "string"),
+                "literalPayload" to obj("type" to listOf("string", "null")),
+                "auditLogId" to obj("type" to listOf("string", "null")),
+                "error" to obj("type" to listOf("string", "null")),
+            ),
+        ),
+        // Mutativa: aplica un cambio (tras aprobación). El modo read-only del server la bloquea.
+        mutating = true,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -1578,6 +1630,7 @@ object ToolDefinitions {
         DIAGNOSE_DEVICE_CONTEXT,
         GET_MANAGEMENT_METHODS,
         ADAPTER_READ,
+        PROPOSE_ADAPTER_WRITE,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

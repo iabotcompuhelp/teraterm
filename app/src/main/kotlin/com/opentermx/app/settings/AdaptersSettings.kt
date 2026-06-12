@@ -14,6 +14,13 @@ import com.fasterxml.jackson.annotation.JsonInclude
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class AdaptersSettings(
     val restEnabled: Boolean = false,
+    /**
+     * `adapters.rest.write.enabled` (Fase 6C.3): habilita el camino de APLICACIÓN de cambios
+     * REST aprobados. Nace apagado y es independiente de [restEnabled] (lectura): con este
+     * flag en false, `propose_adapter_write` responde "deshabilitado" y no crea ticket — el
+     * camino de escritura se integra sin exponer la aplicación de cambios todavía.
+     */
+    val restWriteEnabled: Boolean = false,
     val netmikoEnabled: Boolean = false,
     val ansibleEnabled: Boolean = false,
 )

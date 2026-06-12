@@ -193,5 +193,10 @@
     "mutating" : false,
     "inputSha256" : "9d6112f0a12ee7aadc6fa49980acd87c0b8814016715f4b02e74258a62e4c704",
     "outputSha256" : "51c7892c67e3aebd24c02f6f3bb162db94d0f1a07d75d0b4d0ae72cc165bd04e"
+  },
+  "propose_adapter_write" : {
+    "mutating" : true,
+    "inputSha256" : "05de06f09fb80ba30a05296cdd1e9810342086329529db6bea31134cafeb10d9",
+    "outputSha256" : "6f8e60eb0be1715808c4d0f66cf659d46193eb131f9f86d8b6ecf08183c274e0"
   }
 }

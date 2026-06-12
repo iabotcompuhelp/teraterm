@@ -1496,7 +1496,10 @@ object ToolDefinitions {
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }
 
     const val DEFAULT_LAST_LINES = 50
-    const val MAX_LAST_LINES = 500
+    // Tope de `inspect_session`. Acotado server-side y redactado, pero cada línea cuesta
+    // contexto del cliente LLM + trabajo de redacción; 200 alcanza de sobra para entender
+    // una sesión y reduce el peor caso por llamada. El default (50) ya es chico.
+    const val MAX_LAST_LINES = 200
     const val DEFAULT_TOP_K = 5
     const val MAX_TOP_K = 20
     const val DEFAULT_AUDIT_LIMIT = 50

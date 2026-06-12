@@ -344,6 +344,13 @@ data class TransportContext(
      * Phase 3 Fase 3: rol declarado por el cliente vía header HTTP `X-OpenTermX-Role`.
      * Default [com.opentermx.mcp.security.Role.OPERATOR] cuando el header falta
      * (back-compat con clientes pre-Fase 3).
+     *
+     * SEGURIDAD: el rol es **auto-declarado por el cliente**, no autenticado. La
+     * separación COMPLIANCE/OPERATOR (multi-agente) es un control ADVISORIO: un cliente
+     * puede declararse COMPLIANCE para emitir un approval token y luego usarlo como
+     * OPERATOR. Esto NO bypassa la garantía central — el `ApprovalGate` humano de
+     * `propose_commands` dispara siempre — pero la malla de roles no es una frontera de
+     * seguridad mientras el rol no esté atado a una credencial/token. Ver docs/ARCHITECTURE.md.
      */
     val role: com.opentermx.mcp.security.Role = com.opentermx.mcp.security.Role.OPERATOR,
 ) {

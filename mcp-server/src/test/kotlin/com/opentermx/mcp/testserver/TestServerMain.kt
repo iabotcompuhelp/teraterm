@@ -124,20 +124,30 @@ object TestServerMain {
                 com.opentermx.mcp.telemetry.TelemetryStore { null },
             ),
             com.opentermx.mcp.handlers.ListDevicesHandler(com.opentermx.mcp.telemetry.TelemetryStore { null }),
-            // Fase 6C.1: sin BD → get_management_methods devuelve DB_UNAVAILABLE.
-            com.opentermx.mcp.handlers.GetManagementMethodsHandler(
-                com.opentermx.mcp.telemetry.TelemetryStore { null },
-                com.opentermx.mcp.fingerprint.DeviceProfileViews(
-                    com.opentermx.mcp.telemetry.TelemetryStore { null },
-                    com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
-                ),
-                com.opentermx.mcp.adapters.EffectiveCapabilitiesService(
-                    com.opentermx.mcp.telemetry.TelemetryStore { null },
-                    com.opentermx.mgmt.AdapterRegistry(
-                        listOf(com.opentermx.mcp.adapters.CliSshAdapter(sharedRunner)),
-                    ),
-                ),
-            ),
+            // Fase 6C.1/6C.2: sin BD → get_management_methods / adapter_read devuelven
+            // DB_UNAVAILABLE. Registry con CLI; el camino feliz REST se prueba aparte.
+            run {
+                val noStore = com.opentermx.mcp.telemetry.TelemetryStore { null }
+                val noViews = com.opentermx.mcp.fingerprint.DeviceProfileViews(
+                    noStore, com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
+                )
+                val reg = com.opentermx.mgmt.AdapterRegistry(
+                    listOf(com.opentermx.mcp.adapters.CliSshAdapter(sharedRunner)),
+                )
+                val caps = com.opentermx.mcp.adapters.EffectiveCapabilitiesService(noStore, reg)
+                com.opentermx.mcp.handlers.GetManagementMethodsHandler(noStore, noViews, caps)
+            },
+            run {
+                val noStore = com.opentermx.mcp.telemetry.TelemetryStore { null }
+                val noViews = com.opentermx.mcp.fingerprint.DeviceProfileViews(
+                    noStore, com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
+                )
+                val reg = com.opentermx.mgmt.AdapterRegistry(
+                    listOf(com.opentermx.mcp.adapters.CliSshAdapter(sharedRunner)),
+                )
+                val caps = com.opentermx.mcp.adapters.EffectiveCapabilitiesService(noStore, reg)
+                com.opentermx.mcp.handlers.AdapterReadHandler(noStore, noViews, caps, reg)
+            },
             com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(
                 com.opentermx.mcp.telemetry.TelemetryStore { null },
                 com.opentermx.mcp.fingerprint.DeviceProfileViews(

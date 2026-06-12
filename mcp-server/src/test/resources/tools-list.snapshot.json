@@ -188,5 +188,10 @@
     "mutating" : false,
     "inputSha256" : "d8e918d79d625f4f0a9fd55b6ffc2db2ae743701982486d04cd10e9f2b66ce2f",
     "outputSha256" : "e90f449b965e10da3f4500c35266e0fea7c0af7136a1aea1c5f5ed78dfa987ea"
+  },
+  "adapter_read" : {
+    "mutating" : false,
+    "inputSha256" : "9d6112f0a12ee7aadc6fa49980acd87c0b8814016715f4b02e74258a62e4c704",
+    "outputSha256" : "51c7892c67e3aebd24c02f6f3bb162db94d0f1a07d75d0b4d0ae72cc165bd04e"
   }
 }

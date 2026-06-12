@@ -208,8 +208,22 @@ object McpServerManager {
         // Fase 6C.1: adaptadores de gestión. CLI/SSH es el único adaptador real por ahora
         // (envuelve el ejecutor read-only). El EffectiveCapabilitiesService calcula la
         // intersección modelo ∩ dispositivo ∩ flag ∩ runtime. Flags no-CLI leídos en vivo.
+        // Fase 6C.2: adaptador REST de lectura (HTTP puro). Config por dispositivo desde
+        // device_management_settings; el password vía env OPENTERMX_REST_<host>_PASSWORD
+        // (sin plaintext en BD, mismo patrón que los tokens de integraciones).
+        val restAdapter = com.opentermx.mcp.adapters.RestAdapter(
+            catalogMetaOf = { deviceId ->
+                TelemetryDbManager.store.db()?.catalog?.catalogModelOf(deviceId)
+                    ?.let { com.opentermx.mcp.adapters.RestAdapter.metaFromCatalog(it.metadataJson) }
+            },
+            deviceConfigOf = { deviceId -> restConfigOf(deviceId)?.first },
+            credentialsOf = { deviceId -> restConfigOf(deviceId)?.second },
+        )
         val adapterRegistry = com.opentermx.mgmt.AdapterRegistry(
-            listOf(com.opentermx.mcp.adapters.CliSshAdapter(commandRunner, readonlyValidator)),
+            listOf(
+                com.opentermx.mcp.adapters.CliSshAdapter(commandRunner, readonlyValidator),
+                restAdapter,
+            ),
         )
         val capabilities = com.opentermx.mcp.adapters.EffectiveCapabilitiesService(
             store = TelemetryDbManager.store,
@@ -270,6 +284,10 @@ object McpServerManager {
             // Fase 6C.1: métodos de gestión efectivos (intersección).
             com.opentermx.mcp.handlers.GetManagementMethodsHandler(
                 TelemetryDbManager.store, profileViews, capabilities,
+            ),
+            // Fase 6C.2: lectura vía adaptador (REST). Valida read-only server-side.
+            com.opentermx.mcp.handlers.AdapterReadHandler(
+                TelemetryDbManager.store, profileViews, capabilities, adapterRegistry,
             ),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.
@@ -358,6 +376,34 @@ object McpServerManager {
 
     private fun integrationTokenEnvVar(name: String): String =
         "OPENTERMX_INTEGRATION_" + name.uppercase().replace(Regex("[^A-Z0-9]"), "_") + "_TOKEN"
+
+    /**
+     * Config + credenciales REST de un dispositivo (Fase 6C.2). baseUrl/verifyTls/username
+     * salen de `device_management_settings` (config JSON del método REST_API habilitado);
+     * el password de la env `OPENTERMX_REST_<host>_PASSWORD` — sin plaintext en la BD.
+     * Devuelve null si REST no está configurado/habilitado (el adaptador falla claro).
+     */
+    private fun restConfigOf(
+        deviceId: Long,
+    ): Pair<com.opentermx.mcp.adapters.RestAdapter.RestDeviceConfig, com.opentermx.mcp.adapters.RestAdapter.RestCredentials>? {
+        val db = TelemetryDbManager.store.db() ?: return null
+        val row = db.catalog.managementSettingsOf(deviceId)
+            .firstOrNull { it["method"] == "REST_API" && it["enabled"] == true } ?: return null
+        val cfg = runCatching {
+            @Suppress("UNCHECKED_CAST")
+            com.fasterxml.jackson.databind.ObjectMapper()
+                .readValue(row["config_json"]?.toString() ?: "{}", Map::class.java) as Map<String, Any?>
+        }.getOrDefault(emptyMap())
+        val baseUrl = cfg["baseUrl"] as? String ?: return null
+        val username = cfg["username"] as? String ?: return null
+        val host = db.devices.findById(deviceId)?.get("hostname")?.toString() ?: return null
+        val envVar = "OPENTERMX_REST_" + host.uppercase().replace(Regex("[^A-Z0-9]"), "_") + "_PASSWORD"
+        val password = System.getenv(envVar) ?: return null
+        return com.opentermx.mcp.adapters.RestAdapter.RestDeviceConfig(
+            baseUrl = baseUrl,
+            verifyTls = cfg["verifyTls"] as? Boolean ?: true,
+        ) to com.opentermx.mcp.adapters.RestAdapter.RestCredentials(username, password)
+    }
 
     private fun resolveSessionOpener(): com.opentermx.mcp.security.SessionOpener {
         val launcher = sessionLauncherProvider()

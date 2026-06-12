@@ -273,6 +273,17 @@ Demo: importar el pack del 2930F → onboard un device con ese modelo →
 `get_management_methods` muestra CLI efectivo y REST/Netmiko/Ansible con su motivo de
 indisponibilidad (sin adaptador / flag off / sin opt-in).
 
+**6C.2 (entregado):** adaptador REST de LECTURA (`RestAdapter`, HTTP puro JVM, sin
+bridge) + tool `adapter_read`. Las operaciones de lectura las declara el catálogo del
+modelo (`metadata.restApi.readExamples`); la config por dispositivo (baseUrl/verifyTls/
+username) vive en `device_management_settings` y el password en la env
+`OPENTERMX_REST_<host>_PASSWORD` (sin plaintext en BD). Auth `session-cookie` del 2930F
+(login → GET con cookie → logout). `adapter_read` valida **server-side** que la operación
+sea de lectura del descriptor del adaptador (error #56: nunca se confía en que el LLM
+eligió bien) y que el método sea EFECTIVO; el contenido devuelto se marca
+`contentOrigin: external_device` (dato no confiable). Flag global `adapters.restEnabled`
+(off por default). Las escrituras REST llegan en 6C.3 (propose_adapter_write).
+
 ## Endpoints
 
 | Método | Path           | Función                                                |

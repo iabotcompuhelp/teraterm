@@ -1453,6 +1453,52 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    // ------------------------------------------------------------------ Fase 6C
+
+    val GET_MANAGEMENT_METHODS = ToolDef(
+        name = "get_management_methods",
+        description = "Devuelve los métodos de gestión EFECTIVOS de un dispositivo (habilitados por el " +
+            "operador y disponibles en runtime), con las operaciones de lectura que cada uno expone. La " +
+            "intersección es modelo ∩ dispositivo ∩ flag ∩ runtime. Las escrituras SIEMPRE requieren " +
+            "aprobación humana (propose_commands / propose_adapter_write).",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceHostname"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceHostname" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("found"),
+            "properties" to obj(
+                "found" to obj("type" to "boolean"),
+                "deviceHostname" to obj("type" to "string"),
+                "effectiveMethods" to obj("type" to "array", "items" to obj("type" to "string")),
+                "methods" to obj(
+                    "type" to "array",
+                    "items" to obj(
+                        "type" to "object",
+                        "required" to listOf("method", "effective"),
+                        "properties" to obj(
+                            "method" to obj("type" to "string"),
+                            "effective" to obj("type" to "boolean"),
+                            "supportedByCatalog" to obj("type" to "boolean"),
+                            "enabledOnDevice" to obj("type" to "boolean"),
+                            "flagEnabled" to obj("type" to "boolean"),
+                            "availableInRuntime" to obj("type" to "boolean"),
+                            "unavailableReason" to obj("type" to listOf("string", "null")),
+                            "readOperations" to obj("type" to "array", "items" to obj("type" to "string")),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        // Lectura pura de la BD local + estado de runtime: no toca ningún device.
+        mutating = false,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -1491,6 +1537,7 @@ object ToolDefinitions {
         REFRESH_DEVICE_FINGERPRINT,
         LIST_DEVICES,
         DIAGNOSE_DEVICE_CONTEXT,
+        GET_MANAGEMENT_METHODS,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

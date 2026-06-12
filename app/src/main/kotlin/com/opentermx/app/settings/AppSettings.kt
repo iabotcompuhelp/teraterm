@@ -46,6 +46,11 @@ data class AppSettings(
      */
     val onboarding: OnboardingSettings = OnboardingSettings(),
     /**
+     * Feature flags de los adaptadores de gestión no-CLI (Fase 6C): Netmiko/Ansible/REST.
+     * Todos apagados por default — habilitarlos es opt-in explícito.
+     */
+    val adapters: AdaptersSettings = AdaptersSettings(),
+    /**
      * Credenciales recordadas para conexiones SSH previas. Cada entrada lleva
      * `host/port/username` y opcionalmente password o ruta de clave + passphrase, cifrada
      * con [com.opentermx.common.crypto.SecretCipher]. Se popula al conectar con la opción

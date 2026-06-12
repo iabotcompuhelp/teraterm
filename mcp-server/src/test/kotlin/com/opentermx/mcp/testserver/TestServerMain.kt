@@ -124,6 +124,20 @@ object TestServerMain {
                 com.opentermx.mcp.telemetry.TelemetryStore { null },
             ),
             com.opentermx.mcp.handlers.ListDevicesHandler(com.opentermx.mcp.telemetry.TelemetryStore { null }),
+            // Fase 6C.1: sin BD → get_management_methods devuelve DB_UNAVAILABLE.
+            com.opentermx.mcp.handlers.GetManagementMethodsHandler(
+                com.opentermx.mcp.telemetry.TelemetryStore { null },
+                com.opentermx.mcp.fingerprint.DeviceProfileViews(
+                    com.opentermx.mcp.telemetry.TelemetryStore { null },
+                    com.opentermx.mcp.security.ReadOnlyCommandValidator.embedded(),
+                ),
+                com.opentermx.mcp.adapters.EffectiveCapabilitiesService(
+                    com.opentermx.mcp.telemetry.TelemetryStore { null },
+                    com.opentermx.mgmt.AdapterRegistry(
+                        listOf(com.opentermx.mcp.adapters.CliSshAdapter(sharedRunner)),
+                    ),
+                ),
+            ),
             com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(
                 com.opentermx.mcp.telemetry.TelemetryStore { null },
                 com.opentermx.mcp.fingerprint.DeviceProfileViews(

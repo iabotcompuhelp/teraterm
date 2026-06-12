@@ -250,6 +250,29 @@ El servidor habla JSON-RPC 2.0 sobre `POST /mcp`. Para discovery: `GET /mcp/heal
 devuelve `{status, tools, server, version}`. SSE complementario en `GET /mcp/sse` (no
 emite eventos todavía, está reservado para futuras notificaciones de cambio de sesiones).
 
+## Fase 6C — Adaptadores de gestión (en construcción, incremental)
+
+Arquitectura de adaptadores conectables (CLI / Netmiko / Ansible / REST) para gestionar
+equipos por métodos según el modelo del catálogo (Fase 6A). Invariante: toda escritura
+—incluido un playbook Ansible o un POST REST— pasa por el ApprovalGate.
+
+**6C.1 (entregado):** contrato `ManagementAdapter` + `AdapterRegistry` (módulo
+`mgmt-adapters/`), `CliSshAdapter` (único adaptador real; envuelve el ejecutor read-only),
+`EffectiveCapabilitiesService` y la tool `get_management_methods`.
+
+`get_management_methods` devuelve los métodos EFECTIVOS de un dispositivo como la
+intersección de cuatro dimensiones — **modelo** (catálogo `default_methods`) ∩
+**dispositivo** (opt-in del operador en `device_management_settings`) ∩ **feature flag**
+(`adapters.*Enabled`, todos off por default) ∩ **runtime** (adaptador registrado y
+disponible). Es el único punto de verdad de "qué puede hacer el LLM con este equipo";
+lo consumirán también `get_device_profile`, el MD de gestión y los validadores de
+`adapter_read`. Hoy solo CLI es efectivo; REST/Netmiko/Ansible aparecen soportados por
+catálogo pero no efectivos hasta que existan sus adaptadores (6C.2+) y se habiliten.
+
+Demo: importar el pack del 2930F → onboard un device con ese modelo →
+`get_management_methods` muestra CLI efectivo y REST/Netmiko/Ansible con su motivo de
+indisponibilidad (sin adaptador / flag off / sin opt-in).
+
 ## Endpoints
 
 | Método | Path           | Función                                                |

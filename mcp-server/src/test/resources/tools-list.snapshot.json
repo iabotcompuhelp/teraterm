@@ -183,5 +183,10 @@
     "mutating" : false,
     "inputSha256" : "d8e918d79d625f4f0a9fd55b6ffc2db2ae743701982486d04cd10e9f2b66ce2f",
     "outputSha256" : "6943443ecc4df9f9e75386310fc4d51599183e95efe7f4af47fe21903436e97a"
+  },
+  "get_management_methods" : {
+    "mutating" : false,
+    "inputSha256" : "d8e918d79d625f4f0a9fd55b6ffc2db2ae743701982486d04cd10e9f2b66ce2f",
+    "outputSha256" : "e90f449b965e10da3f4500c35266e0fea7c0af7136a1aea1c5f5ed78dfa987ea"
   }
 }

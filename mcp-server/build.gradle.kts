@@ -65,6 +65,10 @@ dependencies {
     implementation(libs.jackson.dataformat.yaml)
     implementation(libs.everit.json.schema)
     implementation(libs.slf4j.api)
+    // Contrato de adaptadores de gestión (Fase 6C). `api`: sus tipos aparecen en la
+    // superficie pública de mcp-server (EffectiveCapabilitiesService, CliSshAdapter) y
+    // los necesita el módulo `app` al cablear el registry.
+    api(project(":mgmt-adapters"))
 
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)

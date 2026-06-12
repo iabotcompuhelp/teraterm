@@ -17,4 +17,5 @@ include(
     ":net-parsers",
     ":telemetry-db",
     ":integrations",
+    ":mgmt-adapters",
 )

@@ -205,6 +205,26 @@ object McpServerManager {
             ragDocs.regenerateAll()
             mgmtDocs.regenerateAll()
         }
+        // Fase 6C.1: adaptadores de gestión. CLI/SSH es el único adaptador real por ahora
+        // (envuelve el ejecutor read-only). El EffectiveCapabilitiesService calcula la
+        // intersección modelo ∩ dispositivo ∩ flag ∩ runtime. Flags no-CLI leídos en vivo.
+        val adapterRegistry = com.opentermx.mgmt.AdapterRegistry(
+            listOf(com.opentermx.mcp.adapters.CliSshAdapter(commandRunner, readonlyValidator)),
+        )
+        val capabilities = com.opentermx.mcp.adapters.EffectiveCapabilitiesService(
+            store = TelemetryDbManager.store,
+            registry = adapterRegistry,
+            flagEnabled = { method ->
+                val a = appSettingsProvider().adapters
+                when (method) {
+                    com.opentermx.mgmt.MgmtMethod.CLI_SSH, com.opentermx.mgmt.MgmtMethod.CLI_SERIAL -> true
+                    com.opentermx.mgmt.MgmtMethod.REST_API -> a.restEnabled
+                    com.opentermx.mgmt.MgmtMethod.NETMIKO -> a.netmikoEnabled
+                    com.opentermx.mgmt.MgmtMethod.ANSIBLE -> a.ansibleEnabled
+                    com.opentermx.mgmt.MgmtMethod.SNMP -> false
+                }
+            },
+        )
         val handlers = listOf(
             ListSessionsHandler(views = profileViews),
             InspectSessionHandler(redactor),
@@ -246,6 +266,10 @@ object McpServerManager {
             com.opentermx.mcp.handlers.ListDevicesHandler(TelemetryDbManager.store),
             com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(
                 TelemetryDbManager.store, profileViews, ragDocs::docStatus, mgmtDocs::docStatusForDevice,
+            ),
+            // Fase 6C.1: métodos de gestión efectivos (intersección).
+            com.opentermx.mcp.handlers.GetManagementMethodsHandler(
+                TelemetryDbManager.store, profileViews, capabilities,
             ),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.

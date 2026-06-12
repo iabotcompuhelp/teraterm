@@ -171,6 +171,8 @@ class DiagnoseDeviceContextHandler(
     private val views: DeviceProfileViews,
     /** Estado del doc RAG auto-generado (lo cablea la Fase 5D); null = aún sin generador. */
     private val ragDocStatus: ((hostname: String) -> Map<String, Any?>)? = null,
+    /** Estado del MD de gestión del modelo (Fase 6D, error #62: ¿está vigente?). */
+    private val mgmtDocStatus: ((deviceId: Long) -> Map<String, Any?>)? = null,
 ) : ToolHandler {
 
     override val definition: ToolDef = ToolDefinitions.DIAGNOSE_DEVICE_CONTEXT
@@ -219,8 +221,11 @@ class DiagnoseDeviceContextHandler(
             "roleSource" to record?.roleSource,
             "neighborsCount" to db.neighbors.list(deviceId).size,
             "recentFingerprints" to recent,
+            "catalogModel" to db.catalog.catalogModelOf(deviceId)?.let { "${it.brandName} ${it.name}" },
             "ragDoc" to (ragDocStatus?.invoke(hostname)
                 ?: linkedMapOf("exists" to false, "path" to null, "sourceHash" to null)),
+            "mgmtDoc" to (mgmtDocStatus?.invoke(deviceId)
+                ?: linkedMapOf("exists" to false, "upToDate" to false)),
         )
     }
 }

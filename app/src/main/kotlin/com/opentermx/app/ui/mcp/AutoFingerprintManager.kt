@@ -32,6 +32,7 @@ object AutoFingerprintManager {
     @Volatile private var subscription: AutoCloseable? = null
     @Volatile private var profileViews: DeviceProfileViews? = null
     @Volatile private var ragDocsRef: RagDocGenerator? = null
+    @Volatile private var mgmtDocsRef: com.opentermx.mcp.catalog.MgmtDocGenerator? = null
 
     /**
      * Registra (o RE-registra) el listener. Idempotente pero reconstruye: `enabled` y
@@ -75,6 +76,10 @@ object AutoFingerprintManager {
         subscription = auto.start()
         profileViews = views
         ragDocsRef = ragDocs
+        mgmtDocsRef = com.opentermx.mcp.catalog.MgmtDocGenerator(
+            store = store,
+            kbProvider = { KnowledgeBaseHolder.get(appSettings().aiAssistant) },
+        )
         log.info(
             "Auto-fingerprint registrado (autoOnConnect={}, ttlDays={}, dryRun={})",
             appSettings().fingerprint.autoOnConnect,
@@ -110,6 +115,18 @@ object AutoFingerprintManager {
         scope.launch {
             runCatching { ragDocs.removeFor(hostname) }
                 .onFailure { log.warn("borrado del doc RAG de `{}` falló: {}", hostname, it.message) }
+        }
+    }
+
+    /**
+     * El inventario/catálogo cambió (alta por onboarding, edición de catálogo): regenera
+     * los MD de gestión de los modelos en uso (Fase 6D) en IO. No-op si no hay manager.
+     */
+    fun notifyCatalogChanged() {
+        val mgmt = mgmtDocsRef ?: return
+        scope.launch {
+            runCatching { mgmt.regenerateAll() }
+                .onFailure { log.warn("regeneración de MD de gestión falló: {}", it.message) }
         }
     }
 

@@ -196,7 +196,15 @@ object McpServerManager {
             views = profileViews,
             kbProvider = { KnowledgeBaseHolder.get(settingsProvider()) },
         )
-        TelemetryDbManager.dailyMaintenanceHook = { ragDocs.regenerateAll() }
+        // Fase 6D: MD de gestión por modelo de catálogo.
+        val mgmtDocs = com.opentermx.mcp.catalog.MgmtDocGenerator(
+            store = TelemetryDbManager.store,
+            kbProvider = { KnowledgeBaseHolder.get(settingsProvider()) },
+        )
+        TelemetryDbManager.dailyMaintenanceHook = {
+            ragDocs.regenerateAll()
+            mgmtDocs.regenerateAll()
+        }
         val handlers = listOf(
             ListSessionsHandler(views = profileViews),
             InspectSessionHandler(redactor),
@@ -237,7 +245,7 @@ object McpServerManager {
             ),
             com.opentermx.mcp.handlers.ListDevicesHandler(TelemetryDbManager.store),
             com.opentermx.mcp.handlers.DiagnoseDeviceContextHandler(
-                TelemetryDbManager.store, profileViews, ragDocs::docStatus,
+                TelemetryDbManager.store, profileViews, ragDocs::docStatus, mgmtDocs::docStatusForDevice,
             ),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.

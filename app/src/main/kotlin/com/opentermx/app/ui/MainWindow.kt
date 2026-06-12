@@ -788,10 +788,12 @@ class MainWindow(
         ).also { it.initOwner(stage) }.showAndWait().orElse(null)
         if (created != null) {
             statusLabel.text = Strings.format("onboarding.added", candidate.host ?: "")
-            // El alta invalida la caché de enriquecimiento + regenera el doc RAG.
+            // El alta invalida la caché de enriquecimiento + regenera el doc RAG del
+            // device y el MD de gestión del modelo recién puesto en uso (Fase 6D).
             candidate.host?.let {
                 com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyProfileEdited(it, it)
             }
+            com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyCatalogChanged()
         }
     }
 
@@ -820,6 +822,8 @@ class MainWindow(
         CatalogDialog(store = com.opentermx.app.ui.mcp.TelemetryDbManager.store)
             .also { it.initOwner(stage) }
             .showAndWait()
+        // Editar el catálogo puede cambiar la metadata de un modelo en uso → MD de gestión.
+        com.opentermx.app.ui.mcp.AutoFingerprintManager.notifyCatalogChanged()
     }
 
     private fun openDeviceProfilesConfig() {

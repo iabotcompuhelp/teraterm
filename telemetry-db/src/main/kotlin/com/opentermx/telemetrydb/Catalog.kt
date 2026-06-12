@@ -118,6 +118,16 @@ class CatalogRepository internal constructor(private val db: TelemetryDb) {
 
     fun findModelById(id: Long): ModelRow? = listModels().firstOrNull { it.id == id }
 
+    /** Modelos referenciados por al menos un device (para el MD de gestión, Fase 6D). */
+    fun modelsInUse(): List<ModelRow> = runCatching {
+        val ids = db.withConnection { conn ->
+            conn.queryToMaps(
+                "SELECT DISTINCT catalog_model_id FROM devices WHERE catalog_model_id IS NOT NULL"
+            ) { }.mapNotNull { (it["catalog_model_id"] as? Number)?.toLong() }.toSet()
+        }
+        listModels().filter { it.id in ids }
+    }.onFailure { log.warn("modelsInUse falló: {}", it.message) }.getOrDefault(emptyList())
+
     /**
      * Match del modelo del fingerprint (Fase 5) contra `match_patterns` del catálogo.
      * Devuelve TODOS los matches con el string capturado (error #54: el operador ve qué

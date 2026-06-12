@@ -65,7 +65,6 @@ dependencies {
     implementation(libs.jackson.dataformat.yaml)
     implementation(libs.everit.json.schema)
     implementation(libs.slf4j.api)
-    implementation(libs.mcp.kotlin.sdk)
 
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)

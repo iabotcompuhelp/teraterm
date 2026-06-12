@@ -19,7 +19,6 @@ lucene = "9.12.0"
 pdfbox = "3.0.3"
 javalin = "6.4.0"
 jna = "5.15.0"
-mcpKotlinSdk = "0.5.0"
 javalinSsl = "6.1.6"
 everitJsonSchema = "1.14.4"
 hikaricp = "5.1.0"
@@ -54,7 +53,6 @@ pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
-mcp-kotlin-sdk = { module = "io.modelcontextprotocol:kotlin-sdk", version.ref = "mcpKotlinSdk" }
 javalin-ssl-plugin = { module = "io.javalin.community.ssl:ssl-plugin", version.ref = "javalinSsl" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }

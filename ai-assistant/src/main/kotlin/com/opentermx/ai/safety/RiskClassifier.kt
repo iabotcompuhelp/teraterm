@@ -45,6 +45,11 @@ object RiskClassifier {
         "switchport", "channel-group", "spanning-tree", "description", "feature",
         // `write memory`, `copy running-config startup-config`: guardan configuración (CONFIG)
         "write", "copy",
+        // Verbos operativos disruptivos pero no destructivos: NO deben mostrarse como
+        // SAFE (verde) — engañarían al operador a aprobar sin mirar. `clear ip bgp *`
+        // resetea sesiones, `debug all` puede saturar la CPU del equipo, `request system
+        // reboot`/`test` cambian estado. `debug-show` (lectura) es un token SAFE aparte.
+        "clear", "debug", "test", "request",
     )
 
     // Variaciones específicas por vendor para reducir falsos positivos
@@ -139,7 +144,13 @@ object RiskClassifier {
         if (firstToken in SAFE_TOKENS_GENERIC) return RiskLevel.SAFE
         if (firstToken in CONFIG_TOKENS_GENERIC) return RiskLevel.CONFIG
 
-        // Fallback: indented config-block lines (interface params, etc.)
+        // Fallback: las líneas indentadas son params de bloque de config (interface, etc.).
+        // El fallback de verbos no indentados queda SAFE A PROPÓSITO: la whitelist
+        // read-only (run_readonly_command) admite lecturas no catalogadas como `dir
+        // flash:` y su capa 6 exige que el clasificador concuerde en SAFE; subir el
+        // fallback a CONFIG las rompería. Los verbos operativos disruptivos conocidos
+        // (`clear`/`debug`/`test`/`request`) se manejan explícitamente arriba en
+        // CONFIG_TOKENS, que es donde estaba el falso "verde" que reportó la revisión.
         if (indented) return RiskLevel.CONFIG
         return RiskLevel.SAFE
     }

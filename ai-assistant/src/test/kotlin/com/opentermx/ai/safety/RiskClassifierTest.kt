@@ -91,6 +91,26 @@ class RiskClassifierTest {
     }
 
     @Test
+    fun `verbos operativos disruptivos no son SAFE`() {
+        // Antes caían al fallback SAFE (semáforo verde engañoso).
+        assertEquals(RiskLevel.CONFIG, RiskClassifier.classifyLine("debug all", Vendor.CISCO_IOS).risk)
+        assertEquals(RiskLevel.CONFIG, RiskClassifier.classifyLine("clear ip bgp *", Vendor.CISCO_IOS).risk)
+        assertEquals(RiskLevel.CONFIG, RiskClassifier.classifyLine("clear counters", Vendor.CISCO_IOS).risk)
+        assertEquals(RiskLevel.CONFIG, RiskClassifier.classifyLine("test crypto", Vendor.CISCO_IOS).risk)
+        assertEquals(RiskLevel.CONFIG, RiskClassifier.classifyLine("request system reboot", Vendor.JUNIPER_JUNOS).risk)
+        // `debug-show` (lectura) sigue SAFE; las lecturas catalogadas no se ven afectadas.
+        assertEquals(RiskLevel.SAFE, RiskClassifier.classifyLine("show version", Vendor.CISCO_IOS).risk)
+        assertEquals(RiskLevel.SAFE, RiskClassifier.classifyLine("ping 8.8.8.8", Vendor.CISCO_IOS).risk)
+    }
+
+    @Test
+    fun `lecturas no catalogadas de la whitelist read-only siguen SAFE`() {
+        // `dir flash:` es read-only y está en la whitelist; su capa 6 exige SAFE.
+        // El fix de verbos disruptivos no debe degradar estas lecturas.
+        assertEquals(RiskLevel.SAFE, RiskClassifier.classifyLine("dir flash:", Vendor.CISCO_IOS).risk)
+    }
+
+    @Test
     fun classifiesWholeBlock() {
         val block = listOf(
             "configure terminal",

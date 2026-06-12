@@ -1,0 +1,26 @@
+# Escaneo automatizado de dependencias (revisión 2026-06, O2).
+#
+# Dependabot revisa semanalmente las dependencias contra el GitHub Advisory
+# Database y abre PRs de actualización (security + versión). Cubre el catálogo
+# de versiones Gradle (gradle/libs.versions.toml) y las actions del workflow de
+# CI. Es la vía nativa de GitHub: sin pasos pesados en el pipeline ni la
+# fricción de API key de la NVD que pide OWASP dependency-check.
+#
+# Recordatorio de la skill: cada dependencia es un pasivo — esto las mantiene
+# visibles y actualizables sin trabajo manual.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci(deps)"

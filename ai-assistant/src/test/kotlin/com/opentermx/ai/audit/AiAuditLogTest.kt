@@ -100,6 +100,51 @@ class AiAuditLogTest {
     }
 
     @Test
+    fun concurrentAppendsKeepExactlyOneHeaderAndNoCorruptedRows(@TempDir dir: Path) {
+        val file = dir.resolve("audit.csv")
+        val log = AiAuditLog(file)
+        val threads = 8
+        val perThread = 50
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
+        val start = java.util.concurrent.CountDownLatch(1)
+        repeat(threads) { t ->
+            pool.submit {
+                start.await()
+                repeat(perThread) { i ->
+                    log.append(
+                        AiAuditEntry(
+                            timestampMillis = 1_700_000_000_000L + t * 1000 + i,
+                            sessionId = "t$t-$i",
+                            host = "h$t",
+                            vendor = "V",
+                            prompt = "p$t-$i con, coma",
+                            commands = listOf("show version", "show run"),
+                            commandRisks = listOf(RiskLevel.SAFE, RiskLevel.SAFE),
+                            executedCount = 2, skippedCount = 0, failedCount = 0, rejected = false,
+                            outputTail = "tail $t-$i",
+                        )
+                    )
+                }
+            }
+        }
+        start.countDown()
+        pool.shutdown()
+        assertTrue(pool.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS))
+
+        val lines = Files.readAllLines(file)
+        // Exactamente 1 header + N filas, sin duplicar el header ni perder/corromper filas.
+        assertEquals(threads * perThread + 1, lines.size, "líneas totales")
+        assertEquals(1, lines.count { it == AiAuditLog.HEADER }, "header único")
+        // Toda fila (salvo el header) arranca con el timestamp ISO — ninguna intercalada.
+        val tsRegex = Regex("""^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3},""")
+        for (line in lines.drop(1)) {
+            assertTrue(tsRegex.containsMatchIn(line), "fila corrupta/intercalada: `$line`")
+        }
+        // read() recupera las N entradas.
+        assertEquals(threads * perThread, log.read(limit = Int.MAX_VALUE).size)
+    }
+
+    @Test
     fun escapesCommasAndQuotesInPromptAndCommands(@TempDir dir: Path) {
         val file = dir.resolve("audit.csv")
         val log = AiAuditLog(file)

@@ -24,6 +24,14 @@ class AiAuditLog(private val file: Path = defaultPath()) {
     private val listeners = java.util.concurrent.CopyOnWriteArrayList<(AiAuditEntry) -> Unit>()
 
     /**
+     * Serializa la escritura del CSV. Sin esto, dos clientes MCP concurrentes
+     * (`propose_commands` simultáneos) corren la carrera del check `Files.exists`/header y
+     * del `writeString(APPEND)` de filas multi-write → headers duplicados y líneas
+     * corruptas. El bloqueo es por instancia (todos los handlers comparten una `AiAuditLog`).
+     */
+    private val writeLock = Any()
+
+    /**
      * Registra un listener que recibe cada [AiAuditEntry] apenas se persiste. Pensado para
      * que el servidor MCP pueda emitir `notifications/audit/appended` a clientes SSE.
      * Devuelve un `AutoCloseable` que desuscribe al cerrarse.
@@ -34,20 +42,24 @@ class AiAuditLog(private val file: Path = defaultPath()) {
     }
 
     fun append(entry: AiAuditEntry) {
-        runCatching {
-            Files.createDirectories(file.parent)
-            val isNew = !Files.exists(file)
-            val sb = StringBuilder()
-            if (isNew) {
-                sb.append(HEADER).append('\n')
+        // Solo la I/O del archivo va bajo lock; los listeners se notifican afuera para no
+        // sostener el lock durante callbacks (que pueden emitir SSE, etc.).
+        synchronized(writeLock) {
+            runCatching {
+                Files.createDirectories(file.parent)
+                val isNew = !Files.exists(file)
+                val sb = StringBuilder()
+                if (isNew) {
+                    sb.append(HEADER).append('\n')
+                }
+                sb.append(toCsvRow(entry)).append('\n')
+                Files.writeString(
+                    file, sb.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND,
+                )
+            }.onFailure { e ->
+                log.warn("No se pudo escribir el audit log IA en {}: {}", file, e.message)
             }
-            sb.append(toCsvRow(entry)).append('\n')
-            Files.writeString(
-                file, sb.toString(), StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND,
-            )
-        }.onFailure { e ->
-            log.warn("No se pudo escribir el audit log IA en {}: {}", file, e.message)
         }
         listeners.forEach { runCatching { it(entry) } }
     }

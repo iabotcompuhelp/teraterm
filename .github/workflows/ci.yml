@@ -1,0 +1,44 @@
+name: CI
+
+# Quality gate: corre la verificación completa (build + unit de todos los módulos +
+# la suite pytest del mcp-server) en cada push y en cada pull request.
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # La suite del mcp-server crea su propio venv y corre pytest; necesita Python 3.
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Gradle (con caché)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Los tests de UI (JavaFX/TerminalView) arrancan el toolkit: en CI headless
+      # necesitan un display virtual.
+      - name: Instalar xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: ./gradlew check
+        run: xvfb-run -a ./gradlew check --no-daemon --stacktrace
+
+      - name: Publicar reportes de test al fallar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: "**/build/reports/tests/**"
+          if-no-files-found: ignore

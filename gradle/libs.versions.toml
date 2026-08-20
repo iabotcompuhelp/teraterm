@@ -24,7 +24,7 @@ everitJsonSchema = "1.14.4"
 hikaricp = "5.1.0"
 flyway = "10.20.1"
 postgresql = "42.7.4"
-zonkyEmbeddedPg = "2.0.7"
+zonkyEmbeddedPg = "2.2.2"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }

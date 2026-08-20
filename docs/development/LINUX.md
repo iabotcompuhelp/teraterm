@@ -150,10 +150,13 @@ Una configuración guardada desde la UI prevalece sobre el entorno. En instalaci
 `enabled=null` mantiene compatibilidad y continúa leyendo las variables `OPENTERMX_*`; al guardar
 por primera vez, la decisión activar/desactivar pasa a ser explícita.
 
-El token se persiste cifrado con AES-256-GCM mediante `SecretCipher` y nunca aparece en texto
-plano en `settings.json`. Este cifrado está ligado al usuario y al equipo y protege frente a la
-lectura casual del archivo; la migración posterior a Windows Credential Manager reforzará la
-protección frente a usuarios con acceso completo a la máquina.
+En Windows, el token se guarda en **Windows Credential Manager** para el usuario actual con la
+referencia `OpenTermX/edge-agent/<agentId>`; `settings.json` conserva solamente esa referencia.
+Los tokens antiguos cifrados con AES-256-GCM se migran automáticamente al iniciar y se eliminan
+del JSON después de confirmar la escritura. En plataformas sin Credential Manager, o si este no
+está disponible, `SecretCipher` se mantiene como respaldo cifrado. La opción para eliminar el
+token también borra la credencial nativa. El valor nunca se escribe en logs ni se envía como
+argumento de un proceso.
 
 Para crear una distribución portable con scripts y todas las dependencias:
 

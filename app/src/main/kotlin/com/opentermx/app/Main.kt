@@ -15,7 +15,12 @@ class OpenTermXApp : Application() {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun start(stage: Stage) {
-        val settings = SettingsStore.load()
+        var settings = SettingsStore.load()
+        val migratedAgent = settings.edgeAgent.migrateLegacyToken()
+        if (migratedAgent != settings.edgeAgent) {
+            settings = settings.copy(edgeAgent = migratedAgent)
+            SettingsStore.save(settings)
+        }
         Strings.setLocale(settings.locale)
         val viewModel = AppViewModel()
         MainWindow(stage, viewModel, settings).show()

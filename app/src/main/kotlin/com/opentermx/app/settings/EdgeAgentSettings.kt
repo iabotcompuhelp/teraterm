@@ -14,13 +14,19 @@ data class EdgeAgentSettings(
     val displayName: String = "",
     val heartbeatSeconds: Long = 5,
     val stateDirectory: String = "",
+    val tokenReference: String? = null,
+    /** Legacy/fallback cifrado: se migra a Credential Manager cuando está disponible. */
     val token: EncryptedValue? = null,
 ) {
-    fun runtimeConfig(env: Map<String, String> = System.getenv()): EdgeAgentConfig? {
+    fun runtimeConfig(
+        env: Map<String, String> = System.getenv(),
+        tokenStore: AgentTokenStore = AgentTokenStores.system,
+    ): EdgeAgentConfig? {
         if (enabled == null) return EdgeAgentConfig.fromEnvironment(env)
         if (enabled == false) return null
         require(controlPlaneUrl.isNotBlank()) { "La URL del control plane es obligatoria" }
-        val plainToken = token?.let { SecretCipher.decrypt(it) }.orEmpty()
+        val plainToken = tokenReference?.let(tokenStore::read)
+            ?: token?.let { SecretCipher.decrypt(it) }.orEmpty()
         require(plainToken.toByteArray().size >= 16) { "El token debe tener al menos 16 bytes" }
         val machine = env["COMPUTERNAME"] ?: env["HOSTNAME"] ?: "opentermx-edge"
         val resolvedId = agentId.ifBlank { machine }
@@ -37,5 +43,14 @@ data class EdgeAgentSettings(
             stateDir = stateDirectory.takeIf { it.isNotBlank() }?.let(Path::of)
                 ?: Path.of(System.getProperty("user.home"), ".opentermx", "agent"),
         )
+    }
+
+    fun migrateLegacyToken(tokenStore: AgentTokenStore = AgentTokenStores.system): EdgeAgentSettings {
+        if (!tokenStore.isAvailable || tokenReference != null || EncryptedValue.isEmpty(token)) return this
+        val plain = runCatching { SecretCipher.decrypt(token!!) }.getOrNull() ?: return this
+        val reference = AgentTokenStores.referenceFor(agentId)
+        return if (runCatching { tokenStore.write(reference, plain) }.getOrDefault(false)) {
+            copy(tokenReference = reference, token = null)
+        } else this
     }
 }

@@ -223,6 +223,8 @@ dependencies {
     implementation(libs.richtextfx)
     implementation(libs.slf4j.api)
     implementation(libs.logback.classic)
+    implementation(libs.jna)
+    implementation(libs.jna.platform)
 
     testImplementation(libs.junit.jupiter)
 }

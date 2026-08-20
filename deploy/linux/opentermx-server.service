@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenTermX MCP Control Plane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opentermx
+Group=opentermx
+EnvironmentFile=/etc/opentermx/server.env
+ExecStart=/opt/opentermx-server/bin/opentermx-server
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/opentermx
+
+[Install]
+WantedBy=multi-user.target

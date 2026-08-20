@@ -36,7 +36,7 @@ jobs:
 
       - name: Construir distribución Linux
         if: runner.os == 'Linux'
-        run: ./gradlew :app:installDist --no-daemon --stacktrace
+        run: ./gradlew :app:installDist :server:installDist --no-daemon --stacktrace
 
       - name: JVM tests (Windows)
         if: runner.os == 'Windows'
@@ -58,6 +58,14 @@ jobs:
         with:
           name: opentermx-linux-portable
           path: app/build/install/app/**
+          if-no-files-found: error
+
+      - name: Publicar servidor Linux headless
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: opentermx-server-linux
+          path: server/build/install/opentermx-server/**
           if-no-files-found: error
 
   mcp-contract-tests:

@@ -3,6 +3,16 @@
 OpenTermX puede compilarse y ejecutarse en Linux con JDK 21. El build principal es Java/Kotlin
 y JavaFX descarga automáticamente los binarios correspondientes al sistema operativo.
 
+La plataforma ahora ofrece dos distribuciones distintas:
+
+- `:server`: plano de control MCP headless para una máquina Linux, sin JavaFX;
+- `:app`: cliente de escritorio con terminal, consola serial y aprobación humana.
+
+El servidor headless inicial es deliberadamente `readOnly`: conserva operaciones, journals,
+handoffs y referencias de evidencia, pero todavía no controla conexiones alojadas en otro
+equipo. Esa capacidad se habilitará mediante un agente de borde autenticado, no compartiendo
+el registro de sesiones en memoria.
+
 ## Requisitos
 
 - distribución Linux x86_64 con entorno gráfico X11 o Wayland;
@@ -26,6 +36,38 @@ chmod +x gradlew
 ./gradlew :app:run
 ```
 
+## Servidor headless (plano de control)
+
+Para probarlo localmente, únicamente en loopback:
+
+```bash
+./gradlew :server:installDist
+OPENTERMX_DATA_DIR="$PWD/.local-data" ./server/build/install/opentermx-server/bin/opentermx-server
+curl http://127.0.0.1:8765/mcp/health
+```
+
+Variables admitidas:
+
+| Variable | Default | Uso |
+|---|---:|---|
+| `OPENTERMX_BIND` | `127.0.0.1` | Dirección de escucha |
+| `OPENTERMX_PORT` | `8765` | Puerto MCP HTTP/SSE |
+| `OPENTERMX_DATA_DIR` | `~/.opentermx` | Operaciones, handoffs y snapshots |
+| `OPENTERMX_MCP_TOKEN` | vacío | Bearer token; obligatorio fuera de loopback |
+
+Para instalarlo como servicio:
+
+1. copia `server/build/install/opentermx-server/` a `/opt/opentermx-server/`;
+2. crea el usuario de sistema `opentermx` y `/var/lib/opentermx` con permisos para ese usuario;
+3. copia `deploy/linux/opentermx-server.env.example` a `/etc/opentermx/server.env`, configura
+   un token aleatorio y aplica permisos `0640`;
+4. copia `deploy/linux/opentermx-server.service` a `/etc/systemd/system/`;
+5. ejecuta `sudo systemctl daemon-reload && sudo systemctl enable --now opentermx-server`;
+6. valida con `systemctl status opentermx-server` y `curl` al endpoint `/mcp/health`.
+
+No expongas el puerto directamente a Internet. Para acceso remoto usa firewall y TLS en un
+reverse proxy o VPN; el bearer token es una defensa necesaria, no reemplaza el cifrado.
+
 Para crear una distribución portable con scripts y todas las dependencias:
 
 ```bash
@@ -34,7 +76,8 @@ Para crear una distribución portable con scripts y todas las dependencias:
 ```
 
 GitHub Actions ejecuta tests sobre Ubuntu y publica el artefacto
-`opentermx-linux-portable`, generado desde `app/build/install/app/`.
+`opentermx-linux-portable`, generado desde `app/build/install/app/`, y
+`opentermx-server-linux`, generado desde `server/build/install/opentermx-server/`.
 
 ## Instalador Linux
 

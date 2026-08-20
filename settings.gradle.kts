@@ -13,6 +13,7 @@ include(
     ":ai-assistant",
     ":rest-api",
     ":mcp-server",
+    ":server",
     ":policy-engine",
     ":net-parsers",
     ":telemetry-db",

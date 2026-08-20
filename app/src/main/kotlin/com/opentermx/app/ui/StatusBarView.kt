@@ -32,6 +32,7 @@ class StatusBarView(
     onOpenTftpTransfersPanel: () -> Unit,
     onOpenAiAssistantConfig: () -> Unit,
     onOpenRestApiConfig: () -> Unit,
+    onOpenAgentStatus: () -> Unit,
 ) {
 
     val statusLabel = Label()
@@ -69,11 +70,17 @@ class StatusBarView(
         setOnMouseClicked { onOpenAiAssistantConfig() }
         isVisible = false; isManaged = false
     }
+    private val agentLabel = Label().apply {
+        cursor = javafx.scene.Cursor.HAND
+        styleClass += "status-mcp"
+        setOnMouseClicked { onOpenAgentStatus() }
+        isVisible = false; isManaged = false
+    }
 
     fun build(): Region {
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
         val separator = Separator(javafx.geometry.Orientation.VERTICAL)
-        return HBox(12.0, statusLabel, spacer, restApiLabel, mcpServerLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, separator, themeLabel).apply {
+        return HBox(12.0, statusLabel, spacer, agentLabel, restApiLabel, mcpServerLabel, aiStatusLabel, tftpClientLabel, tftpServerLabel, protocolLabel, separator, themeLabel).apply {
             styleClass += "status-bar"
             alignment = Pos.CENTER_LEFT
             minHeight = 26.0
@@ -179,6 +186,7 @@ class StatusBarView(
     }
 
     private var mcpStatusBinding: Job? = null
+    private var agentStatusBinding: Job? = null
 
     /** (Re)suscribe el label MCP al StateFlow de estado del server. */
     fun observeMcpStatus(state: StateFlow<com.opentermx.mcp.McpServer.Status>) {
@@ -188,6 +196,24 @@ class StatusBarView(
                 javafx.application.Platform.runLater { updateMcpServerLabel() }
             }
         }
+    }
+
+    fun observeAgentStatus(state: StateFlow<com.opentermx.agent.AgentStatus>) {
+        agentStatusBinding?.cancel()
+        agentStatusBinding = ioScope.launch {
+            state.collect { status ->
+                javafx.application.Platform.runLater {
+                    updateAgentLabel(status)
+                }
+            }
+        }
+    }
+
+    private fun updateAgentLabel(status: com.opentermx.agent.AgentStatus = com.opentermx.app.agent.EdgeAgentManager.status().value) {
+        val visible = status.state != com.opentermx.agent.AgentConnectionState.DISABLED
+        agentLabel.isVisible = visible; agentLabel.isManaged = visible
+        agentLabel.text = "Agent: ${status.state.name.lowercase()}"
+        agentLabel.tooltip = Tooltip(status.lastError ?: status.gateway.orEmpty())
     }
 
     /**
@@ -200,9 +226,11 @@ class StatusBarView(
         if (locked) {
             mcpServerLabel.isVisible = false; mcpServerLabel.isManaged = false
             restApiLabel.isVisible = false; restApiLabel.isManaged = false
+            agentLabel.isVisible = false; agentLabel.isManaged = false
         } else {
             updateMcpServerLabel()
             updateRestApiLabel()
+            updateAgentLabel()
         }
     }
 }

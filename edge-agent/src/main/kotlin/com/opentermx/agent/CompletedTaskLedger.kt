@@ -19,6 +19,10 @@ class CompletedTaskLedger(private val path: Path) {
 
     fun result(taskId: String): RemoteTaskResult? = results[taskId]
 
+    fun recent(limit: Int = 50): List<RemoteTaskResult> = results.values
+        .sortedByDescending { it.completedAtMillis }
+        .take(limit)
+
     @Synchronized
     fun record(result: RemoteTaskResult) {
         if (results.putIfAbsent(result.taskId, result) != null) return

@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.jackson.databind)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.slf4j.api)
+    implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit.jupiter)
 }

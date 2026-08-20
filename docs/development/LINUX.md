@@ -123,6 +123,22 @@ reportarlo en `~/.opentermx/agent/completed-tasks.log`: tras una caída reenvía
 ejecutar nuevamente los comandos. La creación, resultado o rechazo quedan en el journal durable
 de la operación para formar parte del handoff.
 
+### Estado del agente en Windows
+
+En OpenTermX abre **Control → Estado del agente** o pulsa el badge `Agent` de la barra inferior.
+La pantalla muestra identidad, gateway, estado, último heartbeat, sesiones publicadas, tarea en
+curso, último error e historial de hasta 50 resultados. El botón de desconexión detiene el
+scheduler sin cerrar las sesiones SSH/serial; **Reconectar** crea un cliente nuevo y conserva la
+idempotencia e historial desde `completed-tasks.log`.
+
+Estados posibles:
+
+- `STARTING`: configurado y esperando el primer heartbeat;
+- `CONNECTED`: el último heartbeat fue aceptado;
+- `DEGRADED`: falló red, autenticación, firma o reporte; el detalle aparece en último error;
+- `STOPPED`: desconectado manualmente y disponible para reconexión;
+- `DISABLED`: no existe `OPENTERMX_CONTROL_PLANE_URL` en el entorno de arranque.
+
 Para crear una distribución portable con scripts y todas las dependencias:
 
 ```bash

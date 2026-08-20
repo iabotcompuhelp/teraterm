@@ -101,6 +101,8 @@ class AgentGatewayTest {
                     Thread.sleep(25)
                 }
                 assertEquals(RemoteTaskStatus.SUCCEEDED, store.result("task-e2e")?.status)
+                assertEquals(com.opentermx.agent.AgentConnectionState.CONNECTED, agent.status.value.state)
+                assertEquals("task-e2e", agent.status.value.history.firstOrNull()?.taskId)
             }
         }
     }

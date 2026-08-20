@@ -25,6 +25,7 @@ import com.opentermx.app.ui.dialog.SshVersion
 import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SerialSignalsDialog
 import com.opentermx.app.ui.dialog.SystemInfoDialog
+import com.opentermx.app.ui.dialog.AgentStatusDialog
 import com.opentermx.app.ui.dialog.TftpClientDialog
 import com.opentermx.app.ui.dialog.TftpServerDialog
 import com.opentermx.app.ui.macro.MacroUiBridgeImpl
@@ -139,6 +140,7 @@ class MainWindow(
         onOpenTftpTransfersPanel = { openTftpTransfersPanel() },
         onOpenAiAssistantConfig = { openAiAssistantConfig() },
         onOpenRestApiConfig = { openRestApiConfig() },
+        onOpenAgentStatus = { AgentStatusDialog(stage).show() },
     )
     private val statusLabel: Label get() = statusBar.statusLabel
 
@@ -241,6 +243,7 @@ class MainWindow(
         statusBar.updateTftpServerLabel()
         statusBar.updateTftpClientLabel()
         statusBar.updateAiStatusLabel()
+        statusBar.observeAgentStatus(com.opentermx.app.agent.EdgeAgentManager.status())
         if (!settings.additional.terminalOnlyMode) {
             bootRestApiIfEnabled()
             bootMcpServerIfEnabled()
@@ -372,6 +375,9 @@ class MainWindow(
             items += MenuItem(Strings["control.disconnect"]).apply { setOnAction { currentController()?.disconnect() } }
             items += MenuItem(Strings["control.break"]).apply { setOnAction { sendBreakOnCurrent() } }
             items += MenuItem(Strings["control.serialSignals"]).apply { setOnAction { openSerialSignals() } }
+            items += MenuItem(Strings["agent.status.menu"]).apply {
+                setOnAction { AgentStatusDialog(stage).show() }
+            }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["setup.macros"]).apply {
                 accelerator = accelerator("setup.macros")

@@ -12,6 +12,10 @@ import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.slf4j.LoggerFactory
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.atomic.AtomicBoolean
 
 class WindowsEdgeAgent(
     private val config: EdgeAgentConfig,
@@ -26,8 +30,23 @@ class WindowsEdgeAgent(
     }
     private val completedTasks = CompletedTaskLedger(config.stateDir.resolve("completed-tasks.log"))
     private val signer = RemoteTaskSigner(config.token.toByteArray(Charsets.UTF_8))
+    private val started = AtomicBoolean(false)
+    private val statusState = MutableStateFlow(
+        AgentStatus(
+            state = AgentConnectionState.DISABLED,
+            agentId = config.agentId,
+            displayName = config.displayName,
+            gateway = config.gatewayUri.toString(),
+            history = completedTasks.recent().map {
+                AgentTaskHistoryEntry(it.taskId, it.status, it.completedAtMillis, it.executedCommands.size, it.error)
+            },
+        ),
+    )
+    val status: StateFlow<AgentStatus> = statusState.asStateFlow()
 
     fun start() {
+        if (!started.compareAndSet(false, true)) return
+        updateStatus { copy(state = AgentConnectionState.STARTING, lastError = null) }
         scheduler.scheduleWithFixedDelay(::sendHeartbeatSafely, 0, config.heartbeatSeconds, TimeUnit.SECONDS)
         log.info("Agente de borde habilitado como {} hacia {}", config.agentId, config.gatewayUri)
     }
@@ -60,8 +79,27 @@ class WindowsEdgeAgent(
                 .build()
             val response = client.send(request, HttpResponse.BodyHandlers.discarding())
             check(response.statusCode() == 200) { "gateway respondió HTTP ${response.statusCode()}" }
+            val heartbeatTime = System.currentTimeMillis()
+            updateStatus {
+                copy(
+                    state = AgentConnectionState.CONNECTED,
+                    lastHeartbeatMillis = heartbeatTime,
+                    activeSessions = SessionRegistry.activeSessions().size,
+                    consecutiveFailures = 0,
+                    lastError = null,
+                )
+            }
             pollTask()
-        }.onFailure { log.warn("No se pudo actualizar el control plane: {}", it.message) }
+        }.onFailure { error ->
+            log.warn("No se pudo actualizar el control plane: {}", error.message)
+            updateStatus {
+                copy(
+                    state = AgentConnectionState.DEGRADED,
+                    consecutiveFailures = consecutiveFailures + 1,
+                    lastError = error.message ?: error.javaClass.simpleName,
+                )
+            }
+        }
     }
 
     private fun pollTask() {
@@ -73,8 +111,10 @@ class WindowsEdgeAgent(
         val task = mapper.readValue<RemoteCommandTask>(response.body())
         if (task.agentId != config.agentId || task.expiresAtMillis <= System.currentTimeMillis()) return
         check(signer.verify(task)) { "firma HMAC inválida para tarea ${task.taskId}" }
+        updateStatus { copy(currentTaskId = task.taskId) }
         completedTasks.result(task.taskId)?.let { previous ->
             submitResult(previous)
+            recordHistory(previous)
             return
         }
         val result = runCatching { taskProcessor.process(task) }.getOrElse { error ->
@@ -82,6 +122,7 @@ class WindowsEdgeAgent(
         }
         completedTasks.record(result)
         submitResult(result)
+        recordHistory(result)
     }
 
     private fun submitResult(result: RemoteTaskResult) {
@@ -100,7 +141,23 @@ class WindowsEdgeAgent(
         .header("X-OpenTermX-Agent-Id", config.agentId)
 
     override fun close() {
+        if (!started.compareAndSet(true, false)) return
         scheduler.shutdownNow()
+        updateStatus { copy(state = AgentConnectionState.STOPPED, currentTaskId = null) }
+    }
+
+    private fun recordHistory(result: RemoteTaskResult) {
+        updateStatus {
+            val entry = AgentTaskHistoryEntry(
+                result.taskId, result.status, result.completedAtMillis,
+                result.executedCommands.size, result.error,
+            )
+            copy(currentTaskId = null, history = (listOf(entry) + history.filterNot { it.taskId == entry.taskId }).take(50))
+        }
+    }
+
+    private inline fun updateStatus(transform: AgentStatus.() -> AgentStatus) {
+        statusState.value = statusState.value.transform()
     }
 
     private companion object { const val MAX_LINES = 100 }

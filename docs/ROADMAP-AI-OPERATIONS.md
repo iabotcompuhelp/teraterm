@@ -9,6 +9,27 @@ con código, pruebas, documentación y evidencia de aceptación.
 La evaluación de partida está en
 [`docs/review/REVIEW-AI-MCP-OBJECTIVE-2026-08.md`](review/REVIEW-AI-MCP-OBJECTIVE-2026-08.md).
 
+## Visión de producto acordada
+
+OpenTermX será una consola conversacional para infraestructura de red, conceptualmente similar
+a Codex o Claude Code, pero orientada a switches, routers, firewalls y equipos conectados por
+SSH, serial o consola. El usuario podrá expresar libremente una intención; el LLM deberá:
+
+1. interpretar el objetivo y solicitar los datos que falten;
+2. consultar inventario y estado real mediante tools;
+3. presentar opciones con efectos y riesgos;
+4. confirmar con el usuario qué alternativa desea aplicar;
+5. proponer un plan y comandos adecuados para la marca, modelo y versión de firmware;
+6. ejecutar solamente después de la validación y aprobación de OpenTermX;
+7. verificar el resultado y explicar las evidencias obtenidas.
+
+El conocimiento detallado de configuración pertenece al LLM y puede evolucionar al cambiar de
+modelo. OpenTermX no pretende mantener un catálogo exhaustivo de comandos por fabricante. Sus
+perfiles contienen únicamente capacidades verificables y mecánica operativa imprescindible:
+identificación, prompts, paginación, captura completa, transporte, respaldo y verificación.
+El LLM propone y razona; OpenTermX conserva credenciales y contexto, aplica políticas, obtiene
+aprobación, ejecuta, audita y evita repeticiones inseguras.
+
 ## Principios no negociables
 
 1. **El estado vive en OpenTermX, no en el LLM.** Una conversación puede desaparecer o
@@ -161,6 +182,8 @@ Actualizado el 20 de agosto de 2026:
 - [x] Integrar referencias verificables de snapshots al handoff sin copiar contenido.
 - [ ] Integrar decisiones confirmadas y estados mutativos `UNKNOWN` al handoff.
 - [x] Añadir UI para previsualizar, confirmar y ejecutar el cambio de modelo.
+- [x] Añadir cliente/agente Windows configurable, estado visual y conexión segura al control plane.
+- [x] Guardar el token del agente en Windows Credential Manager, con migración y fallback cifrado.
 - [ ] Validar handoff end-to-end entre proveedores reales y fallo durante tool call.
 
 Estado de hitos:
@@ -169,6 +192,9 @@ Estado de hitos:
   primer push/PR y es un gate de integración, no trabajo de código pendiente.
 - **Hito 1: terminado.** El criterio contractual chat/MCP está cubierto por tests y la
   aplicación ya no usa `CommandSink` para ejecutar respuestas del modelo.
+- **Punto de reanudación:** continuar el Hito 2 incorporando decisiones confirmadas por el
+  operador y estados mutativos `UNKNOWN` al journal, schema, handoff y previsualización JavaFX.
+  Después validar el handoff entre proveedores reales y ante una desconexión durante una tool.
 
 ### Hito 0 — Baseline reproducible y gobierno técnico (P0)
 

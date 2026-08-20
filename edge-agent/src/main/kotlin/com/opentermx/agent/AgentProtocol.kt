@@ -26,3 +26,42 @@ data class AgentHeartbeatAck(
     val serverTimeMillis: Long,
     val nextHeartbeatSeconds: Int,
 )
+
+enum class RemoteTaskStatus { PENDING, DELIVERED, APPROVED, REJECTED, RUNNING, SUCCEEDED, FAILED, EXPIRED }
+
+data class RemoteCommandTask(
+    val protocolVersion: Int = AGENT_PROTOCOL_VERSION,
+    val taskId: String,
+    val operationId: String?,
+    val agentId: String,
+    val sessionId: String,
+    val commands: List<String>,
+    val rationale: String,
+    val createdAtMillis: Long,
+    val expiresAtMillis: Long,
+    val status: RemoteTaskStatus = RemoteTaskStatus.PENDING,
+)
+
+data class RemoteTaskResult(
+    val taskId: String,
+    val status: RemoteTaskStatus,
+    val completedAtMillis: Long,
+    val executedCommands: List<String> = emptyList(),
+    val output: String? = null,
+    val error: String? = null,
+)
+
+fun interface RemoteTaskProcessor {
+    fun process(task: RemoteCommandTask): RemoteTaskResult
+
+    companion object {
+        val RejectUnavailable = RemoteTaskProcessor { task ->
+            RemoteTaskResult(
+                taskId = task.taskId,
+                status = RemoteTaskStatus.REJECTED,
+                completedAtMillis = System.currentTimeMillis(),
+                error = "La aprobación humana no está configurada en este cliente",
+            )
+        }
+    }
+}

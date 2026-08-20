@@ -93,9 +93,22 @@ producción el gateway debe publicarse mediante HTTPS o VPN. Cada PC necesita un
 
 En el MCP central, `list_sessions` devuelve las sesiones remotas como
 `<agentId>:<sessionId>` y `inspect_session` permite consultar su buffer redactado. Este primer
-contrato es exclusivamente de observación: no transporta credenciales ni acepta comandos. La
-ejecución remota se incorporará después de añadir tareas firmadas, idempotencia, autorización
-por sesión y aprobación humana visible en el cliente Windows.
+contrato no transporta credenciales.
+
+El protocolo de tareas remotas también está implementado para pruebas de laboratorio: la cola
+vive en `OPENTERMX_DATA_DIR/tasks`, persiste cada tarea y resultado de forma atómica, rechaza la
+reutilización de un `taskId` con contenido diferente y entrega tareas únicamente al `agentId`
+destino. El agente consulta la cola después de cada heartbeat y reporta el resultado final.
+
+En Windows, toda tarea pasa por el mismo clasificador de riesgo y diálogo JavaFX usado por las
+operaciones MCP locales. Un rechazo no llega al `CommandSink`; si el operador edita la propuesta,
+solo las líneas finalmente aprobadas se envían a la sesión SSH o serial. Las tareas expiradas o
+dirigidas a una sesión cerrada fallan sin ejecutar comandos.
+
+La creación de tareas todavía no se expone como tool MCP pública. Antes de habilitarla deben
+añadirse autorización por operación, firma del payload, leases/reintentos durables y auditoría
+central. Mientras tanto, los tests locales cubren cola → gateway HTTP → agente → procesador →
+resultado sin requerir una máquina Linux.
 
 Para crear una distribución portable con scripts y todas las dependencias:
 

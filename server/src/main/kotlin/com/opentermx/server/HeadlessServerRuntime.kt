@@ -16,9 +16,11 @@ import com.opentermx.server.agent.AgentGateway
 import com.opentermx.server.agent.AgentRegistry
 import com.opentermx.server.agent.FederatedInspectSessionHandler
 import com.opentermx.server.agent.FederatedListSessionsHandler
+import com.opentermx.server.agent.RemoteTaskStore
 
 class HeadlessServerRuntime(private val config: ServerConfig) : AutoCloseable {
     private val agentRegistry = AgentRegistry()
+    internal val remoteTaskStore = RemoteTaskStore(config.dataDir.resolve("tasks"))
     private val redactor = CredentialRedactor()
     private val operationRoot = config.dataDir.resolve("operations")
     private val snapshotRoot = config.dataDir.resolve("snapshots")
@@ -44,7 +46,7 @@ class HeadlessServerRuntime(private val config: ServerConfig) : AutoCloseable {
         redactor = redactor,
     )
     private val agentGateway = config.agentToken?.let {
-        AgentGateway(config.bindAddress, config.agentPort, it, agentRegistry)
+        AgentGateway(config.bindAddress, config.agentPort, it, agentRegistry, remoteTaskStore)
     }
 
     fun start() {

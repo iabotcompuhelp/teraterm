@@ -9,6 +9,8 @@ import javafx.stage.Stage
 import com.opentermx.agent.EdgeAgentConfig
 import com.opentermx.agent.WindowsEdgeAgent
 import org.slf4j.LoggerFactory
+import com.opentermx.app.ui.ai.ApprovedRemoteTaskProcessor
+import com.opentermx.app.ui.ai.JavaFxApprovalGate
 
 class OpenTermXApp : Application() {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -22,7 +24,10 @@ class OpenTermXApp : Application() {
         runCatching { EdgeAgentConfig.fromEnvironment() }
             .onFailure { log.error("Configuración del agente inválida: {}", it.message) }
             .getOrNull()
-            ?.let { config -> WindowsEdgeAgent(config).also { it.start(); edgeAgent = it } }
+            ?.let { config ->
+                val processor = ApprovedRemoteTaskProcessor(JavaFxApprovalGate { stage })
+                WindowsEdgeAgent(config, taskProcessor = processor).also { it.start(); edgeAgent = it }
+            }
     }
 
     override fun stop() {

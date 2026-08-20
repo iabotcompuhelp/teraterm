@@ -4,6 +4,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.opentermx.agent.AgentHeartbeat
 import com.opentermx.agent.AgentHeartbeatAck
+import com.opentermx.agent.RemoteTaskResult
 import io.javalin.Javalin
 import java.security.MessageDigest
 
@@ -12,6 +13,7 @@ class AgentGateway(
     private val port: Int,
     private val token: String,
     private val registry: AgentRegistry,
+    private val taskStore: RemoteTaskStore,
 ) : AutoCloseable {
     private val mapper = jacksonObjectMapper()
     private var app: Javalin? = null
@@ -27,13 +29,43 @@ class AgentGateway(
                 return@post
             }
             try {
-                registry.update(mapper.readValue<AgentHeartbeat>(ctx.body()))
+                val heartbeat = mapper.readValue<AgentHeartbeat>(ctx.body())
+                if (ctx.header(AGENT_ID_HEADER) != heartbeat.agentId) {
+                    ctx.status(403).json(mapOf("error" to "agent identity mismatch"))
+                    return@post
+                }
+                registry.update(heartbeat)
                 ctx.json(AgentHeartbeatAck(true, System.currentTimeMillis(), 5))
             } catch (e: IllegalArgumentException) {
                 ctx.status(400).json(mapOf("error" to (e.message ?: "invalid heartbeat")))
             }
         }.get("/agent/v1/health") { ctx ->
             ctx.json(mapOf("status" to "ok", "activeSessions" to registry.sessions().size))
+        }.get("/agent/v1/tasks/next") { ctx ->
+            if (!authorized(ctx.header("Authorization"))) {
+                ctx.status(401); return@get
+            }
+            val agentId = ctx.queryParam("agentId").orEmpty()
+            if (agentId.isBlank() || ctx.header(AGENT_ID_HEADER) != agentId) {
+                ctx.status(403); return@get
+            }
+            val task = taskStore.claimNext(agentId)
+            if (task == null) ctx.status(204) else ctx.json(task)
+        }.post("/agent/v1/tasks/{taskId}/result") { ctx ->
+            if (!authorized(ctx.header("Authorization"))) {
+                ctx.status(401); return@post
+            }
+            val agentId = ctx.header(AGENT_ID_HEADER).orEmpty()
+            val result = mapper.readValue<RemoteTaskResult>(ctx.body())
+            if (result.taskId != ctx.pathParam("taskId")) {
+                ctx.status(400).json(mapOf("error" to "taskId mismatch")); return@post
+            }
+            try {
+                taskStore.complete(agentId, result)
+                ctx.json(mapOf("accepted" to true))
+            } catch (e: IllegalArgumentException) {
+                ctx.status(409).json(mapOf("error" to (e.message ?: "invalid result")))
+            }
         }.start(bindAddress, port)
     }
 
@@ -46,4 +78,6 @@ class AgentGateway(
         app?.stop()
         app = null
     }
+
+    private companion object { const val AGENT_ID_HEADER = "X-OpenTermX-Agent-Id" }
 }

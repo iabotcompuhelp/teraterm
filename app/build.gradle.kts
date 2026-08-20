@@ -212,6 +212,7 @@ dependencies {
     implementation(project(":ai-assistant"))
     implementation(project(":rest-api"))
     implementation(project(":mcp-server"))
+    implementation(project(":edge-agent"))
 
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.core)

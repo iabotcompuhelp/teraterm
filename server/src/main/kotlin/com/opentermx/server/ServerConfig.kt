@@ -7,6 +7,8 @@ data class ServerConfig(
     val port: Int,
     val dataDir: Path,
     val token: String?,
+    val agentPort: Int = 8766,
+    val agentToken: String? = null,
 ) {
     companion object {
         fun fromEnvironment(env: Map<String, String> = System.getenv()): ServerConfig {
@@ -18,11 +20,15 @@ data class ServerConfig(
                 ?.let(Path::of)
                 ?: Path.of(System.getProperty("user.home"), ".opentermx")
             val token = env["OPENTERMX_MCP_TOKEN"]?.takeIf { it.isNotBlank() }
+            val agentPort = env["OPENTERMX_AGENT_PORT"]?.trim()?.toIntOrNull() ?: 8766
+            require(agentPort in 1..65535) { "OPENTERMX_AGENT_PORT debe estar entre 1 y 65535" }
+            require(agentPort != port) { "Los puertos MCP y de agentes deben ser distintos" }
+            val agentToken = env["OPENTERMX_AGENT_TOKEN"]?.takeIf { it.isNotBlank() }
 
             require(token != null || isLoopback(bind)) {
                 "OPENTERMX_MCP_TOKEN es obligatorio cuando OPENTERMX_BIND no es loopback"
             }
-            return ServerConfig(bind, port, dataDir.toAbsolutePath().normalize(), token)
+            return ServerConfig(bind, port, dataDir.toAbsolutePath().normalize(), token, agentPort, agentToken)
         }
 
         private fun isLoopback(address: String): Boolean = when (address.lowercase()) {

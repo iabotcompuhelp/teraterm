@@ -54,6 +54,8 @@ Variables admitidas:
 | `OPENTERMX_PORT` | `8765` | Puerto MCP HTTP/SSE |
 | `OPENTERMX_DATA_DIR` | `~/.opentermx` | Operaciones, handoffs y snapshots |
 | `OPENTERMX_MCP_TOKEN` | vacío | Bearer token; obligatorio fuera de loopback |
+| `OPENTERMX_AGENT_PORT` | `8766` | Puerto para heartbeats de agentes de borde |
+| `OPENTERMX_AGENT_TOKEN` | vacío | Habilita y autentica el gateway de agentes |
 
 Para instalarlo como servicio:
 
@@ -67,6 +69,33 @@ Para instalarlo como servicio:
 
 No expongas el puerto directamente a Internet. Para acceso remoto usa firewall y TLS en un
 reverse proxy o VPN; el bearer token es una defensa necesaria, no reemplaza el cifrado.
+
+## Conectar un cliente Windows
+
+El cliente de borde viene incluido en la aplicación de escritorio. No escucha conexiones
+entrantes: publica cada cinco segundos las sesiones activas del `SessionRegistry` hacia el
+gateway Linux. Esto cubre automáticamente sesiones SSH y conexiones seriales/consola abiertas
+en OpenTermX. Las últimas líneas se redactan en Windows antes de abandonar el equipo.
+
+Configura las variables antes de iniciar OpenTermX:
+
+```powershell
+$env:OPENTERMX_CONTROL_PLANE_URL = "https://opentermx.example.com:8766"
+$env:OPENTERMX_AGENT_TOKEN = "el-mismo-token-configurado-en-el-servidor"
+$env:OPENTERMX_AGENT_ID = "noc-win-01"
+$env:OPENTERMX_AGENT_NAME = "Consola NOC principal"
+./app/build/install/app/bin/app.bat
+```
+
+Para una prueba aislada dentro de una LAN puede utilizarse `http://IP-LINUX:8766`, pero en
+producción el gateway debe publicarse mediante HTTPS o VPN. Cada PC necesita un `AGENT_ID`
+único. Si el agente deja de reportar durante 20 segundos, sus sesiones desaparecen del catálogo.
+
+En el MCP central, `list_sessions` devuelve las sesiones remotas como
+`<agentId>:<sessionId>` y `inspect_session` permite consultar su buffer redactado. Este primer
+contrato es exclusivamente de observación: no transporta credenciales ni acepta comandos. La
+ejecución remota se incorporará después de añadir tareas firmadas, idempotencia, autorización
+por sesión y aprobación humana visible en el cliente Windows.
 
 Para crear una distribución portable con scripts y todas las dependencias:
 

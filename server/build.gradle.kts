@@ -15,11 +15,16 @@ application {
 dependencies {
     implementation(project(":mcp-server"))
     implementation(project(":ai-assistant"))
+    implementation(project(":edge-agent"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.slf4j.api)
+    implementation(libs.javalin)
+    implementation(libs.jackson.databind)
+    implementation(libs.jackson.module.kotlin)
     runtimeOnly(libs.logback.classic)
 
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlinx.coroutines.core)
 }
 
 tasks.test {

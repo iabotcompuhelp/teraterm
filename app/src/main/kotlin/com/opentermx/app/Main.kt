@@ -6,13 +6,27 @@ import com.opentermx.app.ui.MainWindow
 import com.opentermx.app.viewmodel.AppViewModel
 import javafx.application.Application
 import javafx.stage.Stage
+import com.opentermx.agent.EdgeAgentConfig
+import com.opentermx.agent.WindowsEdgeAgent
+import org.slf4j.LoggerFactory
 
 class OpenTermXApp : Application() {
+    private val log = LoggerFactory.getLogger(javaClass)
+    private var edgeAgent: WindowsEdgeAgent? = null
+
     override fun start(stage: Stage) {
         val settings = SettingsStore.load()
         Strings.setLocale(settings.locale)
         val viewModel = AppViewModel()
         MainWindow(stage, viewModel, settings).show()
+        runCatching { EdgeAgentConfig.fromEnvironment() }
+            .onFailure { log.error("Configuración del agente inválida: {}", it.message) }
+            .getOrNull()
+            ?.let { config -> WindowsEdgeAgent(config).also { it.start(); edgeAgent = it } }
+    }
+
+    override fun stop() {
+        edgeAgent?.close()
     }
 }
 

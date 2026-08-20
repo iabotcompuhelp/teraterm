@@ -14,6 +14,7 @@ include(
     ":rest-api",
     ":mcp-server",
     ":server",
+    ":edge-agent",
     ":policy-engine",
     ":net-parsers",
     ":telemetry-db",

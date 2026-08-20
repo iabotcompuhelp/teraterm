@@ -28,5 +28,10 @@ fun main() {
         binding.hasAuth,
         config.dataDir,
     )
+    if (config.agentToken != null) {
+        log.info("Gateway de agentes listo en {}:{}", config.bindAddress, config.agentPort)
+    } else {
+        log.info("Gateway de agentes deshabilitado (OPENTERMX_AGENT_TOKEN no configurado)")
+    }
     stopped.await()
 }

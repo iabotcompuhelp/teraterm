@@ -26,6 +26,7 @@ import com.opentermx.app.ui.dialog.SerialConfigDialog
 import com.opentermx.app.ui.dialog.SerialSignalsDialog
 import com.opentermx.app.ui.dialog.SystemInfoDialog
 import com.opentermx.app.ui.dialog.AgentStatusDialog
+import com.opentermx.app.ui.dialog.AgentConfigDialog
 import com.opentermx.app.ui.dialog.TftpClientDialog
 import com.opentermx.app.ui.dialog.TftpServerDialog
 import com.opentermx.app.ui.macro.MacroUiBridgeImpl
@@ -377,6 +378,9 @@ class MainWindow(
             items += MenuItem(Strings["control.serialSignals"]).apply { setOnAction { openSerialSignals() } }
             items += MenuItem(Strings["agent.status.menu"]).apply {
                 setOnAction { AgentStatusDialog(stage).show() }
+            }
+            items += MenuItem(Strings["agent.config.menu"]).apply {
+                setOnAction { openAgentConfig() }
             }
             items += SeparatorMenuItem()
             items += MenuItem(Strings["setup.macros"]).apply {
@@ -1649,6 +1653,22 @@ class MainWindow(
     }
 
     private fun currentController(): TerminalSessionController? = controllers[tabPane.selectionModel.selectedItem]
+
+    private fun openAgentConfig() {
+        val updated = AgentConfigDialog(stage, settings.edgeAgent).showAndWait() ?: return
+        persist { it.copy(edgeAgent = updated) }
+        val config = runCatching { updated.runtimeConfig() }.onFailure {
+            statusLabel.text = it.message ?: Strings["agent.config.invalid"]
+        }.getOrNull()
+        val processor = config?.let {
+            com.opentermx.app.ui.ai.ApprovedRemoteTaskProcessor(
+                com.opentermx.app.ui.ai.JavaFxApprovalGate { stage },
+            )
+        }
+        com.opentermx.app.agent.EdgeAgentManager.configure(config, processor)
+        if (config != null) com.opentermx.app.agent.EdgeAgentManager.start()
+        statusLabel.text = if (config == null) Strings["agent.config.disabled"] else Strings["agent.config.applied"]
+    }
     private fun currentTerminal(): TerminalView? = terminalOf(tabPane.selectionModel.selectedItem)
 
     /**

@@ -64,6 +64,7 @@ data class AppSettings(
      * para que el JSON quede prolijo y permita agregar campos sin migrar.
      */
     val highlight: HighlightSettings = HighlightSettings(),
+    val edgeAgent: EdgeAgentSettings = EdgeAgentSettings(),
 ) {
     companion object {
         val DEFAULT_ACCELERATORS: Map<String, String> = linkedMapOf(

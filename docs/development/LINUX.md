@@ -139,6 +139,22 @@ Estados posibles:
 - `STOPPED`: desconectado manualmente y disponible para reconexión;
 - `DISABLED`: no existe `OPENTERMX_CONTROL_PLANE_URL` en el entorno de arranque.
 
+### Configuración visual en Windows
+
+Abre **Control → Configurar agente…** para administrar la conexión sin variables de entorno.
+Se pueden cambiar URL, identificador único, nombre visible, intervalo de heartbeat, directorio de
+estado y token. **Probar conexión** consulta `/agent/v1/health`; **Guardar y aplicar** reconstruye
+el cliente en caliente sin cerrar las terminales existentes.
+
+Una configuración guardada desde la UI prevalece sobre el entorno. En instalaciones anteriores,
+`enabled=null` mantiene compatibilidad y continúa leyendo las variables `OPENTERMX_*`; al guardar
+por primera vez, la decisión activar/desactivar pasa a ser explícita.
+
+El token se persiste cifrado con AES-256-GCM mediante `SecretCipher` y nunca aparece en texto
+plano en `settings.json`. Este cifrado está ligado al usuario y al equipo y protege frente a la
+lectura casual del archivo; la migración posterior a Windows Credential Manager reforzará la
+protección frente a usuarios con acceso completo a la máquina.
+
 Para crear una distribución portable con scripts y todas las dependencias:
 
 ```bash

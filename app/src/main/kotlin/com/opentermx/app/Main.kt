@@ -6,7 +6,6 @@ import com.opentermx.app.ui.MainWindow
 import com.opentermx.app.viewmodel.AppViewModel
 import javafx.application.Application
 import javafx.stage.Stage
-import com.opentermx.agent.EdgeAgentConfig
 import org.slf4j.LoggerFactory
 import com.opentermx.app.ui.ai.ApprovedRemoteTaskProcessor
 import com.opentermx.app.ui.ai.JavaFxApprovalGate
@@ -20,7 +19,7 @@ class OpenTermXApp : Application() {
         Strings.setLocale(settings.locale)
         val viewModel = AppViewModel()
         MainWindow(stage, viewModel, settings).show()
-        runCatching { EdgeAgentConfig.fromEnvironment() }
+        runCatching { settings.edgeAgent.runtimeConfig() }
             .onFailure { log.error("Configuración del agente inválida: {}", it.message) }
             .getOrNull()
             .let { config ->

@@ -883,6 +883,61 @@ object ToolDefinitions {
         mutating = false,
     )
 
+    val RESUME_OPERATION = ToolDef(
+        name = "resume_operation",
+        description = "Reasocia una operación durable abierta a esta sesión MCP después de reiniciar " +
+            "OpenTermX o cambiar de modelo. El nuevo modelo debe confirmar objetivo, alcance y restricciones.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("operationId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "operationId" to obj("type" to "string", "minLength" to 3),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("operationId", "resumed", "confirmationRequired"),
+            "properties" to obj(
+                "operationId" to obj("type" to "string"),
+                "resumed" to obj("type" to "boolean"),
+                "description" to obj("type" to "string"),
+                "confirmationRequired" to obj("type" to "boolean"),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val EXPORT_OPERATION_HANDOFF = ToolDef(
+        name = "export_operation_handoff",
+        description = "Genera y persiste un paquete de handoff versionado, factual y redactado para " +
+            "continuar una operación con otro proveedor LLM sin depender del historial del chat.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "properties" to obj(
+                "operationId" to obj("type" to listOf("string", "null")),
+                "sourceProvider" to obj("type" to listOf("string", "null")),
+                "targetProvider" to obj("type" to listOf("string", "null")),
+                "changeReason" to obj("type" to listOf("string", "null")),
+                "budgetRemaining" to obj("type" to listOf("integer", "null"), "minimum" to 0),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("schemaVersion", "operationId", "status", "context", "journal", "factualSummary"),
+            "properties" to obj(
+                "schemaVersion" to obj("type" to "string"),
+                "operationId" to obj("type" to "string"),
+                "status" to obj("type" to "string"),
+                "context" to obj("type" to "object"),
+                "journal" to obj("type" to "array"),
+                "factualSummary" to obj("type" to "string"),
+            ),
+        ),
+        mutating = false,
+    )
+
     val INVENTORY_LIST = ToolDef(
         name = "inventory_list",
         description = "Lista devices del inventario (entradas de Saved Connections con `alias` definido). " +
@@ -1613,6 +1668,8 @@ object ToolDefinitions {
         START_OPERATION,
         END_OPERATION,
         CURRENT_OPERATION,
+        RESUME_OPERATION,
+        EXPORT_OPERATION_HANDOFF,
         INVENTORY_LIST,
         INVENTORY_DESCRIBE,
         COMPLIANCE_EVALUATE,

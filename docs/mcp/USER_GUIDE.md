@@ -25,7 +25,8 @@
 1. Mismos pasos 1-4 que arriba, pero seleccionando **CURSOR** en el dropdown del snippet.
 2. *Open folder* abre `~/.cursor/`. Editá `mcp.json` (o creá si no existe) y pegá el snippet.
    ![screenshot: cursor_mcp_config]
-3. Reload window. El panel MCP en la sidebar derecha lista las 10 tools de OpenTermX.
+3. Reload window. El panel MCP muestra el catálogo descubierto mediante `tools/list`;
+   el número de tools puede evolucionar entre releases.
 4. Probá: "Usá inspect_session contra session-cisco y resumime los últimos errores".
 
 ## Conectar Cline en VS Code en 5 minutos

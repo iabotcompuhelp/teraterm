@@ -13,8 +13,17 @@ needed).
 ./gradlew :app:run    # launch the JavaFX app
 ```
 
-CI runs `./gradlew check` on every push and pull request (`.github/workflows/ci.yml`).
+CI runs the JVM suite on Linux and Windows plus the MCP black-box contract suite on every
+push and pull request (`.github/workflows/ci.yml`). `./gradlew check` remains the local
+full verification gate.
 Architecture overview: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+Project continuation plan: [`docs/ROADMAP-AI-OPERATIONS.md`](docs/ROADMAP-AI-OPERATIONS.md).
+Current AI/MCP objective review:
+[`docs/review/REVIEW-AI-MCP-OBJECTIVE-2026-08.md`](docs/review/REVIEW-AI-MCP-OBJECTIVE-2026-08.md).
+Testing strategy: [`docs/development/TESTING.md`](docs/development/TESTING.md).
+Linux migration and runtime guide: [`docs/development/LINUX.md`](docs/development/LINUX.md).
+Architecture decisions: [`docs/adr/`](docs/adr/).
 
 ## Documentation
 

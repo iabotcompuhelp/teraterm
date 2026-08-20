@@ -1018,10 +1018,8 @@ class MainWindow(
                 statusBar.updateAiStatusLabel()
             },
             getTerminalContext = { buildAiTerminalContext() },
-            getCommandSink = {
-                currentController()?.session?.id?.let {
-                    com.opentermx.common.ai.SessionRegistry.sinkOf(it)
-                }
+            executeTool = { name, arguments ->
+                com.opentermx.app.ui.mcp.McpServerManager.executeInternalTool(name, arguments)
             },
             onClose = { setAiChatPanelVisible(false) },
         ).also { panel ->

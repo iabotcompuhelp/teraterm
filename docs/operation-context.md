@@ -44,6 +44,11 @@ Ejemplo completo: [`examples/operation-context.example.yaml`](../examples/operat
 | `start_operation` | Inicia una op | exactamente uno de `contextPath` (path al .yaml/.yml/.json), `contextInline` (objeto JSON) o `contextYaml` (string YAML) |
 | `end_operation` | Cierra la op activa | `operationId` |
 | `current_operation` | Recupera la op activa de la sesión MCP | sin args |
+| `resume_operation` | Reasocia una operación recuperada a otro cliente/modelo | `operationId` |
+| `export_operation_handoff` | Exporta contexto y journal redactado para otro modelo | `operationId` opcional y metadatos del cambio |
+
+El journal durable y el flujo de cambio de proveedor se documentan en
+[`operation-handoff.md`](operation-handoff.md).
 
 `start_operation` valida el context contra el JSON Schema antes de aceptarlo. Errores de schema llegan al cliente como `isError: true` con texto del estilo:
 

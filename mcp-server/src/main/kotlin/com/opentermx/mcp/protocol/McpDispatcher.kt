@@ -2,6 +2,9 @@ package com.opentermx.mcp.protocol
 
 import com.opentermx.mcp.handlers.McpToolException
 import com.opentermx.mcp.handlers.ToolHandler
+import com.opentermx.mcp.application.ToolExecutionContext
+import com.opentermx.mcp.application.ToolExecutionResult
+import com.opentermx.mcp.application.ToolExecutor
 import com.opentermx.mcp.tools.ToolDef
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.runBlocking
@@ -41,6 +44,9 @@ class McpDispatcher(
      * `content[0].text` de cada respuesta exitosa cuando hay op activa para esa sessionKey.
      */
     private val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
+    private val toolExecutor: ToolExecutor = ToolExecutor(
+        handlers, readOnly, allowedSessionGlob, operationRegistry,
+    ),
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -198,12 +204,16 @@ class McpDispatcher(
         }
 
         return try {
-            val payload = runBlocking {
-                if (handler is com.opentermx.mcp.handlers.OperationAwareToolHandler) {
-                    handler.invoke(arguments, transport.sessionKey)
-                } else {
-                    handler.invoke(arguments)
-                }
+            val execution = runBlocking {
+                toolExecutor.execute(
+                    toolName,
+                    arguments,
+                    ToolExecutionContext(transport.sessionKey, transport.role),
+                )
+            }
+            val payload = when (execution) {
+                is ToolExecutionResult.Success -> execution.payload
+                is ToolExecutionResult.Rejected -> return ok(request.id, toolCallError(execution.message))
             }
             val raw = toolCallSuccess(payload)
             val withContext = operationRegistry

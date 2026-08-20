@@ -1,13 +1,67 @@
 name: CI
 
-# Quality gate: corre la verificación completa (build + unit de todos los módulos +
-# la suite pytest del mcp-server) en cada push y en cada pull request.
+# Dos gates independientes: JVM multiplataforma y contrato MCP black-box. Separarlos
+# permite saber si falló el producto Java/Kotlin o el transporte visto por un cliente.
 on:
   push:
   pull_request:
 
 jobs:
-  check:
+  jvm-tests:
+    name: JVM tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle (con caché)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Instalar xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: JVM tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ./gradlew test --no-daemon --stacktrace
+
+      - name: Construir distribución Linux
+        if: runner.os == 'Linux'
+        run: ./gradlew :app:installDist --no-daemon --stacktrace
+
+      - name: JVM tests (Windows)
+        if: runner.os == 'Windows'
+        run: .\gradlew.bat test --no-daemon --stacktrace
+
+      - name: Publicar reportes JVM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvm-test-reports-${{ matrix.os }}
+          path: |
+            **/build/test-results/test/**
+            **/build/reports/tests/**
+          if-no-files-found: ignore
+
+      - name: Publicar distribución Linux
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: opentermx-linux-portable
+          path: app/build/install/app/**
+          if-no-files-found: error
+
+  mcp-contract-tests:
+    name: MCP contract tests (Python)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +72,7 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      # La suite del mcp-server crea su propio venv y corre pytest; necesita Python 3.
-      - name: Set up Python 3
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -27,18 +80,17 @@ jobs:
       - name: Set up Gradle (con caché)
         uses: gradle/actions/setup-gradle@v4
 
-      # Los tests de UI (JavaFX/TerminalView) arrancan el toolkit: en CI headless
-      # necesitan un display virtual.
-      - name: Instalar xvfb
-        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: MCP black-box contract tests
+        env:
+          MCP_TEST_PYTHON: python
+        run: ./gradlew :mcp-server:pythonTests --no-daemon --stacktrace
 
-      - name: ./gradlew check
-        run: xvfb-run -a ./gradlew check --no-daemon --stacktrace
-
-      - name: Publicar reportes de test al fallar
-        if: failure()
+      - name: Publicar reportes MCP
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
-          path: "**/build/reports/tests/**"
+          name: mcp-contract-test-reports
+          path: |
+            mcp-server/build/test-results/**
+            mcp-server/build/reports/**
           if-no-files-found: ignore

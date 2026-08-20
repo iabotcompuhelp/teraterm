@@ -133,12 +133,35 @@ fun venvBinary(name: String): java.io.File {
     return venv.resolve(sub).resolve(exe)
 }
 
+fun isRunnable(command: String, vararg args: String): Boolean = runCatching {
+    val process = ProcessBuilder(listOf(command) + args)
+        .redirectErrorStream(true)
+        .start()
+    process.inputStream.bufferedReader().use { it.readText() }
+    process.waitFor() == 0
+}.getOrDefault(false)
+
+fun hasUsablePythonVenv(): Boolean {
+    val config = pythonVenvDir.get().asFile.resolve("pyvenv.cfg")
+    val python = venvBinary("python")
+    return config.isFile && python.isFile && isRunnable(python.absolutePath, "--version")
+}
+
 val createPythonVenv by tasks.registering {
     description = "Crea `mcp-server/build/python-venv/` si no existe."
     val venv = pythonVenvDir.get().asFile
     outputs.dir(venv)
+    // Un venv puede seguir teniendo pyvenv.cfg aunque el Python base haya sido
+    // desinstalado o movido. En ese caso Gradle no debe declararlo UP-TO-DATE.
+    outputs.upToDateWhen { hasUsablePythonVenv() }
     doLast {
-        if (!venv.resolve("pyvenv.cfg").exists()) {
+        if (!hasUsablePythonVenv()) {
+            if (venv.exists()) {
+                check(venv.toPath().startsWith(layout.buildDirectory.get().asFile.toPath())) {
+                    "Se rechazó limpiar un venv fuera de build/: $venv"
+                }
+                venv.deleteRecursively()
+            }
             venv.parentFile.mkdirs()
             val python = resolveSystemPython()
             val proc = ProcessBuilder(python, "-m", "venv", venv.absolutePath)
@@ -146,6 +169,9 @@ val createPythonVenv by tasks.registering {
             val output = proc.inputStream.bufferedReader().readText()
             val code = proc.waitFor()
             check(code == 0) { "Falló crear el venv con `$python -m venv`: $output" }
+            check(hasUsablePythonVenv()) {
+                "El venv fue creado pero su intérprete no se puede ejecutar: ${venvBinary("python")}"
+            }
         }
     }
 }

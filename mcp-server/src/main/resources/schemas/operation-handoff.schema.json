@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://opentermx.io/schemas/operation-handoff.schema.json",
+  "title": "OpenTermX Operation Handoff",
+  "type": "object",
+  "required": [
+    "schemaVersion", "operationId", "generatedAtMillis", "status", "objective",
+    "context", "journal", "evidence", "factualSummary", "openRisks", "nextSteps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "operationId": { "type": "string", "minLength": 3 },
+    "generatedAtMillis": { "type": "integer", "minimum": 0 },
+    "status": { "enum": ["ACTIVE", "CLOSED", "FAILED", "UNKNOWN"] },
+    "objective": { "type": "string", "minLength": 1 },
+    "context": { "type": "object" },
+    "journal": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sequence", "timestampMillis", "type", "source", "correlationId", "payload"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 1 },
+          "timestampMillis": { "type": "integer", "minimum": 0 },
+          "type": { "type": "string" },
+          "source": { "type": "string" },
+          "correlationId": { "type": "string" },
+          "toolName": { "type": ["string", "null"] },
+          "status": { "type": ["string", "null"] },
+          "payload": { "type": "object" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "sha256": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" },
+          "createdAtMillis": { "type": ["integer", "null"] },
+          "deviceAlias": { "type": ["string", "null"] },
+          "sessionId": { "type": ["string", "null"] },
+          "label": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "factualSummary": { "type": "string" },
+    "openRisks": { "type": "array", "items": { "type": "string" } },
+    "nextSteps": { "type": "array", "items": { "type": "string" } },
+    "sourceProvider": { "type": ["string", "null"] },
+    "targetProvider": { "type": ["string", "null"] },
+    "changeReason": { "type": ["string", "null"] },
+    "budgetRemaining": { "type": ["integer", "null"], "minimum": 0 }
+  }
+}

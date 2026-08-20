@@ -61,7 +61,8 @@ object RoleAccessControl {
         "list_sessions", "inspect_session", "search_knowledge_base", "list_macros",
         "inventory_list", "inventory_describe", "read_audit_log",
         // Lifecycle de operación.
-        "start_operation", "end_operation", "current_operation",
+        "start_operation", "end_operation", "current_operation", "resume_operation",
+        "export_operation_handoff",
         // Mutación (con approval gate humano y, si la op lo exige, approval token).
         "open_session", "close_session", "propose_commands", "run_macro",
         // Lectura ejecutable: whitelist estricta read-only, gate opcional (auto-approve).
@@ -88,7 +89,7 @@ object RoleAccessControl {
         // Solo lectura y la tool específica de evaluación.
         "list_sessions", "inspect_session", "search_knowledge_base",
         "inventory_list", "inventory_describe", "read_audit_log",
-        "current_operation",
+        "current_operation", "export_operation_handoff",
         "compliance_evaluate",
         // Phase 3 Fase 4: compliance puede leer diffs como parte de su decisión.
         "snapshot_diff",
@@ -107,7 +108,7 @@ object RoleAccessControl {
         // Solo lectura.
         "list_sessions", "inspect_session", "search_knowledge_base", "list_macros",
         "inventory_list", "inventory_describe", "read_audit_log",
-        "current_operation",
+        "current_operation", "export_operation_handoff",
         // Phase 3 Fase 4: el validator es el rol que más usa snapshots.
         "snapshot_create", "snapshot_diff", "snapshot_compare_to_criteria", "rollback_propose",
         // Phase 3 Fase 5: validator audita policies sobre flotas.

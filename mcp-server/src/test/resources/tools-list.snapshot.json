@@ -109,6 +109,16 @@
     "inputSha256" : "32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e",
     "outputSha256" : "53c5a8b4a0f7c5ad959b026b1b3242faa17b06e931e7c73b6c2fc35a33c1bffc"
   },
+  "resume_operation" : {
+    "mutating" : false,
+    "inputSha256" : "bb4ff2d4593ad478e6adbbf87b7069fbaee39f9a4bc3dbde17a95a4eea9d1b47",
+    "outputSha256" : "d06864b6ed61bebd9c53278a4b1bc2a8c72ce3f10b729fe66997261b630baad5"
+  },
+  "export_operation_handoff" : {
+    "mutating" : false,
+    "inputSha256" : "bcad73934b466a6250395905e1146bd27ac36a7e692ab6e4515f0a33f974fd4e",
+    "outputSha256" : "948a8552bea314bc8b80514f51262301bdd5e9277edb616b49471e51d65f4503"
+  },
   "inventory_list" : {
     "mutating" : false,
     "inputSha256" : "9629b16515a7b39f4aff856370b7055b991975d2237a26e73edf8c6f003c1abd",

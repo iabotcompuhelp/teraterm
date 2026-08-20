@@ -76,9 +76,17 @@ endif()
 # --------------------------------------------------------------------
 set_target_properties(opentermx_native PROPERTIES
         OUTPUT_NAME "opentermx_native"
-        PREFIX ""
         DEFINE_SYMBOL "OPENTERMX_BUILDING_DLL"
         C_VISIBILITY_PRESET hidden)
+
+# JNA aplica el mapeo nativo de cada plataforma: opentermx_native.dll en Windows y
+# libopentermx_native.so/.dylib en Unix. Quitar el prefijo globalmente hacía que el build
+# Linux produjera opentermx_native.so, que Native.load("opentermx_native") no encontraba.
+if(WIN32)
+    set_target_properties(opentermx_native PROPERTIES PREFIX "")
+else()
+    set_target_properties(opentermx_native PROPERTIES PREFIX "lib")
+endif()
 
 # --------------------------------------------------------------------
 # Instalación (opcional)

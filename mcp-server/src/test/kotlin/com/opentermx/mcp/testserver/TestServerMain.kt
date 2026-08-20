@@ -169,6 +169,8 @@ object TestServerMain {
             com.opentermx.mcp.handlers.StartOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.EndOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.ResumeOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.ExportOperationHandoffHandler(operationRegistry, snapshotStore),
             com.opentermx.mcp.handlers.InventoryListHandler(inventory),
             com.opentermx.mcp.handlers.InventoryDescribeHandler(inventory),
             com.opentermx.mcp.handlers.ComplianceEvaluateHandler(operationRegistry, secretProvider),

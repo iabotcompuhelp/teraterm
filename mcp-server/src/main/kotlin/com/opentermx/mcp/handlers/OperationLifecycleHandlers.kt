@@ -136,3 +136,66 @@ class CurrentOperationHandler(
         }
     }
 }
+
+/** Reasocia una operación durable recuperada a la sesión del nuevo cliente/modelo. */
+class ResumeOperationHandler(
+    private val registry: OperationRegistry,
+) : OperationAwareToolHandler {
+    override val definition: ToolDef = ToolDefinitions.RESUME_OPERATION
+
+    override suspend fun invoke(args: Map<String, Any?>, sessionKey: String): Map<String, Any?> {
+        val operationId = Args.requireString(args, "operationId")
+        val record = try {
+            registry.resume(sessionKey, operationId)
+        } catch (e: OperationContextException) {
+            throw McpToolException(NOT_FOUND, e.message ?: "no se pudo recuperar la operación")
+        }
+        return linkedMapOf(
+            "operationId" to record.operationId,
+            "resumed" to true,
+            "description" to record.context.operation.description,
+            "confirmationRequired" to true,
+        )
+    }
+}
+
+/** Exporta el estado factual y redactado para cambiar de proveedor LLM. */
+class ExportOperationHandoffHandler(
+    private val registry: OperationRegistry,
+    private val snapshotStore: com.opentermx.mcp.snapshots.SnapshotStore? = null,
+) : OperationAwareToolHandler {
+    override val definition: ToolDef = ToolDefinitions.EXPORT_OPERATION_HANDOFF
+    private val mapper: ObjectMapper = ObjectMapper().registerKotlinModule()
+
+    override suspend fun invoke(args: Map<String, Any?>, sessionKey: String): Map<String, Any?> {
+        val operationId = (args["operationId"] as? String)?.takeIf { it.isNotBlank() }
+            ?: registry.forSessionKey(sessionKey)?.operationId
+            ?: throw McpToolException(NOT_FOUND, "No hay una operación activa para exportar")
+        val handoff = try {
+            val evidence = snapshotStore?.listForOperation(operationId).orEmpty().map { snapshot ->
+                com.opentermx.mcp.operation.EvidenceReference(
+                    id = snapshot.id,
+                    kind = "snapshot:${snapshot.snapshotType}",
+                    sha256 = snapshot.contentHash,
+                    createdAtMillis = snapshot.timestampMillis,
+                    deviceAlias = snapshot.deviceAlias,
+                    sessionId = snapshot.sessionId,
+                    label = snapshot.label,
+                )
+            }
+            registry.exportHandoff(
+                operationId = operationId,
+                sourceProvider = args["sourceProvider"] as? String,
+                targetProvider = args["targetProvider"] as? String,
+                changeReason = args["changeReason"] as? String,
+                budgetRemaining = (args["budgetRemaining"] as? Number)?.toLong(),
+                evidence = evidence,
+            )
+        } catch (e: OperationContextException) {
+            throw McpToolException(NOT_FOUND, e.message ?: "no se pudo exportar el handoff")
+        }
+        @Suppress("UNCHECKED_CAST")
+        return mapper.convertValue(handoff, Map::class.java)
+            .entries.associate { it.key.toString() to it.value }
+    }
+}

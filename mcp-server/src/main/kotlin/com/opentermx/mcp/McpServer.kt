@@ -16,6 +16,7 @@ import com.opentermx.mcp.protocol.ResourceProvider
 import com.opentermx.mcp.protocol.TransportContext
 import com.opentermx.mcp.security.RateLimiter
 import com.opentermx.mcp.security.TailManager
+import com.opentermx.mcp.application.ToolExecutor
 import com.opentermx.common.event.ConnectionEvent
 import com.opentermx.common.event.EventBus
 import io.javalin.http.sse.SseClient
@@ -98,6 +99,7 @@ class McpServer(
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper: ObjectMapper = jacksonObjectMapper()
+    val toolExecutor = ToolExecutor(handlers, readOnly, allowedSessionGlob, operationRegistry)
     private val dispatcher = McpDispatcher(
         handlers = handlers,
         serverName = serverName,
@@ -107,6 +109,7 @@ class McpServer(
         resourceProvider = resourceProvider,
         promptProvider = promptProvider,
         operationRegistry = operationRegistry,
+        toolExecutor = toolExecutor,
     )
 
     private val statusState = MutableStateFlow(Status.STOPPED)

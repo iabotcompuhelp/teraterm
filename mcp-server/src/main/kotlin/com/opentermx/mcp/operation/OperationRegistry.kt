@@ -2,6 +2,7 @@ package com.opentermx.mcp.operation
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import org.slf4j.LoggerFactory
 
 /**
@@ -31,10 +32,13 @@ class OperationRegistry(
     private val log = LoggerFactory.getLogger(javaClass)
     private val bySessionKey = ConcurrentHashMap<String, OperationRecord>()
     private val byOperationId = ConcurrentHashMap<String, OperationRecord>()
+    private val journalSequences = ConcurrentHashMap<String, AtomicLong>()
 
     init {
         store.loadAllOpen().forEach { rec ->
             byOperationId[rec.operationId] = rec
+            val lastSequence = store.loadJournal(rec.operationId).maxOfOrNull { it.sequence } ?: 0L
+            journalSequences[rec.operationId] = AtomicLong(lastSequence)
             log.info("Operation recuperada desde store: ${rec.operationId}")
         }
     }
@@ -75,6 +79,14 @@ class OperationRegistry(
         bySessionKey[sessionKey] = record
         byOperationId[finalId] = record
         store.save(record)
+        appendEvent(
+            operationId = finalId,
+            type = OperationEventType.OPERATION_STARTED,
+            source = "system",
+            correlationId = "operation:$finalId",
+            payload = mapOf("description" to normalized.operation.description),
+            nowMillis = nowMillis,
+        )
         log.info("Operation started: $finalId (sessionKey=$sessionKey)")
         return record
     }
@@ -103,6 +115,14 @@ class OperationRegistry(
             "durationMillis" to durationMs,
             "description" to record.context.operation.description,
         )
+        appendEvent(
+            operationId = operationId,
+            type = OperationEventType.OPERATION_ENDED,
+            source = "system",
+            correlationId = "operation:$operationId",
+            payload = summary,
+            nowMillis = nowMillis,
+        )
         store.markClosed(operationId, nowMillis, summary)
         log.info("Operation ended: $operationId (durationMs=$durationMs)")
         return summary
@@ -111,6 +131,90 @@ class OperationRegistry(
     fun forSessionKey(sessionKey: String): OperationRecord? = bySessionKey[sessionKey]
 
     fun forOperationId(operationId: String): OperationRecord? = byOperationId[operationId]
+
+    /** Reasocia una operación recuperada o compartida a una nueva sesión/LLM. */
+    @Synchronized
+    fun resume(sessionKey: String, operationId: String, nowMillis: Long = System.currentTimeMillis()): OperationRecord {
+        if (bySessionKey.containsKey(sessionKey)) {
+            throw OperationContextException("Ya hay una operación activa para esta sesión MCP")
+        }
+        val existing = byOperationId[operationId]
+            ?: throw OperationContextException("Operation `$operationId` no encontrada o cerrada")
+        // Transferencia explícita de ownership: una sola sesión puede continuar/escribir.
+        bySessionKey.entries.removeIf { it.value.operationId == operationId }
+        val record = existing.copy(initiatedBySessionKey = sessionKey)
+        byOperationId[operationId] = record
+        bySessionKey[sessionKey] = record
+        store.save(record)
+        appendEvent(
+            operationId = operationId,
+            type = OperationEventType.OPERATION_RESUMED,
+            source = sessionKey,
+            correlationId = "resume:$operationId:$nowMillis",
+            nowMillis = nowMillis,
+        )
+        return record
+    }
+
+    fun appendEvent(
+        operationId: String,
+        type: OperationEventType,
+        source: String,
+        correlationId: String,
+        toolName: String? = null,
+        status: String? = null,
+        payload: Map<String, Any?> = emptyMap(),
+        nowMillis: Long = System.currentTimeMillis(),
+    ): OperationJournalEntry {
+        if (!byOperationId.containsKey(operationId) && type != OperationEventType.OPERATION_ENDED) {
+            throw OperationContextException("Operation `$operationId` no encontrada")
+        }
+        val sequence = journalSequences.computeIfAbsent(operationId) { AtomicLong(0) }.incrementAndGet()
+        val entry = OperationJournalEntry(
+            sequence = sequence,
+            timestampMillis = nowMillis,
+            type = type,
+            source = source,
+            correlationId = correlationId,
+            toolName = toolName,
+            status = status,
+            payload = JournalPayloadSanitizer.sanitize(payload),
+        )
+        store.appendJournal(operationId, entry)
+        return entry
+    }
+
+    fun journal(operationId: String): List<OperationJournalEntry> {
+        if (!byOperationId.containsKey(operationId)) {
+            throw OperationContextException("Operation `$operationId` no encontrada o cerrada")
+        }
+        return store.loadJournal(operationId).sortedBy { it.sequence }
+    }
+
+    fun exportHandoff(
+        operationId: String,
+        sourceProvider: String? = null,
+        targetProvider: String? = null,
+        changeReason: String? = null,
+        budgetRemaining: Long? = null,
+        evidence: List<EvidenceReference> = emptyList(),
+        nowMillis: Long = System.currentTimeMillis(),
+    ): OperationHandoff {
+        val record = byOperationId[operationId]
+            ?: throw OperationContextException("Operation `$operationId` no encontrada o cerrada")
+        val handoff = OperationHandoffBuilder.build(
+            record = record,
+            journal = store.loadJournal(operationId),
+            generatedAtMillis = nowMillis,
+            sourceProvider = sourceProvider,
+            targetProvider = targetProvider,
+            changeReason = changeReason,
+            budgetRemaining = budgetRemaining,
+            evidence = evidence,
+        )
+        store.saveHandoff(handoff)
+        return handoff
+    }
 
     /**
      * Phase 3 Fase 3 helper: ops activas que declaran `require_compliance_approval=true`.
@@ -129,6 +233,7 @@ class OperationRegistry(
     internal fun clearForTests() {
         bySessionKey.clear()
         byOperationId.clear()
+        journalSequences.clear()
     }
 
     companion object {

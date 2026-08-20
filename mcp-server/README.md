@@ -37,6 +37,10 @@ sin que OpenTermX necesite credenciales de ningún proveedor de IA para esta fun
 
 ## Tools expuestas
 
+> **Fuente de verdad:** el catálogo efectivo se obtiene mediante `tools/list` y se valida
+> contra `src/test/resources/tools-list.snapshot.json`. Las secciones siguientes explican
+> los casos de uso principales; no son una lista exhaustiva.
+
 ### `list_sessions` (read-only)
 
 Devuelve las sesiones de terminal activas en OpenTermX.

@@ -43,6 +43,7 @@ object McpServerManager {
     @Volatile private var appSettingsProvider: (() -> AppSettings) = { AppSettings() }
     @Volatile private var sessionLauncherProvider: (() -> SessionLauncher?) = { null }
     @Volatile private var credentialStoreProvider: (() -> CredentialStore) = { CredentialStore.Empty }
+    @Volatile private var internalToolExecutor: com.opentermx.mcp.application.ToolExecutor? = null
 
     /**
      * Configura los proveedores de contexto. Llamarse una sola vez al arrancar `MainWindow`,
@@ -69,6 +70,9 @@ object McpServerManager {
         this.sessionLauncherProvider = sessionLauncher
         this.credentialStoreProvider = credentialStore
         this.appSettingsProvider = appSettings
+        // El runtime interno captura algunas políticas al construirse; una nueva
+        // composición debe invalidarlo para no mezclar providers viejos y nuevos.
+        this.internalToolExecutor = null
     }
 
     /**
@@ -141,6 +145,25 @@ object McpServerManager {
 
     fun binding() = server?.binding()
     fun lastError() = server?.lastError()
+
+    /**
+     * Ejecuta una tool desde una entrada interna de la aplicación (por ejemplo el chat).
+     * Usa exactamente el mismo catálogo, políticas y handlers que el transporte MCP,
+     * incluso cuando el listener HTTP está deshabilitado.
+     */
+    suspend fun executeInternalTool(
+        name: String,
+        arguments: Map<String, Any?>,
+    ): com.opentermx.mcp.application.ToolExecutionResult {
+        val executor = internalToolExecutor ?: synchronized(this) {
+            internalToolExecutor ?: buildServer().toolExecutor.also { internalToolExecutor = it }
+        }
+        return executor.execute(
+            name,
+            arguments,
+            com.opentermx.mcp.application.ToolExecutionContext.internalChat(),
+        )
+    }
 
     private fun stopInternal() {
         server?.stop()
@@ -315,6 +338,8 @@ object McpServerManager {
             com.opentermx.mcp.handlers.StartOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.EndOperationHandler(operationRegistry),
             com.opentermx.mcp.handlers.CurrentOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.ResumeOperationHandler(operationRegistry),
+            com.opentermx.mcp.handlers.ExportOperationHandoffHandler(operationRegistry, snapshotStore),
             com.opentermx.mcp.handlers.InventoryListHandler(inventoryProvider),
             com.opentermx.mcp.handlers.InventoryDescribeHandler(inventoryProvider),
             com.opentermx.mcp.handlers.ComplianceEvaluateHandler(
@@ -339,7 +364,7 @@ object McpServerManager {
                 com.opentermx.app.settings.McpTokenEntry.matchAny(plaintext, settings.mcpServerTokens) != null
             }
         } else null
-        return McpServer(
+        val built = McpServer(
             handlers = handlers,
             verboseLog = settings.mcpServerVerboseLog,
             readOnly = settings.mcpServerReadOnly,
@@ -357,6 +382,8 @@ object McpServerManager {
             ),
             operationRegistry = operationRegistry,
         )
+        internalToolExecutor = built.toolExecutor
+        return built
     }
 
     /**

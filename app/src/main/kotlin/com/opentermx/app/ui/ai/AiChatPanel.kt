@@ -10,8 +10,8 @@ import com.opentermx.ai.parse.CodeBlockParser
 import com.opentermx.ai.safety.RiskLevel
 import com.opentermx.app.i18n.Strings
 import com.opentermx.app.settings.AiAssistantSettings
+import com.opentermx.app.ui.dialog.ModelHandoffDialog
 import com.opentermx.common.ai.ChatMessage
-import com.opentermx.common.ai.CommandSink
 import com.opentermx.common.ai.LlmError
 import com.opentermx.common.ai.LlmRequest
 import com.opentermx.common.ai.ProviderKind
@@ -69,13 +69,15 @@ class AiChatPanel(
     private val getSettings: () -> AiAssistantSettings,
     private val onSettingsUpdated: (AiAssistantSettings) -> Unit,
     private val getTerminalContext: () -> TerminalContextSnapshot?,
-    private val getCommandSink: () -> CommandSink?,
+    private val executeTool: suspend (String, Map<String, Any?>) -> com.opentermx.mcp.application.ToolExecutionResult,
     private val onClose: () -> Unit,
     private val auditLog: AiAuditLog = AiAuditLog(),
 ) : VBox() {
 
     private var lastUserPrompt: String = ""
     private var lastVendor: Vendor = Vendor.UNKNOWN
+    @Volatile private var portableHandoffPrompt: String? = null
+    private val handoffService = ModelHandoffService(executeTool)
 
     private val providerLabel = Label().apply {
         styleClass += "ai-chat-provider"
@@ -88,6 +90,10 @@ class AiChatPanel(
     }
     private val clearBtn = Button(Strings["ai.chat.clear"]).apply {
         setOnAction { clearConversation() }
+    }
+    private val handoffBtn = Button(Strings["ai.handoff.button"]).apply {
+        tooltip = Tooltip(Strings["ai.handoff.tooltip"])
+        setOnAction { openModelHandoff() }
     }
     private val openSetupBtn = Button(Strings["ai.chat.openSetup"]).apply {
         setOnAction { openSetup() }
@@ -134,6 +140,7 @@ class AiChatPanel(
             val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
             children += providerLabel
             children += spacer
+            children += handoffBtn
             children += clearBtn
             children += closeBtn
         }
@@ -165,6 +172,34 @@ class AiChatPanel(
 
     private fun openSetup() {
         openSetupCallback()
+    }
+
+    private fun openModelHandoff() {
+        val current = getSettings()
+        val dialog = ModelHandoffDialog(
+            owner = scene?.window,
+            settings = current,
+            loadPreview = { provider, model, reason ->
+                handoffService.preview(current, provider, model, reason)
+            },
+        )
+        val preview = dialog.showAndWait().orElse(null) ?: return
+        runCatching { handoffService.confirm(current, preview) }
+            .onSuccess { updated ->
+                portableHandoffPrompt = preview.contextPrompt
+                onSettingsUpdated(updated)
+                history.clear()
+                conversationBox.children.clear()
+                refreshProviderLabel()
+                appendBubble(
+                    BubbleRole.ASSISTANT,
+                    Strings.format("ai.handoff.applied", preview.targetProvider.name, preview.targetModel),
+                    Strings.format("ai.handoff.summary", preview.journalEvents, preview.evidenceCount),
+                )
+            }
+            .onFailure { error ->
+                appendBubble(BubbleRole.ERROR, error.message ?: Strings["ai.handoff.failed"])
+            }
     }
 
     fun clearConversation() {
@@ -252,8 +287,8 @@ class AiChatPanel(
     /**
      * Si la respuesta de la IA contiene bloques de código, los parsea y monta un
      * [CommandReviewWidget] por bloque debajo de la burbuja del asistente. La decisión
-     * del operador (Execute / Reject) se canaliza por `CommandSink` y se registra en
-     * el audit log CSV.
+     * del operador (Execute / Reject) se canaliza por `ToolExecutor` y `propose_commands`.
+     * La auditoría queda a cargo del handler compartido.
      */
     private fun appendReviewWidgetsFor(responseText: String) {
         val blocks = CodeBlockParser.parse(responseText)
@@ -291,32 +326,35 @@ class AiChatPanel(
     }
 
     private fun onReviewExecute(commands: List<String>, risks: List<RiskLevel>) {
-        val sink = getCommandSink()
-        if (sink == null) {
+        val context = getTerminalContext()
+        if (context == null) {
             appendBubble(BubbleRole.ERROR, Strings["ai.review.noSession"], null)
             writeAudit(commands, risks, executed = 0, failed = commands.size, rejected = false, output = "")
             return
         }
         appendBubble(BubbleRole.ASSISTANT, Strings.format("ai.review.executingSummary", commands.size), null)
         thread(start = true, isDaemon = true, name = "ai-exec") {
-            var executed = 0
-            var failed = 0
-            for (cmd in commands) {
-                val ok = runCatching { sink.sendLine(cmd) }.getOrDefault(false)
-                if (ok) executed++ else failed++
-                // pequeña pausa entre líneas para no inundar el buffer del dispositivo
-                Thread.sleep(120)
+            val result = kotlinx.coroutines.runBlocking {
+                executeTool(
+                    "propose_commands",
+                    linkedMapOf(
+                        "sessionId" to context.sessionId,
+                        "commands" to commands,
+                        "rationale" to lastUserPrompt,
+                    ),
+                )
             }
-            // Tras enviar, esperamos un breve momento para capturar el output más reciente
-            Thread.sleep(800)
-            val tail = getTerminalContext()?.terminalLines?.takeLast(30)?.joinToString("\n").orEmpty()
+            val payload = (result as? com.opentermx.mcp.application.ToolExecutionResult.Success)?.payload
+            val executed = (payload?.get("executed") as? Number)?.toInt() ?: 0
+            val failed = if (result is com.opentermx.mcp.application.ToolExecutionResult.Rejected) commands.size
+                else (payload?.get("rejected") as? Number)?.toInt() ?: 0
+            val tail = payload?.get("output")?.toString().orEmpty()
             Platform.runLater {
                 appendBubble(
                     if (failed == 0) BubbleRole.ASSISTANT else BubbleRole.ERROR,
                     Strings.format("ai.review.doneSummary", executed, failed),
                     subtitle = if (tail.isNotBlank()) tail.lines().takeLast(4).joinToString(" · ") else null,
                 )
-                writeAudit(commands, risks, executed = executed, failed = failed, rejected = false, output = tail)
             }
         }
     }
@@ -393,6 +431,7 @@ class AiChatPanel(
             .replace("{vendor}", vendor?.displayName.orEmpty())
             .replace("{hostname}", context?.host.orEmpty())
             .replace("{rag_context}", ragContext)
+            .let { base -> portableHandoffPrompt?.let { "$base\n\n$it" } ?: base }
 
         val request = LlmRequest(
             model = model,

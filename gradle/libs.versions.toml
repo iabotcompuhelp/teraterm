@@ -23,7 +23,7 @@ javalinSsl = "6.1.6"
 everitJsonSchema = "1.14.4"
 hikaricp = "5.1.0"
 flyway = "10.20.1"
-postgresql = "42.7.4"
+postgresql = "42.7.11"
 zonkyEmbeddedPg = "2.0.7"
 
 [libraries]

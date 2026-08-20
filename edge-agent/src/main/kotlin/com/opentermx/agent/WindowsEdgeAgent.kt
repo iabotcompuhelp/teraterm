@@ -24,7 +24,8 @@ class WindowsEdgeAgent(
     private val scheduler = Executors.newSingleThreadScheduledExecutor { task ->
         Thread(task, "opentermx-edge-heartbeat").apply { isDaemon = true }
     }
-    private val completedTaskIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val completedTasks = CompletedTaskLedger(config.stateDir.resolve("completed-tasks.log"))
+    private val signer = RemoteTaskSigner(config.token.toByteArray(Charsets.UTF_8))
 
     fun start() {
         scheduler.scheduleWithFixedDelay(::sendHeartbeatSafely, 0, config.heartbeatSeconds, TimeUnit.SECONDS)
@@ -71,10 +72,15 @@ class WindowsEdgeAgent(
         check(response.statusCode() == 200) { "poll de tareas respondió HTTP ${response.statusCode()}" }
         val task = mapper.readValue<RemoteCommandTask>(response.body())
         if (task.agentId != config.agentId || task.expiresAtMillis <= System.currentTimeMillis()) return
-        if (!completedTaskIds.add(task.taskId)) return
+        check(signer.verify(task)) { "firma HMAC inválida para tarea ${task.taskId}" }
+        completedTasks.result(task.taskId)?.let { previous ->
+            submitResult(previous)
+            return
+        }
         val result = runCatching { taskProcessor.process(task) }.getOrElse { error ->
             RemoteTaskResult(task.taskId, RemoteTaskStatus.FAILED, System.currentTimeMillis(), error = error.message)
         }
+        completedTasks.record(result)
         submitResult(result)
     }
 

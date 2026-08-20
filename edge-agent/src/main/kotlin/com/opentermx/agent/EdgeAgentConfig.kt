@@ -8,6 +8,7 @@ data class EdgeAgentConfig(
     val agentId: String,
     val displayName: String,
     val heartbeatSeconds: Long = 5,
+    val stateDir: java.nio.file.Path = java.nio.file.Path.of(System.getProperty("user.home"), ".opentermx", "agent"),
 ) {
     companion object {
         fun fromEnvironment(env: Map<String, String> = System.getenv()): EdgeAgentConfig? {
@@ -16,6 +17,7 @@ data class EdgeAgentConfig(
             val token = requireNotNull(env["OPENTERMX_AGENT_TOKEN"]?.takeIf { it.isNotBlank() }) {
                 "OPENTERMX_AGENT_TOKEN es obligatorio al configurar OPENTERMX_CONTROL_PLANE_URL"
             }
+            require(token.toByteArray().size >= 16) { "OPENTERMX_AGENT_TOKEN debe tener al menos 16 bytes" }
             val machine = env["COMPUTERNAME"] ?: env["HOSTNAME"] ?: "opentermx-edge"
             val agentId = (env["OPENTERMX_AGENT_ID"] ?: machine).trim()
             require(agentId.matches(Regex("[A-Za-z0-9._-]{1,64}"))) {
@@ -31,6 +33,9 @@ data class EdgeAgentConfig(
                 agentId = agentId,
                 displayName = env["OPENTERMX_AGENT_NAME"]?.takeIf { it.isNotBlank() } ?: machine,
                 heartbeatSeconds = interval,
+                stateDir = env["OPENTERMX_AGENT_STATE_DIR"]?.takeIf { it.isNotBlank() }
+                    ?.let(java.nio.file.Path::of)
+                    ?: java.nio.file.Path.of(System.getProperty("user.home"), ".opentermx", "agent"),
             )
         }
     }

@@ -208,5 +208,20 @@
     "mutating" : true,
     "inputSha256" : "05de06f09fb80ba30a05296cdd1e9810342086329529db6bea31134cafeb10d9",
     "outputSha256" : "6f8e60eb0be1715808c4d0f66cf659d46193eb131f9f86d8b6ecf08183c274e0"
+  },
+  "propose_remote_commands" : {
+    "mutating" : true,
+    "inputSha256" : "1bc62402d936fec71015be1d9ba16c6163b291eb68cac60f44be39a4603516ad",
+    "outputSha256" : "83bb078fae07a3b3169df722a27f571f12f66d013a389d1a6e07c5525f38624c"
+  },
+  "get_remote_task" : {
+    "mutating" : false,
+    "inputSha256" : "1764b0c9c9f1e47d009d3b6e0b8f3ac19d2fdd36ba34c756a6690cd0fceecc6b",
+    "outputSha256" : "86286383b2b6e6e71a770bcc5a41159c922e8bd7ffb1848d39883623a08a7b32"
+  },
+  "cancel_remote_task" : {
+    "mutating" : true,
+    "inputSha256" : "1764b0c9c9f1e47d009d3b6e0b8f3ac19d2fdd36ba34c756a6690cd0fceecc6b",
+    "outputSha256" : "f9fc0c6fb64f7b3c4f147ab69ab6b72de35006548dff7a7830c30d56ff3310ce"
   }
 }

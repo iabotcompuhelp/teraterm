@@ -23,7 +23,7 @@ class EdgeAgentConfigTest {
         val config = EdgeAgentConfig.fromEnvironment(
             mapOf(
                 "OPENTERMX_CONTROL_PLANE_URL" to "https://server.example:8766/",
-                "OPENTERMX_AGENT_TOKEN" to "secret",
+                "OPENTERMX_AGENT_TOKEN" to "agent-secret-12345",
                 "OPENTERMX_AGENT_ID" to "win-console-01",
             ),
         )!!

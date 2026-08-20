@@ -22,10 +22,11 @@ fun main() {
     runtime.start()
     val binding = checkNotNull(runtime.binding())
     log.info(
-        "OpenTermX control plane listo en {}:{} (auth={}, readOnly=true, dataDir={})",
+        "OpenTermX control plane listo en {}:{} (auth={}, readOnly={}, dataDir={})",
         binding.host,
         binding.port,
         binding.hasAuth,
+        config.readOnly,
         config.dataDir,
     )
     if (config.agentToken != null) {

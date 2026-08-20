@@ -38,4 +38,18 @@ class ServerConfigTest {
         assertEquals("test-token", config.token)
         assertEquals("server-data", config.dataDir.fileName.toString())
     }
+
+    @Test
+    fun `writable mode requires configured agent security`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ServerConfig.fromEnvironment(mapOf("OPENTERMX_READ_ONLY" to "false"))
+        }
+        val config = ServerConfig.fromEnvironment(
+            mapOf(
+                "OPENTERMX_READ_ONLY" to "false",
+                "OPENTERMX_AGENT_TOKEN" to "0123456789abcdef",
+            ),
+        )
+        assertEquals(false, config.readOnly)
+    }
 }

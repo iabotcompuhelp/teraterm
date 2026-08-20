@@ -36,6 +36,24 @@ class RemoteTaskStoreTest {
         }
     }
 
+    @Test
+    fun `expired lease redelivers same signed task without changing payload`() {
+        var now = 1_000L
+        val store = RemoteTaskStore(
+            Files.createTempDirectory("remote-task-lease"),
+            "0123456789abcdef".toByteArray(),
+            clock = { now },
+            leaseMillis = 500,
+        )
+        store.enqueue(task("task-lease").copy(createdAtMillis = now, expiresAtMillis = 10_000))
+        val first = store.claimNext("win-01")!!
+        now += 501
+        val second = store.claimNext("win-01")!!
+
+        assertEquals(first.signature, second.signature)
+        assertEquals(2, second.deliveryAttempt)
+    }
+
     private fun task(id: String) = RemoteCommandTask(
         taskId = id,
         operationId = "op-1",

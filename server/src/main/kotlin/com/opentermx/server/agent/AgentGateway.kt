@@ -7,6 +7,8 @@ import com.opentermx.agent.AgentHeartbeatAck
 import com.opentermx.agent.RemoteTaskResult
 import io.javalin.Javalin
 import java.security.MessageDigest
+import com.opentermx.mcp.operation.OperationEventType
+import com.opentermx.mcp.operation.OperationRegistry
 
 class AgentGateway(
     private val bindAddress: String,
@@ -14,6 +16,7 @@ class AgentGateway(
     private val token: String,
     private val registry: AgentRegistry,
     private val taskStore: RemoteTaskStore,
+    private val operations: OperationRegistry? = null,
 ) : AutoCloseable {
     private val mapper = jacksonObjectMapper()
     private var app: Javalin? = null
@@ -61,7 +64,25 @@ class AgentGateway(
                 ctx.status(400).json(mapOf("error" to "taskId mismatch")); return@post
             }
             try {
-                taskStore.complete(agentId, result)
+                val firstReport = taskStore.complete(agentId, result)
+                if (firstReport) {
+                    taskStore.task(result.taskId)?.operationId?.let { operationId ->
+                        operations?.appendEvent(
+                            operationId = operationId,
+                            type = if (result.status == com.opentermx.agent.RemoteTaskStatus.SUCCEEDED)
+                                OperationEventType.TOOL_SUCCEEDED else OperationEventType.TOOL_REJECTED,
+                            source = agentId,
+                            correlationId = result.taskId,
+                            toolName = "propose_remote_commands",
+                            status = result.status.name,
+                            payload = mapOf(
+                                "taskId" to result.taskId,
+                                "executedCount" to result.executedCommands.size,
+                                "message" to result.error,
+                            ),
+                        )
+                    }
+                }
                 ctx.json(mapOf("accepted" to true))
             } catch (e: IllegalArgumentException) {
                 ctx.status(409).json(mapOf("error" to (e.message ?: "invalid result")))

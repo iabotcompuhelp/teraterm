@@ -56,6 +56,7 @@ Variables admitidas:
 | `OPENTERMX_MCP_TOKEN` | vacío | Bearer token; obligatorio fuera de loopback |
 | `OPENTERMX_AGENT_PORT` | `8766` | Puerto para heartbeats de agentes de borde |
 | `OPENTERMX_AGENT_TOKEN` | vacío | Habilita y autentica el gateway de agentes |
+| `OPENTERMX_READ_ONLY` | `true` | Bloquea tools mutativas; cambiar solo tras validar el laboratorio |
 
 Para instalarlo como servicio:
 
@@ -105,10 +106,22 @@ operaciones MCP locales. Un rechazo no llega al `CommandSink`; si el operador ed
 solo las líneas finalmente aprobadas se envían a la sesión SSH o serial. Las tareas expiradas o
 dirigidas a una sesión cerrada fallan sin ejecutar comandos.
 
-La creación de tareas todavía no se expone como tool MCP pública. Antes de habilitarla deben
-añadirse autorización por operación, firma del payload, leases/reintentos durables y auditoría
-central. Mientras tanto, los tests locales cubren cola → gateway HTTP → agente → procesador →
-resultado sin requerir una máquina Linux.
+El servidor publica tres tools MCP para este flujo:
+
+- `propose_remote_commands`: crea una tarea firmada para una sesión federada;
+- `get_remote_task`: consulta estado y resultado redactado;
+- `cancel_remote_task`: cancela una tarea pendiente o entregada.
+
+Las tres exigen una operación activa y la tarea queda ligada a su `operationId`. El scope de la
+operación restringe dispositivos y comandos. Proponer y cancelar son mutativas, por lo que el
+default `OPENTERMX_READ_ONLY=true` las bloquea. Para una prueba controlada se puede configurar
+`OPENTERMX_READ_ONLY=false`; esto exige además un `OPENTERMX_AGENT_TOKEN` de al menos 16 bytes.
+
+Cada payload se firma con HMAC-SHA256 usando el secreto del agente. Los leases vencidos se
+reentregan con la misma firma y un contador de intento. Windows persiste el resultado antes de
+reportarlo en `~/.opentermx/agent/completed-tasks.log`: tras una caída reenvía el resultado sin
+ejecutar nuevamente los comandos. La creación, resultado o rechazo quedan en el journal durable
+de la operación para formar parte del handoff.
 
 Para crear una distribución portable con scripts y todas las dependencias:
 

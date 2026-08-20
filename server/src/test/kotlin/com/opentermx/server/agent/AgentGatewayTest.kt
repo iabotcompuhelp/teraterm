@@ -24,8 +24,9 @@ class AgentGatewayTest {
     fun `gateway rejects missing token and accepts authenticated heartbeat`() {
         val port = ServerSocket(0).use { it.localPort }
         val registry = AgentRegistry()
-        val store = RemoteTaskStore(java.nio.file.Files.createTempDirectory("gateway-tasks"))
-        AgentGateway("127.0.0.1", port, "agent-secret", registry, store).use { gateway ->
+        val secret = "agent-secret-12345"
+        val store = RemoteTaskStore(java.nio.file.Files.createTempDirectory("gateway-tasks"), secret.toByteArray())
+        AgentGateway("127.0.0.1", port, secret, registry, store).use { gateway ->
             gateway.start()
             val body = jacksonObjectMapper().writeValueAsString(
                 AgentHeartbeat(
@@ -46,7 +47,7 @@ class AgentGatewayTest {
 
             val accepted = client.send(
                 HttpRequest.newBuilder(uri)
-                    .header("Authorization", "Bearer agent-secret")
+                    .header("Authorization", "Bearer $secret")
                     .header("X-OpenTermX-Agent-Id", "win-01")
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(body))
@@ -61,7 +62,9 @@ class AgentGatewayTest {
     @Test
     fun `windows agent claims and reports a task through local gateway`() {
         val port = ServerSocket(0).use { it.localPort }
-        val store = RemoteTaskStore(java.nio.file.Files.createTempDirectory("gateway-e2e-tasks"))
+        val secret = "agent-secret-12345"
+        val stateDir = java.nio.file.Files.createTempDirectory("gateway-e2e-agent")
+        val store = RemoteTaskStore(java.nio.file.Files.createTempDirectory("gateway-e2e-tasks"), secret.toByteArray())
         val now = System.currentTimeMillis()
         store.enqueue(
             RemoteCommandTask(
@@ -80,14 +83,15 @@ class AgentGatewayTest {
             processed.countDown()
             RemoteTaskResult(task.taskId, RemoteTaskStatus.SUCCEEDED, System.currentTimeMillis(), task.commands, "ok")
         }
-        AgentGateway("127.0.0.1", port, "agent-secret", AgentRegistry(), store).use { gateway ->
+        AgentGateway("127.0.0.1", port, secret, AgentRegistry(), store).use { gateway ->
             gateway.start()
             val config = EdgeAgentConfig(
                 URI("http://127.0.0.1:$port/agent/v1/heartbeat"),
-                "agent-secret",
+                secret,
                 "win-e2e",
                 "Windows E2E",
                 2,
+                stateDir,
             )
             WindowsEdgeAgent(config, taskProcessor = processor).use { agent ->
                 agent.start()

@@ -27,7 +27,7 @@ data class AgentHeartbeatAck(
     val nextHeartbeatSeconds: Int,
 )
 
-enum class RemoteTaskStatus { PENDING, DELIVERED, APPROVED, REJECTED, RUNNING, SUCCEEDED, FAILED, EXPIRED }
+enum class RemoteTaskStatus { PENDING, DELIVERED, APPROVED, REJECTED, RUNNING, SUCCEEDED, FAILED, EXPIRED, CANCELLED }
 
 data class RemoteCommandTask(
     val protocolVersion: Int = AGENT_PROTOCOL_VERSION,
@@ -40,6 +40,9 @@ data class RemoteCommandTask(
     val createdAtMillis: Long,
     val expiresAtMillis: Long,
     val status: RemoteTaskStatus = RemoteTaskStatus.PENDING,
+    val leaseExpiresAtMillis: Long? = null,
+    val deliveryAttempt: Int = 0,
+    val signature: String? = null,
 )
 
 data class RemoteTaskResult(

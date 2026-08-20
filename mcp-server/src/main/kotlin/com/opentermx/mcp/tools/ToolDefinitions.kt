@@ -1645,6 +1645,50 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val PROPOSE_REMOTE_COMMANDS = ToolDef(
+        name = "propose_remote_commands",
+        description = "Encola comandos para una sesión de agente remoto. Requiere operación activa y aprobación humana en el cliente.",
+        inputSchema = obj(
+            "type" to "object", "additionalProperties" to false,
+            "required" to listOf("sessionId", "commands", "rationale"),
+            "properties" to obj(
+                "sessionId" to obj("type" to "string", "minLength" to 3),
+                "commands" to obj("type" to "array", "minItems" to 1, "maxItems" to 50, "items" to obj("type" to "string")),
+                "rationale" to obj("type" to "string", "minLength" to 1, "maxLength" to 2000),
+                "expiresInSeconds" to obj("type" to "integer", "minimum" to 30, "maximum" to 900, "default" to 300),
+            ),
+        ),
+        outputSchema = obj("type" to "object", "required" to listOf("taskId", "status", "operationId"), "properties" to obj(
+            "taskId" to obj("type" to "string"), "status" to obj("type" to "string"), "operationId" to obj("type" to "string"),
+        )),
+        mutating = true,
+    )
+
+    val GET_REMOTE_TASK = ToolDef(
+        name = "get_remote_task",
+        description = "Consulta el estado y resultado redactado de una tarea remota de la operación activa.",
+        inputSchema = obj("type" to "object", "additionalProperties" to false, "required" to listOf("taskId"), "properties" to obj(
+            "taskId" to obj("type" to "string", "minLength" to 1),
+        )),
+        outputSchema = obj("type" to "object", "required" to listOf("taskId", "status"), "properties" to obj(
+            "taskId" to obj("type" to "string"), "status" to obj("type" to "string"),
+            "completedAtMillis" to obj("type" to listOf("integer", "null")),
+            "output" to obj("type" to listOf("string", "null")),
+            "error" to obj("type" to listOf("string", "null")),
+        )),
+        mutating = false,
+    )
+
+    val CANCEL_REMOTE_TASK = ToolDef(
+        name = "cancel_remote_task",
+        description = "Cancela una tarea remota pendiente o entregada de la operación activa.",
+        inputSchema = GET_REMOTE_TASK.inputSchema,
+        outputSchema = obj("type" to "object", "required" to listOf("taskId", "status"), "properties" to obj(
+            "taskId" to obj("type" to "string"), "status" to obj("type" to "string"),
+        )),
+        mutating = true,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -1688,6 +1732,9 @@ object ToolDefinitions {
         GET_MANAGEMENT_METHODS,
         ADAPTER_READ,
         PROPOSE_ADAPTER_WRITE,
+        PROPOSE_REMOTE_COMMANDS,
+        GET_REMOTE_TASK,
+        CANCEL_REMOTE_TASK,
     )
 
     fun byName(name: String): ToolDef? = ALL.firstOrNull { it.name == name }

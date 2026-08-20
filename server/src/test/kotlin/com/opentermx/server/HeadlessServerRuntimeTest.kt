@@ -21,6 +21,9 @@ class HeadlessServerRuntimeTest {
                 "resume_operation",
                 "export_operation_handoff",
                 "end_operation",
+                "propose_remote_commands",
+                "get_remote_task",
+                "cancel_remote_task",
             ),
             names.toSet(),
         )

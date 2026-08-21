@@ -12,11 +12,14 @@ import com.opentermx.common.ai.SessionRegistry
 import com.opentermx.common.session.SessionId
 import com.opentermx.mcp.security.ApprovalDecision
 import com.opentermx.mcp.security.ApprovalGate
+import com.opentermx.mcp.exec.SessionCommandRunner
 import kotlinx.coroutines.runBlocking
 
 class ApprovedRemoteTaskProcessor(
     private val approvalGate: ApprovalGate,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val commandRunner: SessionCommandRunner = SessionCommandRunner(),
+    private val commandTimeoutMillis: Long = DEFAULT_COMMAND_TIMEOUT_MILLIS,
 ) : RemoteTaskProcessor {
     private val redactor = CredentialRedactor()
 
@@ -41,18 +44,38 @@ class ApprovedRemoteTaskProcessor(
             )
             is ApprovalDecision.Approve -> {
                 val executed = mutableListOf<String>()
-                var failed = false
-                decision.commands.forEach { command ->
-                    if (sink.sendLine(command)) executed += command else failed = true
+                val outputs = mutableListOf<String>()
+                var failure: String? = null
+                for (command in decision.commands) {
+                    val result = runCatching {
+                        commandRunner.run(
+                            sessionId = sessionId,
+                            vendor = vendor,
+                            command = command,
+                            timeoutMillis = commandTimeoutMillis,
+                            depaginate = false,
+                        )
+                    }.getOrElse { error ->
+                        failure = error.message ?: "No se pudo ejecutar el comando"
+                        break
+                    }
+                    executed += command
+                    outputs += buildString {
+                        append("$ ").append(command)
+                        if (result.output.isNotBlank()) append('\n').append(result.output)
+                    }
+                    if (result.timedOut) {
+                        failure = "Tiempo de espera agotado ejecutando $command"
+                        break
+                    }
                 }
-                val tail = SessionRegistry.lastLinesOf(sessionId, 20).joinToString("\n")
                 RemoteTaskResult(
                     taskId = task.taskId,
-                    status = if (failed) RemoteTaskStatus.FAILED else RemoteTaskStatus.SUCCEEDED,
+                    status = if (failure == null) RemoteTaskStatus.SUCCEEDED else RemoteTaskStatus.FAILED,
                     completedAtMillis = clock(),
                     executedCommands = executed,
-                    output = redactor.redact(tail, vendor),
-                    error = if (failed) "Uno o más comandos no pudieron enviarse" else null,
+                    output = redactor.redact(outputs.joinToString("\n\n"), vendor),
+                    error = failure,
                 )
             }
         }
@@ -64,4 +87,8 @@ class ApprovedRemoteTaskProcessor(
         completedAtMillis = clock(),
         error = message,
     )
+
+    private companion object {
+        const val DEFAULT_COMMAND_TIMEOUT_MILLIS = 30_000L
+    }
 }

@@ -83,6 +83,10 @@ object RoleAccessControl {
         // (6C.2) y propuesta de escritura sujeta a aprobación humana (6C.3). La escritura pasa
         // SIEMPRE por el ApprovalGate; la lectura valida read-only server-side.
         "get_management_methods", "adapter_read", "propose_adapter_write",
+        // Control plane distribuido: el operator propone, consulta y puede cancelar tareas
+        // dirigidas a un agente de borde. La ejecución continúa sujeta a aprobación humana
+        // en el cliente Windows.
+        "propose_remote_commands", "get_remote_task", "cancel_remote_task",
     )
 
     private val complianceWhitelist: Set<String> = setOf(

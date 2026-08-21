@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":mcp-server"))
     implementation(project(":ai-assistant"))
     implementation(project(":edge-agent"))
+    implementation(project(":net-parsers"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.slf4j.api)
     implementation(libs.javalin)

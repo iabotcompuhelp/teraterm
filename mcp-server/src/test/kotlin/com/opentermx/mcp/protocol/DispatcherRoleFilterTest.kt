@@ -25,6 +25,9 @@ class DispatcherRoleFilterTest {
         handlers = listOf(
             EchoHandler(ToolDefinitions.LIST_SESSIONS),
             EchoHandler(ToolDefinitions.PROPOSE_COMMANDS),
+            EchoHandler(ToolDefinitions.PROPOSE_REMOTE_COMMANDS),
+            EchoHandler(ToolDefinitions.GET_REMOTE_TASK),
+            EchoHandler(ToolDefinitions.CANCEL_REMOTE_TASK),
             EchoHandler(ToolDefinitions.COMPLIANCE_EVALUATE),
         ),
     )
@@ -51,6 +54,19 @@ class DispatcherRoleFilterTest {
         )!!
         assertNotNull(blocked.error)
         assertEquals(JsonRpcError.METHOD_NOT_FOUND, blocked.error!!.code)
+    }
+
+    @Test
+    fun `OPERATOR puede administrar tareas remotas del agente`() {
+        val d = dispatcher()
+        for (tool in listOf("propose_remote_commands", "get_remote_task", "cancel_remote_task")) {
+            val response = d.handle(
+                JsonRpcRequest(id = tool, method = "tools/call",
+                    params = mapOf("name" to tool, "arguments" to emptyMap<String, Any?>())),
+                transport(Role.OPERATOR),
+            )!!
+            assertNull(response.error, "$tool debe estar disponible para OPERATOR")
+        }
     }
 
     @Test

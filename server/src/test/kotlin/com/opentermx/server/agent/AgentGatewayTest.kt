@@ -96,8 +96,10 @@ class AgentGatewayTest {
             WindowsEdgeAgent(config, taskProcessor = processor).use { agent ->
                 agent.start()
                 assertTrue(processed.await(5, TimeUnit.SECONDS))
-                repeat(20) {
-                    if (store.result("task-e2e") != null) return@repeat
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                while (System.nanoTime() < deadline &&
+                    (store.result("task-e2e") == null ||
+                        agent.status.value.history.firstOrNull()?.taskId != "task-e2e")) {
                     Thread.sleep(25)
                 }
                 assertEquals(RemoteTaskStatus.SUCCEEDED, store.result("task-e2e")?.status)

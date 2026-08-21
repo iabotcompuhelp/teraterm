@@ -17,6 +17,7 @@ class AgentGateway(
     private val registry: AgentRegistry,
     private val taskStore: RemoteTaskStore,
     private val operations: OperationRegistry? = null,
+    private val deviceContexts: FederatedDeviceContextStore? = null,
 ) : AutoCloseable {
     private val mapper = jacksonObjectMapper()
     private var app: Javalin? = null
@@ -66,7 +67,15 @@ class AgentGateway(
             try {
                 val firstReport = taskStore.complete(agentId, result)
                 if (firstReport) {
-                    taskStore.task(result.taskId)?.operationId?.let { operationId ->
+                    val task = taskStore.task(result.taskId)
+                    if (task != null) {
+                        deviceContexts?.observe(
+                            task,
+                            result,
+                            registry.find("${task.agentId}:${task.sessionId}"),
+                        )
+                    }
+                    task?.operationId?.let { operationId ->
                         operations?.appendEvent(
                             operationId = operationId,
                             type = if (result.status == com.opentermx.agent.RemoteTaskStatus.SUCCEEDED)

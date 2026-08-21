@@ -16,6 +16,7 @@ import com.opentermx.server.agent.AgentGateway
 import com.opentermx.server.agent.AgentRegistry
 import com.opentermx.server.agent.FederatedInspectSessionHandler
 import com.opentermx.server.agent.FederatedListSessionsHandler
+import com.opentermx.server.agent.FederatedDeviceContextStore
 import com.opentermx.server.agent.RemoteTaskStore
 import com.opentermx.server.agent.ProposeRemoteCommandsHandler
 import com.opentermx.server.agent.GetRemoteTaskHandler
@@ -31,12 +32,13 @@ class HeadlessServerRuntime(private val config: ServerConfig) : AutoCloseable {
     private val operationRoot = config.dataDir.resolve("operations")
     private val snapshotRoot = config.dataDir.resolve("snapshots")
     private val contextRoot = config.dataDir.resolve("contexts")
+    private val deviceContextStore = FederatedDeviceContextStore(config.dataDir.resolve("devices"))
     private val snapshotStore = FsSnapshotStore(operationRoot, snapshotRoot)
     private val operationRegistry = OperationRegistry(FsOperationStore(operationRoot))
 
     internal val handlers: List<ToolHandler> = listOf(
-        FederatedListSessionsHandler(agentRegistry),
-        FederatedInspectSessionHandler(agentRegistry),
+        FederatedListSessionsHandler(agentRegistry, deviceContextStore),
+        FederatedInspectSessionHandler(agentRegistry, deviceContextStore),
         StartOperationHandler(operationRegistry, contextRoot),
         CurrentOperationHandler(operationRegistry),
         ResumeOperationHandler(operationRegistry),
@@ -55,7 +57,10 @@ class HeadlessServerRuntime(private val config: ServerConfig) : AutoCloseable {
         redactor = redactor,
     )
     private val agentGateway = config.agentToken?.let {
-        AgentGateway(config.bindAddress, config.agentPort, it, agentRegistry, remoteTaskStore, operationRegistry)
+        AgentGateway(
+            config.bindAddress, config.agentPort, it, agentRegistry, remoteTaskStore,
+            operationRegistry, deviceContextStore,
+        )
     }
 
     fun start() {

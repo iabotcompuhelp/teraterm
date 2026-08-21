@@ -37,22 +37,31 @@ class ApprovedRemoteTaskProcessorTest {
     @Test
     fun `only commands approved by operator reach session`() {
         val sent = mutableListOf<String>()
-        register(sent)
+        val buffer = mutableListOf("core#")
+        register(sent, buffer) { command ->
+            buffer += listOf("core# $command", "ArubaOS-CX Version : FL.10.10.1040", "core#")
+        }
         val gate = gateReturning(ApprovalDecision.Approve(listOf("show version"), listOf(RiskLevel.SAFE)))
 
-        val result = ApprovedRemoteTaskProcessor(gate).process(task())
+        val result = ApprovedRemoteTaskProcessor(gate, commandTimeoutMillis = 1_000).process(task())
 
         assertEquals(RemoteTaskStatus.SUCCEEDED, result.status)
         assertEquals(listOf("show version"), sent)
         assertEquals(sent, result.executedCommands)
+        assertTrue(result.output!!.contains("ArubaOS-CX Version"))
+        assertTrue(!result.output!!.contains("core#"))
     }
 
-    private fun register(sent: MutableList<String>) {
+    private fun register(
+        sent: MutableList<String>,
+        buffer: MutableList<String> = mutableListOf("core#"),
+        onSend: (String) -> Unit = {},
+    ) {
         SessionRegistry.register(
             sessionId,
             SessionMetadata("Core", "SSH", "10.0.0.1", 22, "ops"),
-            TerminalBufferProvider { listOf("core#") },
-            CommandSink { line -> sent += line; true },
+            TerminalBufferProvider { count -> buffer.takeLast(count) },
+            CommandSink { line -> sent += line; onSend(line); true },
         )
     }
 

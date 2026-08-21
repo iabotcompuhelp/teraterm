@@ -67,10 +67,11 @@ class SessionCommandRunner(
         vendor: Vendor,
         command: String,
         timeoutMillis: Long,
+        depaginate: Boolean = true,
     ): RunResult {
         val mutex = mutexes.computeIfAbsent(sessionId.value) { Mutex() }
         return mutex.withLock {
-            depaginateIfNeeded(sessionId, vendor)
+            if (depaginate) depaginateIfNeeded(sessionId, vendor)
             val effective = effectiveCommand(vendor, command)
             executeLocked(sessionId, vendor, effective, command, timeoutMillis)
         }

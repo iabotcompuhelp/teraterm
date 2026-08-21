@@ -82,6 +82,15 @@ class ToolExecutor(
                 handler.invoke(arguments)
             }
             activeOperation?.let {
+                if (handler.definition.mutating && payload["approved"] is Boolean) {
+                    val approved = payload["approved"] == true
+                    operationRegistry?.appendEvent(
+                        it.operationId, OperationEventType.OPERATOR_DECISION,
+                        context.sessionKey, correlationId, toolName,
+                        if (approved) "APPROVED" else "REJECTED",
+                        mapOf("rationale" to arguments["rationale"]),
+                    )
+                }
                 operationRegistry?.appendEvent(
                     it.operationId, OperationEventType.TOOL_SUCCEEDED,
                     context.sessionKey, correlationId, toolName, "SUCCEEDED",
@@ -102,10 +111,12 @@ class ToolExecutor(
         } catch (e: Throwable) {
             log.warn("Tool `{}` lanzó excepción inesperada", toolName, e)
             activeOperation?.let {
+                val uncertain = handler.definition.mutating
                 operationRegistry?.appendEvent(
-                    it.operationId, OperationEventType.TOOL_REJECTED,
-                    context.sessionKey, correlationId, toolName, "FAILED",
-                    mapOf("message" to (e.message ?: e.javaClass.simpleName)),
+                    it.operationId,
+                    if (uncertain) OperationEventType.TOOL_UNKNOWN else OperationEventType.TOOL_REJECTED,
+                    context.sessionKey, correlationId, toolName, if (uncertain) "UNKNOWN" else "FAILED",
+                    mapOf("message" to (e.message ?: e.javaClass.simpleName), "requiresVerification" to uncertain),
                 )
             }
             ToolExecutionResult.Rejected(ToolRejection.INTERNAL, e.message ?: e.javaClass.simpleName, e)

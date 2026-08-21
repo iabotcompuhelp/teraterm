@@ -180,7 +180,7 @@ Actualizado el 20 de agosto de 2026:
 - [x] Crear schema `operation-handoff` 1.0 y export determinista.
 - [x] Recuperar y reasociar operaciones abiertas después de reinicio/cambio de cliente.
 - [x] Integrar referencias verificables de snapshots al handoff sin copiar contenido.
-- [ ] Integrar decisiones confirmadas y estados mutativos `UNKNOWN` al handoff.
+- [x] Integrar decisiones confirmadas y estados mutativos `UNKNOWN` al handoff.
 - [x] Añadir UI para previsualizar, confirmar y ejecutar el cambio de modelo.
 - [x] Añadir cliente/agente Windows configurable, estado visual y conexión segura al control plane.
 - [x] Guardar el token del agente en Windows Credential Manager, con migración y fallback cifrado.
@@ -192,9 +192,10 @@ Estado de hitos:
   primer push/PR y es un gate de integración, no trabajo de código pendiente.
 - **Hito 1: terminado.** El criterio contractual chat/MCP está cubierto por tests y la
   aplicación ya no usa `CommandSink` para ejecutar respuestas del modelo.
-- **Punto de reanudación:** continuar el Hito 2 incorporando decisiones confirmadas por el
-  operador y estados mutativos `UNKNOWN` al journal, schema, handoff y previsualización JavaFX.
-  Después validar el handoff entre proveedores reales y ante una desconexión durante una tool.
+- **Punto de reanudación:** validar el Hito 2 end-to-end entre proveedores reales y ante una
+  desconexión durante una tool mutativa. La prueba debe demostrar que el nuevo proveedor conserva
+  objetivo, alcance, decisiones y evidencias, y que una mutación `UNKNOWN` no se reintenta antes de
+  verificar el estado real del dispositivo.
 
 ### Hito 0 — Baseline reproducible y gobierno técnico (P0)
 
@@ -237,9 +238,9 @@ Objetivo: cambiar de modelo sin perder el trabajo.
 - Probar handoff OpenAI → Ollama, Claude → OpenAI y fallo durante tool call.
 
 Estado: **en desarrollo**. Persistencia, journal, redacción, correlación, schema/versionado,
-export determinista, recuperación/rebind, evidencias snapshot por hash y UI de
-preview/confirmación están implementados. Las decisiones estructuradas, el estado mutativo
-incierto y la matriz end-to-end de proveedores siguen pendientes.
+export determinista, recuperación/rebind, evidencias snapshot por hash, decisiones estructuradas,
+estado mutativo incierto y UI de preview/confirmación están implementados. La matriz end-to-end
+de proveedores reales sigue pendiente.
 
 Criterio de salida: una operación de diagnóstico puede comenzar con un proveedor, continuar
 con otro y conservar alcance, decisiones, evidencias y pendientes sin copiar manualmente el

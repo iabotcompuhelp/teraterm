@@ -21,8 +21,20 @@ enum class OperationEventType {
     TOOL_STARTED,
     TOOL_SUCCEEDED,
     TOOL_REJECTED,
+    TOOL_UNKNOWN,
+    OPERATOR_DECISION,
     OPERATION_ENDED,
 }
+
+data class OperatorDecision(
+    val sequence: Long,
+    val timestampMillis: Long,
+    val correlationId: String,
+    val toolName: String,
+    val decision: String,
+    val source: String,
+    val rationale: String? = null,
+)
 
 /** Referencia verificable a evidencia; el handoff no transporta blobs. */
 data class EvidenceReference(
@@ -45,6 +57,7 @@ data class OperationHandoff(
     val objective: String,
     val context: OperationContext,
     val journal: List<OperationJournalEntry>,
+    val decisions: List<OperatorDecision> = emptyList(),
     val evidence: List<EvidenceReference> = emptyList(),
     val factualSummary: String,
     val openRisks: List<String> = emptyList(),
@@ -74,6 +87,13 @@ object OperationHandoffBuilder {
         val ordered = journal.sortedWith(compareBy(OperationJournalEntry::sequence, OperationJournalEntry::timestampMillis))
         val successes = ordered.count { it.type == OperationEventType.TOOL_SUCCEEDED }
         val rejections = ordered.count { it.type == OperationEventType.TOOL_REJECTED }
+        val unknown = ordered.count { it.type == OperationEventType.TOOL_UNKNOWN }
+        val decisions = ordered.filter { it.type == OperationEventType.OPERATOR_DECISION }.mapNotNull { entry ->
+            val tool = entry.toolName ?: return@mapNotNull null
+            OperatorDecision(entry.sequence, entry.timestampMillis, entry.correlationId, tool,
+                entry.status ?: OperationEventType.TOOL_UNKNOWN.name, entry.source,
+                entry.payload.values.firstOrNull() as? String)
+        }
         val lastTools = ordered.asReversed().mapNotNull { it.toolName }.distinct().take(5).reversed()
         val summary = buildString {
             append("Operación activa: ").append(record.context.operation.description).append(". ")
@@ -81,17 +101,18 @@ object OperationHandoffBuilder {
             if (lastTools.isNotEmpty()) append(" Tools recientes: ").append(lastTools.joinToString(", ")).append('.')
         }
         val risks = ordered
-            .filter { it.type == OperationEventType.TOOL_REJECTED }
+            .filter { it.type in setOf(OperationEventType.TOOL_REJECTED, OperationEventType.TOOL_UNKNOWN) }
             .mapNotNull { it.payload["message"] as? String }
             .distinct()
             .takeLast(10)
         return OperationHandoff(
             operationId = record.operationId,
             generatedAtMillis = generatedAtMillis,
-            status = "ACTIVE",
+            status = if (unknown > 0) "UNKNOWN" else "ACTIVE",
             objective = record.context.operation.description,
             context = record.context,
             journal = ordered,
+            decisions = decisions,
             evidence = evidence.sortedWith(compareBy(EvidenceReference::createdAtMillis, EvidenceReference::id)),
             factualSummary = summary,
             openRisks = risks,

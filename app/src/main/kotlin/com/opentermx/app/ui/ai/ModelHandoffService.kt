@@ -20,6 +20,8 @@ class ModelHandoffService(
         val contextPrompt: String,
         val journalEvents: Int,
         val evidenceCount: Int,
+        val decisionCount: Int = 0,
+        val unknownMutationCount: Int = 0,
     )
 
     suspend fun preview(
@@ -48,13 +50,17 @@ class ModelHandoffService(
         val json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload)
         val journalCount = (payload["journal"] as? List<*>)?.size ?: 0
         val evidenceCount = (payload["evidence"] as? List<*>)?.size ?: 0
+        val decisionCount = (payload["decisions"] as? List<*>)?.size ?: 0
+        val unknownMutationCount = (payload["journal"] as? List<*>)
+            .orEmpty().count { (it as? Map<*, *>).orEmpty()["status"] == "UNKNOWN" }
         val prompt = buildString {
             append("OPENTERMX HANDOFF VERIFICABLE\n")
             append("Antes de continuar confirma explícitamente objetivo, alcance y restricciones. ")
             append("No repitas tools mutativas y trata resultados UNKNOWN como pendientes de verificación.\n\n")
             append(json)
         }
-        return Preview(operationId, targetProvider, targetModel, json, prompt, journalCount, evidenceCount)
+        return Preview(operationId, targetProvider, targetModel, json, prompt, journalCount,
+            evidenceCount, decisionCount, unknownMutationCount)
     }
 
     fun confirm(settings: AiAssistantSettings, preview: Preview): AiAssistantSettings {

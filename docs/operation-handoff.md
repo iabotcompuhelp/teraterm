@@ -52,11 +52,13 @@ confirmación permanece deshabilitado hasta que el preview exista. Al confirmar:
 - el paquete se inyecta en el system prompt del proveedor nuevo.
 
 `resume_operation` no repite ninguna tool previa. Una mutación cuyo resultado sea incierto
-debe permanecer como riesgo abierto hasta que una verificación determine su estado.
+se registra como `TOOL_UNKNOWN`, eleva el handoff a estado `UNKNOWN` y permanece como riesgo
+abierto hasta que una verificación determine su estado. Las decisiones humanas confirmadas
+se exportan por separado en `decisions`, correlacionadas con la tool y el evento original.
 
 ## Alcance actual
 
 Esta entrega cubre journal, recuperación después de reinicio, export/rebind, referencias de
-snapshots y preview/confirmación JavaFX. Quedan para las siguientes entregas del Hito 2 las
-decisiones humanas estructuradas, manejo explícito de una tool mutativa en estado `UNKNOWN`
-y pruebas end-to-end con proveedores reales.
+snapshots, decisiones humanas estructuradas, manejo explícito de una tool mutativa en estado
+`UNKNOWN` y preview/confirmación JavaFX. Quedan para la siguiente entrega del Hito 2 las pruebas
+end-to-end con proveedores reales, incluida una desconexión durante una mutación.

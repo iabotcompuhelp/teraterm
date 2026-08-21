@@ -48,6 +48,23 @@
         }
       }
     },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sequence", "timestampMillis", "correlationId", "toolName", "decision", "source"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 1 },
+          "timestampMillis": { "type": "integer", "minimum": 0 },
+          "correlationId": { "type": "string" },
+          "toolName": { "type": "string" },
+          "decision": { "enum": ["APPROVED", "REJECTED"] },
+          "source": { "type": "string" },
+          "rationale": { "type": ["string", "null"] }
+        }
+      }
+    },
     "factualSummary": { "type": "string" },
     "openRisks": { "type": "array", "items": { "type": "string" } },
     "nextSteps": { "type": "array", "items": { "type": "string" } },

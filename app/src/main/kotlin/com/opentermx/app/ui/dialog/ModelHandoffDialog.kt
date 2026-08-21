@@ -73,7 +73,13 @@ class ModelHandoffDialog(
                     .onSuccess { loaded -> Platform.runLater {
                         preview = loaded
                         previewArea.text = loaded.rawJson
-                        status.text = Strings.format("ai.handoff.summary", loaded.journalEvents, loaded.evidenceCount)
+                        status.text = buildString {
+                            append(Strings.format("ai.handoff.summary", loaded.journalEvents, loaded.evidenceCount))
+                            append(" | Decisiones: ").append(loaded.decisionCount)
+                            if (loaded.unknownMutationCount > 0) append(" | ATENCION: ")
+                                .append(loaded.unknownMutationCount)
+                                .append(" mutacion(es) UNKNOWN; verificar antes de reintentar")
+                        }
                         confirmButton.isDisable = false
                     } }
                     .onFailure { error -> Platform.runLater {

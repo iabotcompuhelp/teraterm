@@ -186,6 +186,11 @@ Actualizado el 20 de agosto de 2026:
 - [x] Guardar el token del agente en Windows Credential Manager, con migración y fallback cifrado.
 - [ ] Validar handoff end-to-end entre proveedores reales y fallo durante tool call.
 
+La ruta interna de fallo mutativo, recovery y no-reintento está cubierta end-to-end. La matriz
+live dispone de un runner opt-in documentado en
+[`testing-live-model-handoff.md`](testing-live-model-handoff.md); la casilla permanece abierta
+hasta registrar una ejecución satisfactoria de ambas rutas con proveedores reales.
+
 Estado de hitos:
 
 - **Hito 0: implementación terminada.** La confirmación del runner remoto ocurre en el

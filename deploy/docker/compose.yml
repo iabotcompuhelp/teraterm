@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opentermx
+      POSTGRES_USER: opentermx
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opentermx -d opentermx"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OPENTERMX_BIND: 0.0.0.0
+      OPENTERMX_PORT: 8765
+      OPENTERMX_AGENT_PORT: 8766
+      OPENTERMX_DATA_DIR: /var/lib/opentermx
+      OPENTERMX_READ_ONLY: "true"
+      OPENTERMX_MCP_TOKEN_FILE: /run/secrets/mcp_token
+      OPENTERMX_AGENT_CREDENTIALS_FILE: /run/secrets/agent_credentials
+      OPENTERMX_DB_HOST: postgres
+      OPENTERMX_DB_PORT: 5432
+      OPENTERMX_DB_NAME: opentermx
+      OPENTERMX_DB_USER: opentermx
+      OPENTERMX_DB_PASSWORD_FILE: /run/secrets/db_password
+      OPENTERMX_DB_REQUIRED: "true"
+    secrets:
+      - db_password
+      - mcp_token
+      - agent_credentials
+    volumes:
+      - control-plane-data:/var/lib/opentermx
+    networks:
+      - frontend
+      - database
+    ports:
+      - "127.0.0.1:8765:8765"
+      - "127.0.0.1:8766:8766"
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  mcp_token:
+    file: ./secrets/mcp_token.txt
+  agent_credentials:
+    file: ./secrets/agent_credentials.properties
+
+volumes:
+  postgres-data:
+  control-plane-data:
+
+networks:
+  frontend:
+  database:
+    internal: true

@@ -83,6 +83,7 @@ class McpServer(
      * tests que construyen McpServer sin pasar este parámetro.
      */
     val operationRegistry: com.opentermx.mcp.operation.OperationRegistry? = null,
+    private val additionalRoutes: ((Javalin) -> Unit)? = null,
 ) {
 
     /**
@@ -180,6 +181,7 @@ class McpServer(
             }
         }
         wireRoutes(app, token)
+        additionalRoutes?.invoke(app)
 
         try {
             if (tlsConfig != null) {

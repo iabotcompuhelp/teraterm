@@ -55,6 +55,7 @@ class WindowsEdgeAgent(
         agentId = config.agentId,
         displayName = config.displayName,
         platform = System.getProperty("os.name"),
+        agentVersion = javaClass.`package`?.implementationVersion ?: "development",
         sentAtMillis = System.currentTimeMillis(),
         sessions = SessionRegistry.activeSessions().map { descriptor ->
             val raw = SessionRegistry.lastLinesOf(descriptor.id, MAX_LINES)

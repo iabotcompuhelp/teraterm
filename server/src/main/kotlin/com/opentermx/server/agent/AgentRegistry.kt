@@ -29,11 +29,32 @@ class AgentRegistry(
 
     fun find(federatedId: String): FederatedSession? = sessions().firstOrNull { it.id == federatedId }
 
+    fun snapshots(): List<AgentSummary> {
+        evictExpired()
+        return agents.values.map { entry ->
+            AgentSummary(
+                entry.heartbeat.agentId,
+                entry.heartbeat.displayName,
+                entry.heartbeat.platform,
+                entry.receivedAtMillis,
+                entry.heartbeat.sessions.size,
+            )
+        }.sortedBy { it.agentId }
+    }
+
     private fun evictExpired() {
         val cutoff = clock() - ttlMillis
         agents.entries.removeIf { it.value.receivedAtMillis < cutoff }
     }
 }
+
+data class AgentSummary(
+    val agentId: String,
+    val displayName: String,
+    val platform: String,
+    val lastSeenAtMillis: Long,
+    val sessionCount: Int,
+)
 
 data class FederatedSession(
     val agentId: String,

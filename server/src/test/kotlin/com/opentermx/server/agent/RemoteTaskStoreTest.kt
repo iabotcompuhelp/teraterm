@@ -3,6 +3,7 @@ package com.opentermx.server.agent
 import com.opentermx.agent.RemoteCommandTask
 import com.opentermx.agent.RemoteTaskResult
 import com.opentermx.agent.RemoteTaskStatus
+import com.opentermx.agent.RemoteTaskSigner
 import java.nio.file.Files
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -52,6 +53,22 @@ class RemoteTaskStoreTest {
 
         assertEquals(first.signature, second.signature)
         assertEquals(2, second.deliveryAttempt)
+    }
+
+    @Test
+    fun `each agent task uses only its individual signing secret`() {
+        val secrets = mapOf(
+            "win-01" to "secret-for-win-01".toByteArray(),
+            "win-02" to "secret-for-win-02".toByteArray(),
+        )
+        val store = RemoteTaskStore(Files.createTempDirectory("per-agent-signing"), secrets::get)
+        val signed = store.enqueue(task("task-agent-1"))
+
+        assertEquals(true, RemoteTaskSigner(secrets.getValue("win-01")).verify(signed))
+        assertEquals(false, RemoteTaskSigner(secrets.getValue("win-02")).verify(signed))
+        assertThrows(IllegalArgumentException::class.java) {
+            store.enqueue(task("task-revoked").copy(agentId = "revoked-agent"))
+        }
     }
 
     private fun task(id: String) = RemoteCommandTask(

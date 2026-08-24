@@ -17,11 +17,13 @@ dependencies {
     implementation(project(":ai-assistant"))
     implementation(project(":edge-agent"))
     implementation(project(":net-parsers"))
+    implementation(project(":telemetry-db"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.slf4j.api)
     implementation(libs.javalin)
     implementation(libs.jackson.databind)
     implementation(libs.jackson.module.kotlin)
+    implementation(libs.graphql.java)
     runtimeOnly(libs.logback.classic)
 
     testImplementation(libs.junit.jupiter)

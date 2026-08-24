@@ -324,6 +324,7 @@ class MainWindow(
             items += MenuItem(Strings["setup.sshForwarding"]).apply { setOnAction { openPortForwardDialog() } }
             items += MenuItem(Strings["setup.sshKeygen"]).apply { setOnAction { setup.openSshKeyGenerator() } }
             items += MenuItem(Strings["setup.savedConnections"]).apply { setOnAction { savedConnections.openSavedConnectionsDialog() } }
+            items += MenuItem(Strings["setup.importInventoryExcel"]).apply { setOnAction { importInventoryExcel() } }
             items += SeparatorMenuItem()
             // Grupo 3: red.
             items += MenuItem(Strings["setup.tcpip"]).apply { setOnAction { setup.openTcpIpConfig() } }
@@ -1697,6 +1698,65 @@ class MainWindow(
     private fun persist(transform: (AppSettings) -> AppSettings) {
         settings = transform(settings)
         SettingsStore.save(settings)
+    }
+
+    private fun importInventoryExcel() {
+        val file = FileChooser().apply {
+            title = Strings["inventory.import.title"]
+            extensionFilters += FileChooser.ExtensionFilter("Inventario (*.xlsx, *.csv)", "*.xlsx", "*.csv")
+        }.showOpenDialog(stage) ?: return
+        val preview = runCatching {
+            com.opentermx.app.inventory.InventoryExcelImporter.preview(file.toPath())
+        }.getOrElse { error ->
+            javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR).apply {
+                initOwner(stage)
+                title = Strings["inventory.import.title"]
+                headerText = Strings["inventory.import.invalid"]
+                contentText = error.message ?: error.javaClass.simpleName
+            }.showAndWait()
+            return
+        }
+        if (!preview.valid) {
+            val detail = preview.issues.take(30).joinToString("\n") {
+                "Fila ${it.rowNumber} [${it.field}]: ${it.message}"
+            } + if (preview.issues.size > 30) "\n… ${preview.issues.size - 30} errores adicionales" else ""
+            javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR).apply {
+                initOwner(stage)
+                title = Strings["inventory.import.title"]
+                headerText = Strings.format("inventory.import.errors", preview.issues.size)
+                contentText = detail
+                dialogPane.prefWidth = 720.0
+            }.showAndWait()
+            return
+        }
+        val confirmed = javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION).apply {
+            initOwner(stage)
+            title = Strings["inventory.import.title"]
+            headerText = Strings.format("inventory.import.confirm", preview.rows.size)
+            contentText = Strings["inventory.import.confirmDetail"]
+        }.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL)
+        if (confirmed != javafx.scene.control.ButtonType.OK) return
+        val result = runCatching {
+            com.opentermx.app.inventory.InventoryImportCommitService(
+                com.opentermx.app.ui.mcp.TelemetryDbManager.store,
+            ).commit(preview, settings, "operator:${System.getProperty("user.name").orEmpty()}")
+        }.getOrElse { error ->
+            javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR).apply {
+                initOwner(stage); title = Strings["inventory.import.title"]
+                headerText = Strings["inventory.import.failed"]
+                contentText = error.message ?: error.javaClass.simpleName
+            }.showAndWait()
+            return
+        }
+        persist { result.settings }
+        savedConnectionsListView.refresh()
+        javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION).apply {
+            initOwner(stage); title = Strings["inventory.import.title"]
+            headerText = Strings["inventory.import.completed"]
+            contentText = Strings.format(
+                "inventory.import.summary", result.imported, result.updated, result.databaseRecorded,
+            )
+        }.showAndWait()
     }
 
     private fun parseTheme(name: String): ThemeMode = runCatching { ThemeMode.valueOf(name) }.getOrDefault(ThemeMode.DARK)

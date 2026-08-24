@@ -29,10 +29,11 @@ fun main() {
         config.readOnly,
         config.dataDir,
     )
-    if (config.agentToken != null) {
+    log.info("Persistencia PostgreSQL: {}", if (config.database == null) "deshabilitada" else "habilitada")
+    if (config.agentToken != null || config.agentCredentialsFile != null) {
         log.info("Gateway de agentes listo en {}:{}", config.bindAddress, config.agentPort)
     } else {
-        log.info("Gateway de agentes deshabilitado (OPENTERMX_AGENT_TOKEN no configurado)")
+        log.info("Gateway de agentes deshabilitado (no hay credenciales de agentes)")
     }
     stopped.await()
 }

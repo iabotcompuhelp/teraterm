@@ -262,6 +262,19 @@ object McpServerManager {
                 }
             },
         )
+        val backupService = com.opentermx.mcp.backups.BackupService(
+            root = com.opentermx.app.settings.SettingsStore.configDir.resolve("backups"),
+            encryptionKey = com.opentermx.app.settings.BackupKeyProvider.loadOrCreate(),
+            redactor = redactor,
+        )
+        val backupCaptureSource = com.opentermx.mcp.backups.CliBackupCaptureSource(
+            inventory = inventoryProvider,
+            runner = commandRunner,
+        )
+        val restoreProposalService = com.opentermx.mcp.backups.RestoreProposalService(
+            backupService = backupService,
+            root = com.opentermx.app.settings.SettingsStore.configDir.resolve("restore-proposals"),
+        )
         val handlers = listOf(
             ListSessionsHandler(views = profileViews),
             InspectSessionHandler(redactor),
@@ -323,6 +336,19 @@ object McpServerManager {
                 approvalGate = approvalGate,
                 writeEnabled = { appSettingsProvider().adapters.restWriteEnabled },
             ),
+            com.opentermx.mcp.handlers.BackupDeviceConfigHandler(backupService, backupCaptureSource),
+            com.opentermx.mcp.handlers.ListDeviceBackupsHandler(backupService),
+            com.opentermx.mcp.handlers.VerifyDeviceBackupHandler(backupService),
+            com.opentermx.mcp.handlers.CompareDeviceBackupHandler(backupService),
+            com.opentermx.mcp.handlers.ProposeRestoreBackupHandler(restoreProposalService),
+            com.opentermx.mcp.handlers.GetRestoreProposalHandler(restoreProposalService),
+            com.opentermx.mcp.handlers.ReviewRestoreProposalHandler(restoreProposalService, approvalGate),
+            com.opentermx.mcp.handlers.PrepareRestoreBackupHandler(restoreProposalService),
+            com.opentermx.mcp.handlers.CapturePreRestoreSnapshotHandler(
+                restoreProposalService, backupService, backupCaptureSource,
+            ),
+            com.opentermx.mcp.handlers.ValidateRestoreTargetHandler(restoreProposalService),
+            com.opentermx.mcp.handlers.CompleteRestoreNoChangeHandler(restoreProposalService),
             // Fase 4: monitoreo externo read-only (Zabbix/OpManager). El registry lee
             // los settings en vivo — agregar una integración no exige reiniciar.
             com.opentermx.mcp.handlers.ZabbixGetHistoryHandler(::integrationRegistry),

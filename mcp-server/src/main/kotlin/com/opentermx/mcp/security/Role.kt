@@ -83,6 +83,14 @@ object RoleAccessControl {
         // (6C.2) y propuesta de escritura sujeta a aprobación humana (6C.3). La escritura pasa
         // SIEMPRE por el ApprovalGate; la lectura valida read-only server-side.
         "get_management_methods", "adapter_read", "propose_adapter_write",
+        // Hito 3: captura read-only desde el equipo y consulta de metadatos cifrados.
+        "backup_device_config", "list_device_backups", "verify_device_backup", "compare_device_backup",
+        "propose_restore_backup",
+        "get_restore_proposal", "review_restore_proposal",
+        "prepare_restore_backup",
+        "capture_pre_restore_snapshot",
+        "validate_restore_target",
+        "complete_restore_no_change",
         // Control plane distribuido: el operator propone, consulta y puede cancelar tareas
         // dirigidas a un agente de borde. La ejecución continúa sujeta a aprobación humana
         // en el cliente Windows.
@@ -106,6 +114,8 @@ object RoleAccessControl {
         // Fase 4: monitoreo externo read-only.
         "zabbix_get_history", "zabbix_get_active_problems",
         "opmanager_get_alarms", "opmanager_get_performance",
+        "list_device_backups", "verify_device_backup", "compare_device_backup",
+        "get_restore_proposal",
     )
 
     private val validatorWhitelist: Set<String> = setOf(
@@ -122,6 +132,8 @@ object RoleAccessControl {
         // Fase 4: monitoreo externo read-only.
         "zabbix_get_history", "zabbix_get_active_problems",
         "opmanager_get_alarms", "opmanager_get_performance",
+        "list_device_backups", "verify_device_backup", "compare_device_backup",
+        "get_restore_proposal",
     )
 
     fun allows(role: Role, toolName: String): Boolean = when (role) {

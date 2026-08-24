@@ -41,7 +41,7 @@
   },
   "get_device_history" : {
     "mutating" : false,
-    "inputSha256" : "f8e9fabec4f14f0170c2e89ab99f94dd0b6f8363ad1b7bcb4b354c80dc374251",
+    "inputSha256" : "f908f8fe0318115ca4f938f4d7cef61377320a01ffe1229d39a1947765403551",
     "outputSha256" : "d57ebb98dacf09fa0422475e01a9c1862da94371a473cbe5ebcd33dfb499caa4"
   },
   "zabbix_get_history" : {
@@ -208,6 +208,61 @@
     "mutating" : true,
     "inputSha256" : "05de06f09fb80ba30a05296cdd1e9810342086329529db6bea31134cafeb10d9",
     "outputSha256" : "6f8e60eb0be1715808c4d0f66cf659d46193eb131f9f86d8b6ecf08183c274e0"
+  },
+  "backup_device_config" : {
+    "mutating" : true,
+    "inputSha256" : "001a3e5512069b6ccd9922f84f988e9bdabd7c76ac90c2ff26e6057bd8c6e261",
+    "outputSha256" : "d2f8526242add4d752dc80b335e578fe872f796212aa494da3a1e58ea12070b2"
+  },
+  "list_device_backups" : {
+    "mutating" : false,
+    "inputSha256" : "9182e5292e841e0079e1b078aa04de14acb311ed08313406a41a2e14c8743bf9",
+    "outputSha256" : "d146ead1de5fdf88daedc376023b7dd9b40425c6ce768413dd414a8e083cd7c0"
+  },
+  "verify_device_backup" : {
+    "mutating" : false,
+    "inputSha256" : "e78d56e888e18913f1d9986c0805dfeb0a04d81530440288dde54d43d2afdcab",
+    "outputSha256" : "64878f4a46e61da8aeb403d875cc9138f79a5774e03fb456da8976a8581ae806"
+  },
+  "compare_device_backup" : {
+    "mutating" : false,
+    "inputSha256" : "652167eb13f028c5821ae6a591975a85b574b74984b4bf9f198906437037da51",
+    "outputSha256" : "304d4f2224ff8979c233ae702c3c9367cc75f07412265c0da6ddb6fa38aa77ef"
+  },
+  "propose_restore_backup" : {
+    "mutating" : true,
+    "inputSha256" : "314d8eb231378940d9fd5a7e7486297083cde3076cfb9ee1b393d888c8112f3c",
+    "outputSha256" : "ea9181406532ffaeaf15c3934d9097695c44e256f5f2bfe4a1daf35883611f27"
+  },
+  "get_restore_proposal" : {
+    "mutating" : false,
+    "inputSha256" : "914980a250264804b1d9772fe09ed333006a4aebdf7bfcd76aacf6ff19495c54",
+    "outputSha256" : "af017940fcea335023d8566e497529c90cb1f573b3f63f6293dfb5ed30ad1e0b"
+  },
+  "review_restore_proposal" : {
+    "mutating" : true,
+    "inputSha256" : "914980a250264804b1d9772fe09ed333006a4aebdf7bfcd76aacf6ff19495c54",
+    "outputSha256" : "af017940fcea335023d8566e497529c90cb1f573b3f63f6293dfb5ed30ad1e0b"
+  },
+  "prepare_restore_backup" : {
+    "mutating" : true,
+    "inputSha256" : "914980a250264804b1d9772fe09ed333006a4aebdf7bfcd76aacf6ff19495c54",
+    "outputSha256" : "655a1a3db6bbd67139d2efa13eba4bf9edb1749810e8a6fcb17b8e037afb0d8e"
+  },
+  "capture_pre_restore_snapshot" : {
+    "mutating" : true,
+    "inputSha256" : "541fa681e5e84aefd62d92bff5efe9b7242c008bacf9bea8a4858c1c65c5597c",
+    "outputSha256" : "ecc4036cdf1b129193de7944a530cae5f81df96d24d1530f5001f2dc2c2e2fbd"
+  },
+  "validate_restore_target" : {
+    "mutating" : true,
+    "inputSha256" : "4329f132f59c65d2c449441a199f1e9bd1e4f0301e82ce4de594a380b8585041",
+    "outputSha256" : "2ce45409ce2a869346dd9e8dd6913b90e99412bbacfa1a1f9efa2e5ef17b220d"
+  },
+  "complete_restore_no_change" : {
+    "mutating" : true,
+    "inputSha256" : "4329f132f59c65d2c449441a199f1e9bd1e4f0301e82ce4de594a380b8585041",
+    "outputSha256" : "d4b05bbff13677c025a78aee5cf14220913bc848f31087687b1ce47d2ed6ae19"
   },
   "propose_remote_commands" : {
     "mutating" : true,

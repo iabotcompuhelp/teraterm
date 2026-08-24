@@ -14,12 +14,18 @@ import java.util.concurrent.ConcurrentHashMap
 
 class RemoteTaskStore(
     private val root: Path,
-    signingSecret: ByteArray = "local-test-signing-secret".toByteArray(),
+    private val signingSecretProvider: (String) -> ByteArray? = { "local-test-signing-secret".toByteArray() },
     private val clock: () -> Long = System::currentTimeMillis,
     private val leaseMillis: Long = 15_000,
 ) {
+    constructor(
+        root: Path,
+        signingSecret: ByteArray,
+        clock: () -> Long = System::currentTimeMillis,
+        leaseMillis: Long = 15_000,
+    ) : this(root, { signingSecret }, clock, leaseMillis)
+
     private val mapper = jacksonObjectMapper()
-    private val signer = RemoteTaskSigner(signingSecret)
     private val tasks = ConcurrentHashMap<String, RemoteCommandTask>()
     private val results = ConcurrentHashMap<String, RemoteTaskResult>()
 
@@ -32,7 +38,10 @@ class RemoteTaskStore(
         require(task.commands.isNotEmpty() && task.commands.size <= 50) { "La tarea debe contener entre 1 y 50 comandos" }
         require(task.commands.all { it.isNotBlank() && it.length <= 2_000 }) { "Comando vacío o demasiado largo" }
         require(task.expiresAtMillis > task.createdAtMillis) { "La expiración debe ser posterior a la creación" }
-        val signed = signer.sign(task.copy(status = RemoteTaskStatus.PENDING, leaseExpiresAtMillis = null, deliveryAttempt = 0))
+        val secret = requireNotNull(signingSecretProvider(task.agentId)) { "Agente no autorizado o revocado" }
+        val signed = RemoteTaskSigner(secret).sign(
+            task.copy(status = RemoteTaskStatus.PENDING, leaseExpiresAtMillis = null, deliveryAttempt = 0),
+        )
         val previous = tasks.putIfAbsent(task.taskId, signed)
         if (previous != null) {
             require(samePayload(previous, task)) { "taskId ya existe con otro contenido" }
@@ -81,6 +90,12 @@ class RemoteTaskStore(
 
     fun task(id: String): RemoteCommandTask? = tasks[id]
     fun result(id: String): RemoteTaskResult? = results[id]
+    fun list(agentId: String? = null, limit: Int = 100): List<RemoteCommandTask> = tasks.values
+        .asSequence()
+        .filter { agentId == null || it.agentId == agentId }
+        .sortedByDescending { it.createdAtMillis }
+        .take(limit.coerceIn(1, 500))
+        .toList()
 
     @Synchronized
     fun cancel(taskId: String): RemoteCommandTask {

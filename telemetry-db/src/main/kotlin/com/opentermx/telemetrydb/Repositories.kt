@@ -79,6 +79,139 @@ class DeviceRepository internal constructor(private val db: TelemetryDb) {
         }.onFailure { log.warn("upsert device `{}` falló: {}", hostname, it.message) }.getOrNull()
     }
 
+    /**
+     * Alta/resolución para inventario: serie -> MAC base -> IP:puerto. La identidad
+     * encontrada conserva el mismo id y registra cada combinación observada.
+     */
+    fun upsertInventory(
+        hostname: String,
+        mgmtAddress: String,
+        port: Int,
+        protocol: String,
+        vendor: Vendor,
+        model: String?,
+        role: String?,
+        credentialRef: String?,
+        baseMac: String?,
+        serialNumber: String?,
+        source: String,
+    ): Long? {
+        val inet = inetOrNull(mgmtAddress) ?: return null
+        val normalizedSerial = serialNumber?.trim()?.ifEmpty { null }
+        val normalizedMac = normalizeMac(baseMac)
+        val proto = if (protocol.uppercase() in setOf("SSH", "TELNET", "SERIAL")) protocol.uppercase() else "SSH"
+        return runCatching {
+            db.withConnection { conn ->
+                conn.autoCommit = false
+                try {
+                    val existing = findStableId(conn, normalizedSerial, normalizedMac, inet, port)
+                    val id = if (existing == null) {
+                        conn.prepareStatement(
+                            """
+                            INSERT INTO devices (
+                              hostname, mgmt_address, port, protocol, vendor, model, role,
+                              credential_ref, base_mac, serial_number
+                            ) VALUES (?, ?::inet, ?, ?::protocol_t, ?::vendor_t, ?, ?, ?, ?::macaddr, ?)
+                            RETURNING id
+                            """.trimIndent()
+                        ).use { ps ->
+                            bindInventory(ps, hostname, inet, port, proto, vendor, model, role,
+                                credentialRef, normalizedMac, normalizedSerial)
+                            ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
+                        }
+                    } else {
+                        conn.prepareStatement(
+                            """
+                            UPDATE devices SET hostname=?, mgmt_address=?::inet, port=?, protocol=?::protocol_t,
+                              vendor=?::vendor_t, model=COALESCE(?, model), role=COALESCE(?, role),
+                              credential_ref=COALESCE(?, credential_ref), base_mac=COALESCE(?::macaddr, base_mac),
+                              serial_number=COALESCE(?, serial_number), updated_at=now()
+                            WHERE id=?
+                            """.trimIndent()
+                        ).use { ps ->
+                            bindInventory(ps, hostname, inet, port, proto, vendor, model, role,
+                                credentialRef, normalizedMac, normalizedSerial)
+                            ps.setLong(11, existing)
+                            ps.executeUpdate()
+                        }
+                        existing
+                    }
+                    conn.prepareStatement(
+                        """
+                        INSERT INTO device_identity_history
+                          (device_id, hostname, mgmt_address, base_mac, serial_number, source)
+                        VALUES (?, ?, ?::inet, ?::macaddr, ?, ?)
+                        ON CONFLICT DO NOTHING
+                        """.trimIndent()
+                    ).use { ps ->
+                        ps.setLong(1, id); ps.setString(2, hostname); ps.setString(3, inet)
+                        ps.setString(4, normalizedMac); ps.setString(5, normalizedSerial); ps.setString(6, source)
+                        ps.executeUpdate()
+                    }
+                    conn.commit()
+                    id
+                } catch (e: Throwable) {
+                    conn.rollback()
+                    throw e
+                } finally {
+                    conn.autoCommit = true
+                }
+            }
+        }.onFailure { log.warn("upsertInventory `{}` falló: {}", hostname, it.message) }.getOrNull()
+    }
+
+    private fun findStableId(
+        conn: Connection,
+        serialNumber: String?,
+        baseMac: String?,
+        inet: String,
+        port: Int,
+    ): Long? = conn.prepareStatement(
+        """
+        SELECT id FROM devices
+        WHERE (? IS NOT NULL AND lower(serial_number) = lower(?))
+           OR (?::macaddr IS NOT NULL AND base_mac = ?::macaddr)
+           OR (mgmt_address = ?::inet AND port = ?)
+        ORDER BY CASE
+          WHEN ? IS NOT NULL AND lower(serial_number) = lower(?) THEN 1
+          WHEN ?::macaddr IS NOT NULL AND base_mac = ?::macaddr THEN 2 ELSE 3 END
+        LIMIT 1
+        """.trimIndent()
+    ).use { ps ->
+        ps.setString(1, serialNumber); ps.setString(2, serialNumber)
+        ps.setString(3, baseMac); ps.setString(4, baseMac)
+        ps.setString(5, inet); ps.setInt(6, port)
+        ps.setString(7, serialNumber); ps.setString(8, serialNumber)
+        ps.setString(9, baseMac); ps.setString(10, baseMac)
+        ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+    }
+
+    private fun bindInventory(
+        ps: java.sql.PreparedStatement,
+        hostname: String,
+        inet: String,
+        port: Int,
+        protocol: String,
+        vendor: Vendor,
+        model: String?,
+        role: String?,
+        credentialRef: String?,
+        baseMac: String?,
+        serialNumber: String?,
+    ) {
+        ps.setString(1, hostname); ps.setString(2, inet); ps.setInt(3, port)
+        ps.setString(4, protocol); ps.setString(5, vendor.name); ps.setString(6, model)
+        ps.setString(7, role); ps.setString(8, credentialRef); ps.setString(9, baseMac)
+        ps.setString(10, serialNumber)
+    }
+
+    private fun normalizeMac(value: String?): String? {
+        val hex = value?.filter { it.isDigit() || it.lowercaseChar() in 'a'..'f' }
+            ?.lowercase()?.ifEmpty { null } ?: return null
+        require(hex.length == 12) { "MAC inválida" }
+        return hex.chunked(2).joinToString(":")
+    }
+
     fun findIdByHostname(hostname: String): Long? = runCatching {
         db.withConnection { conn ->
             conn.prepareStatement("SELECT id FROM devices WHERE lower(hostname) = lower(?) LIMIT 1").use { ps ->
@@ -417,6 +550,58 @@ class AuditRepository internal constructor(private val db: TelemetryDb) {
 
     companion object {
         const val MAX_EXCERPT_CHARS = 8 * 1024
+    }
+}
+
+class DeviceActivityRepository internal constructor(private val db: TelemetryDb) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    fun append(
+        deviceId: Long?,
+        deviceName: String,
+        mgmtAddress: String?,
+        actor: String,
+        activityType: String,
+        summary: String,
+        outcome: String,
+        source: String,
+        correlationId: String? = null,
+        detailsJson: String = "{}",
+        occurredAt: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC),
+    ): Long? {
+        require(deviceName.isNotBlank()) { "deviceName no puede estar vacío" }
+        require(actor.isNotBlank()) { "actor no puede estar vacío" }
+        require(activityType.isNotBlank()) { "activityType no puede estar vacío" }
+        require(summary.isNotBlank()) { "summary no puede estar vacío" }
+        require(outcome.isNotBlank()) { "outcome no puede estar vacío" }
+        require(source.isNotBlank()) { "source no puede estar vacío" }
+        val inet = inetOrNull(mgmtAddress)
+        return runCatching {
+            db.withConnection { conn ->
+                conn.prepareStatement(
+                    """
+                    INSERT INTO device_activity (
+                      occurred_at, device_id, device_name, mgmt_address, actor,
+                      activity_type, summary, outcome, source, correlation_id, details
+                    ) VALUES (?, ?, ?, ?::inet, ?, ?, ?, ?, ?, ?, ?::jsonb)
+                    RETURNING id
+                    """.trimIndent()
+                ).use { ps ->
+                    ps.setObject(1, occurredAt.withOffsetSameInstant(ZoneOffset.UTC))
+                    if (deviceId != null) ps.setLong(2, deviceId) else ps.setNull(2, java.sql.Types.BIGINT)
+                    ps.setString(3, deviceName)
+                    ps.setString(4, inet)
+                    ps.setString(5, actor)
+                    ps.setString(6, activityType)
+                    ps.setString(7, summary)
+                    ps.setString(8, outcome)
+                    ps.setString(9, source)
+                    ps.setString(10, correlationId)
+                    ps.setString(11, detailsJson)
+                    ps.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
+                }
+            }
+        }.onFailure { log.warn("append device_activity falló: {}", it.message) }.getOrNull()
     }
 }
 

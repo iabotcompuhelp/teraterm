@@ -7,6 +7,7 @@ data class AgentHeartbeat(
     val agentId: String,
     val displayName: String,
     val platform: String,
+    val agentVersion: String? = null,
     val sentAtMillis: Long,
     val sessions: List<AgentSessionSnapshot>,
 )

@@ -41,6 +41,8 @@ class TelemetryDb private constructor(
     val metrics = MetricsRepository(this)
     val linkEvents = LinkEventRepository(this)
     val audit = AuditRepository(this)
+    val activities = DeviceActivityRepository(this)
+    val agents = AgentRepository(this)
     val snapshots = SnapshotRepository(this)
     val history = HistoryQueries(this)
     val maintenance = Maintenance(this)

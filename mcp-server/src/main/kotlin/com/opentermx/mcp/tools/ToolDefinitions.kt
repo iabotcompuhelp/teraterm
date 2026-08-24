@@ -425,8 +425,8 @@ object ToolDefinitions {
 
     val GET_DEVICE_HISTORY = ToolDef(
         name = "get_device_history",
-        description = "Consulta el histórico local (PostgreSQL): métricas de interfaces, eventos de " +
-            "enlace, cambios de configuración y auditoría de comandos de un dispositivo. Si la BD no " +
+        description = "Consulta el histórico local (PostgreSQL): métricas, eventos, cambios, comandos " +
+            "y bitácora funcional con IP/nombre/actor/actividad de un dispositivo. Si la BD no " +
             "está disponible devuelve el error DB_UNAVAILABLE — las tools de telemetría en vivo siguen " +
             "funcionando sin BD.",
         inputSchema = obj(
@@ -437,7 +437,9 @@ object ToolDefinitions {
                 "deviceHostname" to obj("type" to "string", "minLength" to 1),
                 "dataType" to obj(
                     "type" to "string",
-                    "enum" to listOf("interface_metrics", "link_events", "config_diffs", "command_audit"),
+                    "enum" to listOf(
+                        "interface_metrics", "link_events", "config_diffs", "command_audit", "device_activity",
+                    ),
                 ),
                 "interfaceName" to obj("type" to "string"),
                 "fromIso" to obj("type" to "string", "format" to "date-time"),
@@ -1689,6 +1691,298 @@ object ToolDefinitions {
         mutating = true,
     )
 
+    val BACKUP_DEVICE_CONFIG = ToolDef(
+        name = "backup_device_config",
+        description = "Captura la configuración íntegra mediante un adaptador del dispositivo, guarda una copia cifrada " +
+            "y otra redactada, y devuelve hashes verificables. No usa el buffer visual.",
+        inputSchema = obj(
+            "type" to "object",
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceAlias" to obj("type" to "string", "minLength" to 1),
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+            ),
+            "anyOf" to listOf(
+                obj("required" to listOf("deviceAlias")),
+                obj("required" to listOf("sessionId")),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf(
+                "backupId", "deviceAlias", "vendor", "capturedAt", "source",
+                "fullContentSha256", "redactedContentSha256",
+            ),
+            "properties" to obj(
+                "backupId" to obj("type" to "string"),
+                "deviceAlias" to obj("type" to "string"),
+                "vendor" to obj("type" to "string"),
+                "capturedAt" to obj("type" to "string"),
+                "source" to obj("type" to "string"),
+                "fullContentSha256" to obj("type" to "string"),
+                "redactedContentSha256" to obj("type" to "string"),
+            ),
+        ),
+        // Capturar es read-only para el equipo, pero inyecta un comando en una sesión.
+        mutating = true,
+    )
+
+    val LIST_DEVICE_BACKUPS = ToolDef(
+        name = "list_device_backups",
+        description = "Lista metadatos y hashes de backups de un dispositivo sin revelar configuraciones ni secretos.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceAlias"),
+            "additionalProperties" to false,
+            "properties" to obj("deviceAlias" to obj("type" to "string", "minLength" to 1)),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceAlias", "backups"),
+            "properties" to obj(
+                "deviceAlias" to obj("type" to "string"),
+                "backups" to obj("type" to "array", "items" to BACKUP_DEVICE_CONFIG.outputSchema),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val VERIFY_DEVICE_BACKUP = ToolDef(
+        name = "verify_device_backup",
+        description = "Descifra internamente un backup y verifica los hashes de la copia íntegra y redactada. " +
+            "Nunca devuelve contenido de configuración.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceAlias", "backupId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceAlias" to obj("type" to "string", "minLength" to 1),
+                "backupId" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("backupId", "valid", "encryptedContentValid", "redactedContentValid"),
+            "properties" to obj(
+                "backupId" to obj("type" to "string"),
+                "valid" to obj("type" to "boolean"),
+                "encryptedContentValid" to obj("type" to "boolean"),
+                "redactedContentValid" to obj("type" to "boolean"),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val COMPARE_DEVICE_BACKUP = ToolDef(
+        name = "compare_device_backup",
+        description = "Compara de forma segura las copias redactadas de dos backups y devuelve hashes y conteos, " +
+            "sin revelar líneas de configuración.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceAlias", "baseBackupId", "targetBackupId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceAlias" to obj("type" to "string", "minLength" to 1),
+                "baseBackupId" to obj("type" to "string", "minLength" to 1),
+                "targetBackupId" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf(
+                "baseBackupId", "targetBackupId", "identical", "addedLines", "removedLines",
+                "baseRedactedSha256", "targetRedactedSha256",
+            ),
+            "properties" to obj(
+                "baseBackupId" to obj("type" to "string"),
+                "targetBackupId" to obj("type" to "string"),
+                "identical" to obj("type" to "boolean"),
+                "addedLines" to obj("type" to "integer"),
+                "removedLines" to obj("type" to "integer"),
+                "baseRedactedSha256" to obj("type" to "string"),
+                "targetRedactedSha256" to obj("type" to "string"),
+            ),
+        ),
+        mutating = false,
+    )
+
+    val PROPOSE_RESTORE_BACKUP = ToolDef(
+        name = "propose_restore_backup",
+        description = "Valida un backup y crea un ticket durable PENDING_APPROVAL. En esta etapa nunca ejecuta " +
+            "la restauración ni devuelve configuración; executionAvailable siempre es false.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("deviceAlias", "backupId", "rationale"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "deviceAlias" to obj("type" to "string", "minLength" to 1),
+                "backupId" to obj("type" to "string", "minLength" to 1),
+                "rationale" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf(
+                "proposalId", "deviceAlias", "backupId", "status", "executionAvailable", "createdAt",
+            ),
+            "properties" to obj(
+                "proposalId" to obj("type" to "string"),
+                "deviceAlias" to obj("type" to "string"),
+                "backupId" to obj("type" to "string"),
+                "status" to obj("type" to "string", "enum" to listOf("PENDING_APPROVAL")),
+                "executionAvailable" to obj("type" to "boolean"),
+                "createdAt" to obj("type" to "string"),
+            ),
+        ),
+        mutating = true,
+    )
+
+    private val RESTORE_PROPOSAL_OUTPUT = obj(
+        "type" to "object",
+        "required" to listOf(
+            "proposalId", "deviceAlias", "backupId", "rationale", "status",
+            "executionAvailable", "createdAt",
+        ),
+        "properties" to obj(
+            "proposalId" to obj("type" to "string"),
+            "deviceAlias" to obj("type" to "string"),
+            "backupId" to obj("type" to "string"),
+            "rationale" to obj("type" to "string"),
+            "status" to obj("type" to "string", "enum" to listOf("PENDING_APPROVAL", "APPROVED", "REJECTED")),
+            "executionAvailable" to obj("type" to "boolean"),
+            "createdAt" to obj("type" to "string"),
+            "decidedAt" to obj("type" to listOf("string", "null")),
+        ),
+    )
+
+    val GET_RESTORE_PROPOSAL = ToolDef(
+        name = "get_restore_proposal",
+        description = "Consulta un ticket durable de restauración sin revelar configuración.",
+        inputSchema = obj("type" to "object", "required" to listOf("proposalId"), "additionalProperties" to false,
+            "properties" to obj("proposalId" to obj("type" to "string", "minLength" to 1))),
+        outputSchema = RESTORE_PROPOSAL_OUTPUT,
+        mutating = false,
+    )
+
+    val REVIEW_RESTORE_PROPOSAL = ToolDef(
+        name = "review_restore_proposal",
+        description = "Abre revisión humana y persiste APPROVED o REJECTED. Incluso aprobado, no ejecuta restauración.",
+        inputSchema = GET_RESTORE_PROPOSAL.inputSchema,
+        outputSchema = RESTORE_PROPOSAL_OUTPUT,
+        mutating = true,
+    )
+
+    val PREPARE_RESTORE_BACKUP = ToolDef(
+        name = "prepare_restore_backup",
+        description = "Valida ticket aprobado e integridad del backup y crea un plan durable PREPARED_BLOCKED. " +
+            "No abre sesiones, no descifra contenido al cliente y no ejecuta restauración.",
+        inputSchema = GET_RESTORE_PROPOSAL.inputSchema,
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf(
+                "planId", "proposalId", "deviceAlias", "backupId", "status",
+                "executionAvailable", "requiredSteps", "createdAt",
+            ),
+            "properties" to obj(
+                "planId" to obj("type" to "string"),
+                "proposalId" to obj("type" to "string"),
+                "deviceAlias" to obj("type" to "string"),
+                "backupId" to obj("type" to "string"),
+                "status" to obj("type" to "string", "enum" to listOf("PREPARED_BLOCKED")),
+                "executionAvailable" to obj("type" to "boolean"),
+                "requiredSteps" to obj("type" to "array", "items" to obj("type" to "string")),
+                "createdAt" to obj("type" to "string"),
+            ),
+        ),
+        mutating = true,
+    )
+
+    val CAPTURE_PRE_RESTORE_SNAPSHOT = ToolDef(
+        name = "capture_pre_restore_snapshot",
+        description = "Captura la configuración actual por una sesión activa, la cifra como backup y la vincula al plan. " +
+            "Sólo lectura del equipo; la restauración continúa bloqueada.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("planId", "sessionId"),
+            "additionalProperties" to false,
+            "properties" to obj(
+                "planId" to obj("type" to "string", "minLength" to 1),
+                "sessionId" to obj("type" to "string", "minLength" to 1),
+            ),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf(
+                "planId", "status", "executionAvailable", "preRestoreBackupId", "preSnapshotCapturedAt",
+            ),
+            "properties" to obj(
+                "planId" to obj("type" to "string"),
+                "status" to obj("type" to "string", "enum" to listOf("PRE_SNAPSHOT_CAPTURED")),
+                "executionAvailable" to obj("type" to "boolean"),
+                "preRestoreBackupId" to obj("type" to "string"),
+                "preSnapshotCapturedAt" to obj("type" to "string"),
+            ),
+        ),
+        mutating = true,
+    )
+
+    val VALIDATE_RESTORE_TARGET = ToolDef(
+        name = "validate_restore_target",
+        description = "Verifica integridad y compatibilidad de fabricante, y compara el backup objetivo con el snapshot previo. " +
+            "Persiste sólo hashes/conteos; no devuelve configuración ni habilita la restauración.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("planId"),
+            "additionalProperties" to false,
+            "properties" to obj("planId" to obj("type" to "string", "minLength" to 1)),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf(
+                "planId", "status", "executionAvailable", "targetBackupValid",
+                "preRestoreBackupValid", "vendorCompatible", "configurationIdentical",
+                "addedLines", "removedLines", "targetValidatedAt",
+            ),
+            "properties" to obj(
+                "planId" to obj("type" to "string"),
+                "status" to obj("type" to "string", "enum" to listOf("TARGET_VALIDATED_BLOCKED")),
+                "executionAvailable" to obj("type" to "boolean"),
+                "targetBackupValid" to obj("type" to "boolean"),
+                "preRestoreBackupValid" to obj("type" to "boolean"),
+                "vendorCompatible" to obj("type" to "boolean"),
+                "configurationIdentical" to obj("type" to "boolean"),
+                "addedLines" to obj("type" to "integer"),
+                "removedLines" to obj("type" to "integer"),
+                "targetValidatedAt" to obj("type" to "string"),
+            ),
+        ),
+        mutating = true,
+    )
+
+    val COMPLETE_RESTORE_NO_CHANGE = ToolDef(
+        name = "complete_restore_no_change",
+        description = "Cierra durablemente un plan validado cuando la configuración actual ya coincide con el backup objetivo. " +
+            "No abre sesiones, no envía comandos y nunca habilita ejecución.",
+        inputSchema = obj(
+            "type" to "object",
+            "required" to listOf("planId"),
+            "additionalProperties" to false,
+            "properties" to obj("planId" to obj("type" to "string", "minLength" to 1)),
+        ),
+        outputSchema = obj(
+            "type" to "object",
+            "required" to listOf("planId", "status", "executionAvailable", "completionReason", "completedAt"),
+            "properties" to obj(
+                "planId" to obj("type" to "string"),
+                "status" to obj("type" to "string", "enum" to listOf("COMPLETED_NO_CHANGE")),
+                "executionAvailable" to obj("type" to "boolean"),
+                "completionReason" to obj("type" to "string"),
+                "completedAt" to obj("type" to "string"),
+            ),
+        ),
+        mutating = true,
+    )
+
     val ALL: List<ToolDef> = listOf(
         LIST_SESSIONS,
         INSPECT_SESSION,
@@ -1732,6 +2026,17 @@ object ToolDefinitions {
         GET_MANAGEMENT_METHODS,
         ADAPTER_READ,
         PROPOSE_ADAPTER_WRITE,
+        BACKUP_DEVICE_CONFIG,
+        LIST_DEVICE_BACKUPS,
+        VERIFY_DEVICE_BACKUP,
+        COMPARE_DEVICE_BACKUP,
+        PROPOSE_RESTORE_BACKUP,
+        GET_RESTORE_PROPOSAL,
+        REVIEW_RESTORE_PROPOSAL,
+        PREPARE_RESTORE_BACKUP,
+        CAPTURE_PRE_RESTORE_SNAPSHOT,
+        VALIDATE_RESTORE_TARGET,
+        COMPLETE_RESTORE_NO_CHANGE,
         PROPOSE_REMOTE_COMMANDS,
         GET_REMOTE_TASK,
         CANCEL_REMOTE_TASK,

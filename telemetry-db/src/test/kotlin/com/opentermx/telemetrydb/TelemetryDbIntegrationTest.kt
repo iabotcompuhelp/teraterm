@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * Integración contra PostgreSQL real embebido (zonky, sin Docker): migración Flyway,
@@ -40,6 +41,9 @@ class TelemetryDbIntegrationTest {
                     "devices", "interfaces", "sessions_log", "command_audit",
                     "config_snapshots", "config_diffs", "interface_metrics",
                     "link_events", "monitoring_integrations", "device_external_refs",
+                    "device_activity",
+                    "device_identity_history",
+                    "agents", "agent_auth_events",
                 )
             ),
             "faltan tablas: $tables",
@@ -140,6 +144,100 @@ class TelemetryDbIntegrationTest {
             }
         }.first()["c"]
         assertEquals(1L, count)
+    }
+
+    @Test
+    fun `actividad conserva ip nombre fecha y descripcion y es append only`() {
+        val deviceId = db.devices.upsert("sw-activity-01", "10.99.0.20", 22, "SSH", Vendor.ARUBA_AOSCX)!!
+        val id = db.activities.append(
+            deviceId = deviceId,
+            deviceName = "sw-activity-01",
+            mgmtAddress = "10.99.0.20",
+            actor = "operator:admin",
+            activityType = "BACKUP_CREATED",
+            summary = "Respaldo de configuración capturado y verificado",
+            outcome = "SUCCESS",
+            source = "mcp:backup_device_config",
+            correlationId = "backup-test-001",
+            detailsJson = "{\"backupId\":\"backup-test-001\"}",
+        )
+        assertNotNull(id)
+        val rows = db.history.deviceActivity("sw-activity-01", null, null, 10)
+        assertEquals(1, rows.size)
+        assertEquals("10.99.0.20", rows.first()["mgmt_address"])
+        assertEquals("BACKUP_CREATED", rows.first()["activity_type"])
+        assertEquals("operator:admin", rows.first()["actor"])
+        assertThrows<java.sql.SQLException> {
+            db.withConnection { conn ->
+                conn.prepareStatement("DELETE FROM device_activity WHERE id = ?").use { ps ->
+                    ps.setLong(1, id!!)
+                    ps.executeUpdate()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `inventario conserva device id cuando cambia ip usando mac o serie`() {
+        val first = db.devices.upsertInventory(
+            hostname = "sw-access-01", mgmtAddress = "10.99.1.10", port = 22,
+            protocol = "SSH", vendor = Vendor.ARUBA_AOSCX, model = "JL660A",
+            role = "switch", credentialRef = "cred:sw-access-01",
+            baseMac = "AA-BB-CC-DD-EE-01", serialNumber = "CN123456",
+            source = "excel_import",
+        )
+        val moved = db.devices.upsertInventory(
+            hostname = "sw-access-renamed", mgmtAddress = "10.99.2.10", port = 22,
+            protocol = "SSH", vendor = Vendor.ARUBA_AOSCX, model = "JL660A",
+            role = "switch", credentialRef = "cred:sw-access-01",
+            baseMac = "aa:bb:cc:dd:ee:01", serialNumber = "CN123456",
+            source = "device_discovery",
+        )
+        assertEquals(first, moved)
+        val identities = db.withConnection { conn ->
+            conn.queryToMaps(
+                "SELECT hostname, host(mgmt_address) AS ip FROM device_identity_history WHERE device_id=? ORDER BY id"
+            ) { ps -> ps.setLong(1, first!!) }
+        }
+        assertEquals(2, identities.size)
+        assertEquals("10.99.1.10", identities.first()["ip"])
+        assertEquals("10.99.2.10", identities.last()["ip"])
+    }
+
+    @Test
+    fun `agentes conservan identidad ultima conexion y auditoria append only`() {
+        assertTrue(
+            db.agents.observe(
+                agentId = "noc-test-01", displayName = "Consola NOC", platform = "Windows 11",
+                agentVersion = "1.2.3", protocolVersion = 1, remoteAddress = "10.99.8.10", sessionCount = 2,
+            ),
+        )
+        assertTrue(
+            db.agents.observe(
+                agentId = "noc-test-01", displayName = "Consola NOC principal", platform = "Windows 11",
+                agentVersion = "1.2.4", protocolVersion = 1, remoteAddress = "10.99.8.11", sessionCount = 3,
+            ),
+        )
+        assertTrue(db.agents.recordDenied("noc-test-02", "10.99.8.12", "AUTH_FAILED"))
+
+        val agent = db.agents.list().first { it["agentId"] == "noc-test-01" }
+        assertEquals("Consola NOC principal", agent["displayName"])
+        assertEquals("1.2.4", agent["agentVersion"])
+        assertEquals("10.99.8.11", agent["lastRemoteAddress"])
+        assertEquals(3, agent["sessionCount"])
+
+        val events = db.withConnection { conn ->
+            conn.queryToMaps(
+                "SELECT event_type, outcome FROM agent_auth_events " +
+                    "WHERE agent_id IN ('noc-test-01', 'noc-test-02') ORDER BY id",
+            ) { }
+        }
+        assertEquals(listOf("AUTHENTICATED", "AUTHENTICATED", "AUTH_FAILED"), events.map { it["event_type"] })
+        assertThrows<java.sql.SQLException> {
+            db.withConnection { conn ->
+                conn.createStatement().use { it.executeUpdate("DELETE FROM agent_auth_events WHERE agent_id='noc-test-02'") }
+            }
+        }
     }
 
     @Test

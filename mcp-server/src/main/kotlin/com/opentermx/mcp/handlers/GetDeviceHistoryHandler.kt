@@ -44,9 +44,10 @@ class GetDeviceHistoryHandler(
             "link_events" -> db.history.linkEvents(hostname, interfaceName, from, to, limit)
             "config_diffs" -> db.history.configDiffs(hostname, from, to, limit)
             "command_audit" -> db.history.commandAudit(hostname, from, to, limit)
+            "device_activity" -> db.history.deviceActivity(hostname, from, to, limit)
             else -> throw McpToolException(
                 INVALID_ARGUMENT,
-                "`dataType` debe ser interface_metrics | link_events | config_diffs | command_audit",
+                "`dataType` debe ser interface_metrics | link_events | config_diffs | command_audit | device_activity",
             )
         }
         return linkedMapOf(

@@ -56,6 +56,11 @@ data class SavedConnection(
     val tags: List<String> = emptyList(),
     val groups: List<String> = emptyList(),
     val deviceType: String? = null,
+    val vendor: String? = null,
+    val model: String? = null,
+    val baseMac: String? = null,
+    val serialNumber: String? = null,
+    val credentialRef: String? = null,
 ) {
     /** Texto descriptivo para UI: usa `label` si está, sino cae al user@host:port clásico. */
     fun displayLabel(): String = if (label.isNotBlank()) label else "$username@$host:$port"

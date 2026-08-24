@@ -150,6 +150,37 @@ class HistoryQueries internal constructor(private val db: TelemetryDb) {
         }
     }
 
+    fun deviceActivity(
+        hostname: String,
+        from: OffsetDateTime?,
+        to: OffsetDateTime?,
+        limit: Int,
+    ): List<Map<String, Any?>> = safeQuery {
+        val sql = buildString {
+            append(
+                """
+                SELECT occurred_at, device_id, device_name,
+                       host(mgmt_address) AS mgmt_address, actor, activity_type,
+                       summary, outcome, source, correlation_id, details::text AS details
+                FROM device_activity
+                WHERE lower(device_name) = lower(?)
+                """.trimIndent()
+            )
+            if (from != null) append(" AND occurred_at >= ?")
+            if (to != null) append(" AND occurred_at <= ?")
+            append(" ORDER BY occurred_at DESC LIMIT ?")
+        }
+        db.withConnection { conn ->
+            conn.queryToMaps(sql) { ps ->
+                var i = 1
+                ps.setString(i++, hostname)
+                if (from != null) ps.setObject(i++, from)
+                if (to != null) ps.setObject(i++, to)
+                ps.setInt(i, limit)
+            }
+        }
+    }
+
     /** Vista `v_latest_interface_status` — última muestra por interfaz. */
     fun latestInterfaceStatus(hostname: String?): List<Map<String, Any?>> = safeQuery {
         db.withConnection { conn ->

@@ -57,3 +57,6 @@ __pycache__/
 **/python-venv/
 ### Scratch / progreso de sesiones de IA ###
 .claude-*progress*.json
+
+### Secretos locales de despliegue ###
+deploy/docker/secrets/

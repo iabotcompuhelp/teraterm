@@ -25,6 +25,7 @@ hikaricp = "5.1.0"
 flyway = "10.20.1"
 postgresql = "42.7.4"
 zonkyEmbeddedPg = "2.0.7"
+graphqlJava = "26.0"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
@@ -59,6 +60,7 @@ flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 zonky-embedded-postgres = { module = "io.zonky.test:embedded-postgres", version.ref = "zonkyEmbeddedPg" }
+graphql-java = { module = "com.graphql-java:graphql-java", version.ref = "graphqlJava" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

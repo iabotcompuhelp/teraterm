@@ -28,6 +28,8 @@ class DispatcherRoleFilterTest {
             EchoHandler(ToolDefinitions.PROPOSE_REMOTE_COMMANDS),
             EchoHandler(ToolDefinitions.GET_REMOTE_TASK),
             EchoHandler(ToolDefinitions.CANCEL_REMOTE_TASK),
+            EchoHandler(ToolDefinitions.BACKUP_DEVICE_CONFIG),
+            EchoHandler(ToolDefinitions.LIST_DEVICE_BACKUPS),
             EchoHandler(ToolDefinitions.COMPLIANCE_EVALUATE),
         ),
     )
@@ -66,6 +68,31 @@ class DispatcherRoleFilterTest {
                 transport(Role.OPERATOR),
             )!!
             assertNull(response.error, "$tool debe estar disponible para OPERATOR")
+        }
+    }
+
+    @Test
+    fun `OPERATOR captura backups y roles de lectura solo pueden listarlos`() {
+        val d = dispatcher()
+        val operatorCapture = d.handle(
+            JsonRpcRequest(id = 1, method = "tools/call",
+                params = mapOf("name" to "backup_device_config", "arguments" to mapOf("sessionId" to "s1"))),
+            transport(Role.OPERATOR),
+        )!!
+        assertNull(operatorCapture.error)
+        for (role in listOf(Role.COMPLIANCE, Role.VALIDATOR)) {
+            val list = d.handle(
+                JsonRpcRequest(id = role.name, method = "tools/call",
+                    params = mapOf("name" to "list_device_backups", "arguments" to mapOf("deviceAlias" to "COM6"))),
+                transport(role),
+            )!!
+            assertNull(list.error)
+            val blocked = d.handle(
+                JsonRpcRequest(id = role.name, method = "tools/call",
+                    params = mapOf("name" to "backup_device_config", "arguments" to mapOf("sessionId" to "s1"))),
+                transport(role),
+            )!!
+            assertEquals(JsonRpcError.METHOD_NOT_FOUND, blocked.error!!.code)
         }
     }
 

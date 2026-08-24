@@ -56,7 +56,18 @@ Variables admitidas:
 | `OPENTERMX_MCP_TOKEN` | vacío | Bearer token; obligatorio fuera de loopback |
 | `OPENTERMX_AGENT_PORT` | `8766` | Puerto para heartbeats de agentes de borde |
 | `OPENTERMX_AGENT_TOKEN` | vacío | Habilita y autentica el gateway de agentes |
+| `OPENTERMX_AGENT_CREDENTIALS_FILE` | vacío | Archivo `agentId=token`; recomendado para revocación individual |
 | `OPENTERMX_READ_ONLY` | `true` | Bloquea tools mutativas; cambiar solo tras validar el laboratorio |
+| `OPENTERMX_DB_HOST` | vacío | Habilita PostgreSQL central; el agente Windows no usa esta variable |
+| `OPENTERMX_DB_PORT` | `5432` | Puerto privado de PostgreSQL |
+| `OPENTERMX_DB_NAME` | `opentermx` | Base de datos |
+| `OPENTERMX_DB_USER` | `opentermx` | Rol de servicio |
+| `OPENTERMX_DB_PASSWORD_FILE` | vacío | Archivo secreto; obligatorio cuando se configura el host |
+| `OPENTERMX_DB_REQUIRED` | `true` | Impide arrancar sin persistencia cuando PostgreSQL está habilitado |
+
+Los tokens también admiten `OPENTERMX_MCP_TOKEN_FILE` y `OPENTERMX_AGENT_TOKEN_FILE`; la variante
+`*_FILE` tiene precedencia y evita guardar secretos en variables o argumentos. Para el despliegue
+recomendado con PostgreSQL privado y secretos montados, consulte `deploy/docker/README.md`.
 
 Para instalarlo como servicio:
 

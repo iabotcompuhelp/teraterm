@@ -8,17 +8,16 @@ En el host Linux:
 
 ```bash
 cd deploy/docker
-mkdir -m 700 secrets
-openssl rand -base64 32 > secrets/db_password.txt
-openssl rand -base64 32 > secrets/mcp_token.txt
-AGENT_TOKEN="$(openssl rand -base64 32)"
-printf 'noc-win-01=%s\n' "$AGENT_TOKEN" > secrets/agent_credentials.properties
-printf 'Token inicial de noc-win-01: %s\n' "$AGENT_TOKEN"
-chmod 600 secrets/*
+chmod +x setup-lab.sh
+./setup-lab.sh
 docker compose up --build -d
 docker compose ps
 curl http://127.0.0.1:8765/mcp/health
 ```
+
+El instalador no reemplaza secretos existentes y valida `docker compose config` antes del
+arranque. Para una instalación nueva paso a paso, consulte
+[`docs/linux-lab-quickstart.md`](../../docs/linux-lab-quickstart.md).
 
 Los puertos se enlazan sólo a loopback. Publique 8765/8766 mediante un reverse proxy con TLS o
 una VPN; no cambie el binding a `0.0.0.0` sin firewall. Flyway aplica automáticamente las
